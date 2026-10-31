@@ -163,6 +163,22 @@ class PollingCoordinator(
         }
     }
 
+    /**
+     * 重新计时：任意策略都适用。倒计时策略先把倒计时复位；轮询正在跑就取消这一轮、从现在起重新等一个周期。
+     * 第 20 步：线路详情改用 [FixedDelayPollingStrategy]（不再每秒倒计时，C1），手动刷新 / 选站后靠它推迟下一轮（e683286）。
+     */
+    fun restart() {
+        synchronized(lock) {
+            if (strategy is CountdownPollingStrategy) {
+                strategy.reset()
+            }
+            if (job?.isActive == true) {
+                pauseInternal()
+                resumeInternal()
+            }
+        }
+    }
+
     private fun pauseInternal() {
         job?.cancel()
         job = null

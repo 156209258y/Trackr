@@ -237,6 +237,48 @@ class PollingCoordinatorTest {
     }
 
     @Test
+    fun testRestart_fixedDelay_postponesNextAction() = runTest {
+        var actionCount = 0
+        val coordinator = PollingCoordinator(
+            scope = this,
+            strategy = FixedDelayPollingStrategy(delayMs = 10_000L),
+            initialEnabled = true,
+            onAction = { actionCount++ }
+        )
+
+        advanceTimeBy(6_000L)
+        runCurrent()
+        coordinator.restart()
+
+        // 原来的第 10 秒不再触发；从 restart 起再等 10 秒
+        advanceTimeBy(4_000L)
+        runCurrent()
+        assertEquals(0, actionCount)
+        advanceTimeBy(6_000L)
+        runCurrent()
+        assertEquals(1, actionCount)
+
+        coordinator.pause()
+    }
+
+    @Test
+    fun testRestart_whenPaused_staysPaused() = runTest {
+        var actionCount = 0
+        val coordinator = PollingCoordinator(
+            scope = this,
+            strategy = FixedDelayPollingStrategy(delayMs = 1_000L),
+            initialEnabled = false,
+            onAction = { actionCount++ }
+        )
+
+        coordinator.restart()
+        assertFalse(coordinator.isPollingActive)
+        advanceTimeBy(5_000L)
+        runCurrent()
+        assertEquals(0, actionCount)
+    }
+
+    @Test
     fun testPollingCoordinator_scopeCancellationTerminatesPolling() = runTest {
         val customScope = CoroutineScope(StandardTestDispatcher(testScheduler))
         val strategy = FixedDelayPollingStrategy(delayMs = 1000L)

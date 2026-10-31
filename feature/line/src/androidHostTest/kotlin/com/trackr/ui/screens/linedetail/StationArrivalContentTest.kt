@@ -3,6 +3,8 @@ package com.trackr.ui.screens.linedetail
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.onNodeWithContentDescription
 import com.trackr.core.designsystem.theme.TrackrTheme
 import com.trackr.core.model.BusLineDetail
 import com.trackr.core.model.BusLineDirection
@@ -12,6 +14,8 @@ import com.trackr.core.model.LineOperatingState
 import com.trackr.core.model.LiveBus
 import com.trackr.ui.screens.linedetail.components.StationArrivalContent
 import kotlinx.datetime.LocalTime
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -39,18 +43,35 @@ class StationArrivalContentTest {
         BusStop(stopId = "s2", name = "陕西北路", order = 5)
     )
 
-    private fun setContent(detail: BusLineDetail, selected: BusStop?, now: LocalTime = LocalTime(12, 0)) {
+    private fun BusLineDetail.static() = LineStatic(line, reverseDirection, stops)
+
+    private fun BusLineDetail.live(fallbackNextDeparture: String? = null) = LineLive(
+        buses = buses,
+        operatingState = operatingState,
+        statusDescription = statusDescription,
+        nextDepartureFromStart = nextDepartureFromStart,
+        updatedAtMillis = updatedAtMillis,
+        fallbackNextDeparture = fallbackNextDeparture
+    )
+
+    private fun setContent(
+        detail: BusLineDetail,
+        selected: BusStop?,
+        now: LocalTime? = LocalTime(12, 0),
+        fallbackNextDeparture: String? = null,
+        isTracking: Boolean = false,
+        onOpenBusList: () -> Unit = {},
+        onPickStop: () -> Unit = {}
+    ) {
         composeTestRule.setContent {
             TrackrTheme {
                 StationArrivalContent(
-                    lineDetail = detail,
+                    static = detail.static(),
+                    live = detail.live(fallbackNextDeparture),
                     selectedStop = selected,
-                    isTrackingActive = false,
-                    alertThreshold = 2,
-                    onThresholdChange = {},
-                    onOpenBusList = {},
-                    onToggleTracking = {},
-                    onOpenScheduledReminder = {},
+                    isTrackingActive = isTracking,
+                    onPickStop = onPickStop,
+                    onOpenBusList = onOpenBusList,
                     now = now
                 )
             }
@@ -98,21 +119,7 @@ class StationArrivalContentTest {
             operatingState = LineOperatingState.RUNNING,
             nextDepartureFromStart = null
         )
-        composeTestRule.setContent {
-            TrackrTheme {
-                StationArrivalContent(
-                    lineDetail = detail,
-                    selectedStop = stops[1],
-                    isTrackingActive = false,
-                    alertThreshold = 2,
-                    onThresholdChange = {},
-                    onOpenBusList = {},
-                    onToggleTracking = {},
-                    onOpenScheduledReminder = {},
-                    fallbackNextDeparture = "21:40"
-                )
-            }
-        }
+        setContent(detail, stops[1], now = null, fallbackNextDeparture = "21:40")
 
         composeTestRule.onNodeWithText("下一班 21:40").assertIsDisplayed()
         composeTestRule.onNodeWithText("从 延安东路外滩 发车").assertIsDisplayed()
@@ -206,5 +213,86 @@ class StationArrivalContentTest {
 
         composeTestRule.onNodeWithText("切换反向同名站").assertDoesNotExist()
         composeTestRule.onNodeWithText("全线暂无在途车辆").assertIsDisplayed()
+    }
+
+    @Test
+    fun busOnTheWay_showsPlateNextBusAndBoardingStop() {
+        val detail = BusLineDetail(
+            line = lineDirection,
+            stops = stops,
+            buses = listOf(
+                LiveBus(busId = "b1", plateOrFleetNo = "沪A·D8866", order = 3, etaSeconds = 240, expectedArrivalTimeText = "12:04"),
+                LiveBus(busId = "b2", plateOrFleetNo = "沪A·D8867", order = 1, etaSeconds = 720)
+            ),
+            operatingState = LineOperatingState.RUNNING
+        )
+        setContent(detail, stops[1])
+
+        composeTestRule.onNodeWithText("陕西北路站上车").assertIsDisplayed()
+        composeTestRule.onNodeWithText("4").assertIsDisplayed()
+        composeTestRule.onNodeWithText("还有 2 站").assertIsDisplayed()
+        composeTestRule.onNodeWithText("沪A·D8866").assertIsDisplayed()
+        composeTestRule.onNodeWithText("12:04 到").assertIsDisplayed()
+        composeTestRule.onNodeWithText("下一辆 12 分钟 · 4 站").assertIsDisplayed()
+        composeTestRule.onNodeWithText("全线 2 辆车在途 · 查看").assertIsDisplayed()
+    }
+
+    @Test
+    fun noLiveYet_showsLoadingFromCachedStops() {
+        val detail = BusLineDetail(line = lineDirection, stops = stops, buses = emptyList())
+        composeTestRule.setContent {
+            TrackrTheme {
+                StationArrivalContent(
+                    static = LineStatic(detail.line, null, detail.stops),
+                    live = null,
+                    selectedStop = stops[1],
+                    isTrackingActive = false,
+                    onPickStop = {},
+                    onOpenBusList = {}
+                )
+            }
+        }
+
+        composeTestRule.onNodeWithText("正在查车…").assertIsDisplayed()
+        composeTestRule.onNodeWithText("全线暂无在途车辆").assertIsDisplayed()
+    }
+
+    @Test
+    fun tracking_showsTrackingBadge_andAlertChipsGone() {
+        val detail = BusLineDetail(
+            line = lineDirection,
+            stops = stops,
+            buses = listOf(LiveBus(busId = "b1", plateOrFleetNo = "沪A·D8866", order = 2, etaSeconds = 480)),
+            operatingState = LineOperatingState.RUNNING
+        )
+        setContent(detail, stops[1], isTracking = true)
+
+        composeTestRule.onNodeWithText("追踪中").assertIsDisplayed()
+        composeTestRule.onNodeWithText("提前到站震动预警：").assertDoesNotExist()
+        composeTestRule.onNodeWithText("开启实时追踪").assertDoesNotExist()
+    }
+
+    @Test
+    fun clicks_openBusListAndPickStop() {
+        var openedList = 0
+        var picked = 0
+        val detail = BusLineDetail(
+            line = lineDirection,
+            stops = stops,
+            buses = listOf(LiveBus(busId = "b1", plateOrFleetNo = "沪A·D8866", order = 2, etaSeconds = 480)),
+            operatingState = LineOperatingState.RUNNING
+        )
+        setContent(detail, stops[1], onOpenBusList = { openedList++ }, onPickStop = { picked++ })
+
+        composeTestRule.onNodeWithText("全线 1 辆车在途 · 查看").performClick()
+        composeTestRule.onNodeWithContentDescription("换上车站", useUnmergedTree = true).performClick()
+        assertEquals(1, openedList)
+        assertTrue(picked >= 1)
+    }
+
+    @Test
+    fun boardingLabel_doesNotDoubleZhan() {
+        assertEquals("南宁火车站 上车", com.trackr.ui.screens.linedetail.components.boardingLabel("南宁火车站"))
+        assertEquals("科技园站上车", com.trackr.ui.screens.linedetail.components.boardingLabel("科技园"))
     }
 }

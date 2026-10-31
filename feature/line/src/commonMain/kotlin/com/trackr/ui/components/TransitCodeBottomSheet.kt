@@ -12,8 +12,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.QrCode2
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -30,12 +28,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.trackr.feature.line.R
+import com.trackr.core.designsystem.resources.Res
+import com.trackr.core.designsystem.resources.ic_qr_code
 import com.trackr.core.model.TransitCodeProvider
+import org.jetbrains.compose.resources.vectorResource
 
 /**
  * 乘车码快捷唤醒 BottomSheet 选择弹窗（支持支付宝与云闪付）
@@ -66,7 +65,7 @@ fun TransitCodeBottomSheet(
                 .padding(bottom = 24.dp)
         ) {
             Text(
-                text = stringResource(R.string.transit_code_title),
+                text = "乘车码",
                 style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                 color = MaterialTheme.colorScheme.onSurface
             )
@@ -99,7 +98,7 @@ fun TransitCodeBottomSheet(
                         modifier = Modifier.size(40.dp)
                     ) {
                         Icon(
-                            imageVector = Icons.Rounded.QrCode2,
+                            imageVector = vectorResource(Res.drawable.ic_qr_code),
                             contentDescription = null,
                             tint = Color.White,
                             modifier = Modifier.padding(8.dp)
@@ -110,13 +109,13 @@ fun TransitCodeBottomSheet(
 
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = stringResource(R.string.alipay_transit_code),
+                            text = "支付宝乘车码",
                             style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.SemiBold),
                             color = MaterialTheme.colorScheme.onSurface
                         )
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
-                            text = stringResource(R.string.alipay_transit_code_desc),
+                            text = "系统级一键秒开，推荐优先使用",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -146,7 +145,7 @@ fun TransitCodeBottomSheet(
                         modifier = Modifier.size(40.dp)
                     ) {
                         Icon(
-                            imageVector = Icons.Rounded.QrCode2,
+                            imageVector = vectorResource(Res.drawable.ic_qr_code),
                             contentDescription = null,
                             tint = Color.White,
                             modifier = Modifier.padding(8.dp)
@@ -157,13 +156,13 @@ fun TransitCodeBottomSheet(
 
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = stringResource(R.string.unionpay_transit_code),
+                            text = "云闪付乘车码",
                             style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.SemiBold),
                             color = MaterialTheme.colorScheme.onSurface
                         )
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
-                            text = stringResource(R.string.unionpay_transit_code_desc),
+                            text = "唤醒云闪付乘车码，享受银联乘车优惠",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -192,7 +191,7 @@ fun TransitCodeBottomSheet(
                     modifier = Modifier.weight(1f)
                 ) {
                     Text(
-                        text = stringResource(R.string.transit_code_set_default),
+                        text = "记住选择，下次直接唤醒",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )

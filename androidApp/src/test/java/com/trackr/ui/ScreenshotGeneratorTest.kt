@@ -34,7 +34,6 @@ import com.trackr.data.location.AndroidLocationSource
 import com.trackr.data.location.AndroidMonotonicClock
 import com.trackr.data.repository.FakeScheduledReminderRepository
 import com.trackr.data.repository.FakeTransitRepository
-import com.trackr.ui.components.RouteRailLayoutMode
 import com.trackr.feature.bus.home.BusHomeScreen
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -289,13 +288,13 @@ class ScreenshotGeneratorTest {
         )
         mainDispatcherRule.testDispatcher.scheduler.advanceUntilIdle()
 
-        // 1. 横向滚动全景走向 (Light Theme)
+        // 1. 线路详情 (Light Theme)。第 20 步走向条只留竖向，文件名沿用（README 引用）
         composeTestRule.setContent {
             TrackrTheme(darkTheme = false) {
                 Surface(modifier = Modifier.fillMaxSize()) {
                     LineDetailScreen(
-                        viewModel = vm,
-                        onNavigateBack = {}
+                        state = vm.uiState.collectAsState().value,
+                        onEvent = {}
                     )
                 }
             }
@@ -304,8 +303,7 @@ class ScreenshotGeneratorTest {
         composeTestRule.mainClock.advanceTimeBy(1000)
         saveScreenshot("02_line_detail_horizontal.png")
 
-        // 2. 纵向时间轴走向 (Light Theme)
-        vm.toggleLayoutMode()
+        // 2. 纵向时间轴走向 (Light Theme)：第 20 步起只有竖向，和上一张相同
         mainDispatcherRule.testDispatcher.scheduler.advanceUntilIdle()
         composeTestRule.waitForIdle()
         composeTestRule.mainClock.advanceTimeBy(1000)
@@ -344,8 +342,8 @@ class ScreenshotGeneratorTest {
             TrackrTheme(darkTheme = true) {
                 Surface(modifier = Modifier.fillMaxSize()) {
                     LineDetailScreen(
-                        viewModel = vm,
-                        onNavigateBack = {}
+                        state = vm.uiState.collectAsState().value,
+                        onEvent = {}
                     )
                 }
             }

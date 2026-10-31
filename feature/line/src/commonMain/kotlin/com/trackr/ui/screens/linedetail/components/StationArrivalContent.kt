@@ -1,0 +1,313 @@
+package com.trackr.ui.screens.linedetail.components
+
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.trackr.core.designsystem.resources.Res
+import com.trackr.core.designsystem.resources.ic_arrow_drop_down
+import com.trackr.core.designsystem.theme.busColors
+import com.trackr.core.designsystem.theme.extendedColors
+import com.trackr.core.domain.arrival.ArrivalDisplay
+import com.trackr.core.domain.arrival.ArrivalState
+import com.trackr.core.domain.arrival.ArrivalText
+import com.trackr.core.model.BusStop
+import com.trackr.core.model.LiveBus
+import com.trackr.core.model.sanitizePlateOrFleetNo
+import com.trackr.ui.components.common.arrivalToneColor
+import com.trackr.ui.screens.linedetail.LineLive
+import com.trackr.ui.screens.linedetail.LineStatic
+import kotlinx.datetime.LocalTime
+import org.jetbrains.compose.resources.vectorResource
+
+/**
+ * 主卡：站点到站（v3「线路详情」hero）。
+ *
+ * 「XX站上车 ▾」→ 大字（[ArrivalText] 8 种状态）→ 小字 + 车牌 / 预计到达 / 车速 → 分隔线 →「下一辆 …」+「全线 N 辆车在途 · 查看」。
+ * 全部车过站时只给下一班始发发车时间，不估到站；实时没给下一班就用时刻表补的 [LineLive.fallbackNextDeparture]。
+ * 实时还没回来（[live] 为 null，站表来自缓存）时显示「正在查车…」。
+ *
+ * @param onPickStop 点「XX站上车」：滚到走向条上这一站，在那儿换站
+ * @param now 判「已过末班」用的本地时刻；默认取这次数据的刷新时刻
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+fun StationArrivalContent(
+    static: LineStatic,
+    live: LineLive?,
+    selectedStop: BusStop?,
+    isTrackingActive: Boolean,
+    onPickStop: () -> Unit,
+    onOpenBusList: () -> Unit,
+    modifier: Modifier = Modifier,
+    now: LocalTime? = null
+) {
+    val currentOrder = selectedStop?.order ?: 1
+    val buses = live?.buses.orEmpty()
+
+    // 最近一辆还没过本站的车
+    val upcomingBus = remember(buses, currentOrder) { ArrivalText.nearestBus(currentOrder, buses) }
+
+    val nowTime = now ?: remember(live?.updatedAtMillis) { live?.let { ArrivalText.localTimeOf(it.updatedAtMillis) } }
+    val arrivalState = remember(static, live, currentOrder, nowTime) {
+        if (live == null) {
+            ArrivalState.Loading
+        } else {
+            val line = static.line
+            ArrivalText.stateFor(
+                targetOrder = currentOrder,
+                buses = live.buses,
+                operatingState = live.operatingState,
+                startStop = line.startStop,
+                firstTime = line.firstTime,
+                lastTime = line.lastTime,
+                nextDeparture = live.nextDepartureFromStart?.takeIf { it.isNotBlank() } ?: live.fallbackNextDeparture,
+                statusDescription = live.statusDescription,
+                now = nowTime
+            )
+        }
+    }
+    val arrival = remember(arrivalState, static.line.name, selectedStop?.name) {
+        ArrivalText.format(arrivalState, lineName = static.line.name, stopName = selectedStop?.name.orEmpty())
+    }
+
+    // 「下一辆」：只在「在路上」时单独列出（到站了的小字里已经带了下一辆）
+    val followingText = remember(buses, currentOrder, upcomingBus, arrivalState) {
+        if (arrivalState !is ArrivalState.OnTheWay || upcomingBus == null) {
+            null
+        } else {
+            ArrivalText.nearestBus(currentOrder, buses - upcomingBus)?.let { following -> followingBusText(currentOrder, following) }
+        }
+    }
+
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(16.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            StopPickChip(stop = selectedStop, onClick = onPickStop)
+            if (!selectedStop?.statusNote.isNullOrEmpty()) {
+                Spacer(modifier = Modifier.width(6.dp))
+                Surface(
+                    shape = RoundedCornerShape(6.dp),
+                    color = MaterialTheme.busColors.conditionStopBorder.copy(alpha = 0.15f)
+                ) {
+                    Text(
+                        text = selectedStop.statusNote.orEmpty(),
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.busColors.conditionStopBorder,
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.weight(1f))
+            if (isTrackingActive) {
+                TrackingBadge()
+            } else if (selectedStop != null) {
+                Text(
+                    text = "第 $currentOrder 站",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        ArrivalHeadline(arrival = arrival, color = arrivalToneColor(arrival.tone))
+
+        // 小字：「还有 2 站」·车牌·预计到达·车速（各自一段，信息多时换行）
+        val busFacts = upcomingBus?.let { busFacts(it) }.orEmpty()
+        if (arrival.detail.isNotBlank() || busFacts.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(4.dp))
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalArrangement = Arrangement.spacedBy(2.dp)
+            ) {
+                if (arrival.detail.isNotBlank()) {
+                    Text(
+                        text = arrival.detail,
+                        fontSize = 13.sp,
+                        color = if (arrival.detailIsWarning) {
+                            MaterialTheme.extendedColors.warning
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        }
+                    )
+                }
+                busFacts.forEachIndexed { index, fact ->
+                    if (index > 0 || arrival.detail.isNotBlank()) {
+                        Text(text = "·", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    Text(
+                        text = fact,
+                        fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = followingText.orEmpty(),
+                fontSize = 13.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f)
+            )
+            TextButton(onClick = onOpenBusList) {
+                Text(
+                    text = if (buses.isNotEmpty()) "全线 ${buses.size} 辆车在途 · 查看" else "全线暂无在途车辆",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+        }
+    }
+}
+
+/** 「XX站上车 ▾」 */
+@Composable
+private fun StopPickChip(stop: BusStop?, onClick: () -> Unit) {
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(8.dp),
+        color = MaterialTheme.colorScheme.primaryContainer,
+        contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+    ) {
+        Row(
+            modifier = Modifier.padding(start = 10.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = stop?.let { boardingLabel(it.name) } ?: "选择候车站",
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Icon(
+                imageVector = vectorResource(Res.drawable.ic_arrow_drop_down),
+                contentDescription = "换上车站",
+                modifier = Modifier.size(20.dp)
+            )
+        }
+    }
+}
+
+/** 「● 追踪中」 */
+@Composable
+private fun TrackingBadge() {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(
+            modifier = Modifier
+                .size(8.dp)
+                .background(MaterialTheme.colorScheme.primary, CircleShape)
+        )
+        Spacer(modifier = Modifier.width(6.dp))
+        Text(
+            text = "追踪中",
+            fontSize = 12.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.primary
+        )
+    }
+}
+
+/** 到站大字（[ArrivalText] 的输出） */
+@Composable
+private fun ArrivalHeadline(arrival: ArrivalDisplay, color: Color) {
+    // 只包住大字，轮询时卡片其余部分不跟着做动画（§4.4）
+    AnimatedContent(
+        targetState = arrival.value to arrival.unit,
+        transitionSpec = { fadeIn(tween(180)) togetherWith fadeOut(tween(120)) },
+        label = "arrival_headline"
+    ) { (value, unit) ->
+        Row(verticalAlignment = Alignment.Bottom) {
+            Text(
+                text = value,
+                fontSize = if (unit != null) 40.sp else 28.sp,
+                fontWeight = FontWeight.Black,
+                color = color
+            )
+            if (unit != null) {
+                Text(
+                    text = unit,
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = color,
+                    modifier = Modifier.padding(start = 4.dp, bottom = 6.dp)
+                )
+            }
+        }
+    }
+}
+
+/** 站名已经以「站」结尾就不再加 */
+internal fun boardingLabel(stopName: String): String =
+    if (stopName.endsWith("站")) "$stopName 上车" else "${stopName}站上车"
+
+/** 最近那辆车的车牌、预计到达、车速（拿不到的不显示） */
+private fun busFacts(bus: LiveBus): List<String> = listOfNotNull(
+    sanitizePlateOrFleetNo(bus.plateOrFleetNo).takeIf { it.isNotBlank() },
+    bus.expectedArrivalTimeText?.takeIf { it.isNotBlank() }?.let { "$it 到" },
+    bus.speedKmh.takeIf { it > 0 }?.let { "${it.toInt()} km/h" }
+)
+
+/** 「下一辆 12 分钟 · 5 站」 */
+internal fun followingBusText(targetOrder: Int, bus: LiveBus): String {
+    val minutes = ArrivalText.minutesOf(bus.etaSeconds)
+    val stops = (targetOrder - bus.order).takeIf { bus.order > 0 && it >= 0 }
+    return when {
+        minutes != null && stops != null -> "下一辆 $minutes 分钟 · $stops 站"
+        minutes != null -> "下一辆 $minutes 分钟"
+        stops != null -> "下一辆还有 $stops 站"
+        else -> "后面还有车"
+    }
+}

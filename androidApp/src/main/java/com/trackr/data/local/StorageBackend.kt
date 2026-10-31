@@ -21,6 +21,9 @@ import com.trackr.core.data.repository.DataStoreTrackingSessionStore
 import com.trackr.core.data.repository.DefaultAmapKeyRepository
 import com.trackr.core.data.repository.InMemoryTrackingSessionStore
 import com.trackr.core.data.repository.TrackingSessionStore
+import com.trackr.core.data.local.LineStopsCache
+import com.trackr.core.data.local.NoLineStopsCache
+import com.trackr.core.data.local.RoomLineStopsCache
 import com.trackr.core.database.TrackrDatabase
 import com.trackr.core.database.createTrackrDatabase
 import com.trackr.core.datastore.TrackrDataStoreFiles
@@ -57,6 +60,8 @@ class StorageBackend private constructor(
     val amapKeys: AmapKeyRepository,
     /** 追踪会话（第 12 步）：新存储落 DataStore `tracking_session.json`；旧存储只在内存里（和之前一样，进程没了就没了） */
     val trackingSessionStore: TrackingSessionStore,
+    /** 线路站表磁盘缓存（第 20 步）：新存储落 Room `line_stops_cache`；旧存储没有 */
+    val lineStopsCache: LineStopsCache,
     /** 新存储这次启动的迁移结果；旧存储为 null */
     val migrationReport: LegacyLibraryMigration.Report?,
     private val onClose: () -> Unit
@@ -107,6 +112,7 @@ class StorageBackend private constructor(
                 reminderScheduleState = SharedPrefsReminderScheduleState(context),
                 amapKeys = amapKeys,
                 trackingSessionStore = InMemoryTrackingSessionStore(),
+                lineStopsCache = NoLineStopsCache,
                 migrationReport = null,
                 onClose = {}
             )
@@ -154,6 +160,7 @@ class StorageBackend private constructor(
                         ),
                         amapKeys = DefaultAmapKeyRepository.create(DataStoreAmapKeyStore(keys), newWriter(writeScope), amapKeyDefaults()),
                         trackingSessionStore = DataStoreTrackingSessionStore(trackingSession),
+                        lineStopsCache = RoomLineStopsCache(database.lineStopsCache()) { System.currentTimeMillis() },
                         migrationReport = report,
                         onClose = {
                             dataStoreScope.cancel()

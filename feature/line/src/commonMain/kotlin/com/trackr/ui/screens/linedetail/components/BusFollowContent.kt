@@ -17,9 +17,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material.icons.rounded.DirectionsBus
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -34,6 +31,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.trackr.core.designsystem.resources.Res
+import com.trackr.core.designsystem.resources.ic_back
+import com.trackr.core.designsystem.resources.ic_bus
 import com.trackr.core.designsystem.theme.busColors
 import com.trackr.core.domain.math.RouteProjectionMath
 import com.trackr.core.model.BusLineDetail
@@ -42,6 +42,7 @@ import com.trackr.core.model.sanitizePlateOrFleetNo
 import com.trackr.ui.components.StationNode
 import com.trackr.ui.components.common.BusArrivalBadge
 import com.trackr.ui.components.drawVerticalTrackLine
+import org.jetbrains.compose.resources.vectorResource
 
 /**
  * 状态 3：单车跟随行程轴内容 (`BUS_FOLLOW`)
@@ -67,7 +68,7 @@ fun BusFollowContent(
         ) {
             IconButton(onClick = onBack, modifier = Modifier.size(32.dp)) {
                 Icon(
-                    imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                    imageVector = vectorResource(Res.drawable.ic_back),
                     contentDescription = "返回",
                     modifier = Modifier.size(18.dp)
                 )
@@ -216,7 +217,7 @@ fun BusFollowContent(
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Icon(
-                                        imageVector = Icons.Rounded.DirectionsBus,
+                                        imageVector = vectorResource(Res.drawable.ic_bus),
                                         contentDescription = null,
                                         tint = Color.White,
                                         modifier = Modifier.size(12.dp)
@@ -243,7 +244,7 @@ fun BusFollowContent(
                         ) {
                             // 站点序号
                             Text(
-                                text = String.format("%02d", stop.order),
+                                text = stop.order.toString().padStart(2, '0'),
                                 fontSize = 11.sp,
                                 fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Medium,
                                 color = when {

@@ -35,14 +35,14 @@
 
 ## 3. 测试目录与套件清单
 
-`./gradlew test` 共跑 86 个测试类、816 个用例：
+`./gradlew test` 共跑 87 个测试类、834 个用例：
 
 | 模块 | 测试类 | 模块 | 测试类 |
 | :--- | :--- | :--- | :--- |
 | `:androidApp` | 24 | `:core:ui` | 4 |
 | `:composeApp` | 2 | `:feature:bus` | 3 |
 | `:core:data` | 12 | `:feature:favorites` | 3 |
-| `:core:database` | 1 | `:feature:line` | 5 |
+| `:core:database` | 1 | `:feature:line` | 6 |
 | `:core:datastore` | 1 | `:feature:me` | 2 |
 | `:core:designsystem` | 2 | `:feature:route` | 5 |
 | `:core:domain` | 4 | `:feature:search` | 1 |
@@ -99,7 +99,7 @@ Koin 由 `TrackrApp.onCreate` 启动，Robolectric 用例里每个用例都会�
 
 | 模块 / 目录 | 测试类 | 覆盖范围 | 运行方式 |
 | :--- | :--- | :--- | :--- |
-| `:core:ui` `ui/util` | `PollingCoordinatorTest` | 定时 / 倒计时轮询策略：按周期触发、每秒倒计时到点触发、动作抛异常不打断；协调器生命周期与手动控制、重启倒计时（关了自动轮询也通知 tick）、scope 取消后停止 | commonTest（JVM；iOS 只编译和链接测试，不跑） |
+| `:core:ui` `ui/util` | `PollingCoordinatorTest` | 定时 / 倒计时轮询策略：按周期触发、每秒倒计时到点触发、动作抛异常不打断；协调器生命周期与手动控制、重启倒计时（关了自动轮询也通知 tick）、`restart()` 让定时轮询从现在起重新等一个周期（暂停时不启动）、scope 取消后停止 | commonTest（JVM；iOS 只编译和链接测试，不跑） |
 | `:core:ui` `ui/components/transitcode` | `TransitCodeFabTest` | 乘车码悬浮按钮：默认展开、点一下就打开；往下滑缩成图标（读屏仍读「乘车码」、能点）、往上滑展开；小于 8 px 的抖动不切换、在顶部继续下拉也展开 | Robolectric Compose UI |
 | `:core:ui` `ui/components` | `BusArrivalBadgeTest` | 到站状态徽标文字与高亮（走 `ArrivalText`）：到站、快到算到站、0 站未到算下一站、剩余站数带 / 不带 ETA、3 分钟内高亮、站序无效、优先用状态文字、没车兜底 | androidHostTest（只 JVM） |
 | `:core:ui` `ui/screens/favoritesgroup` | `TransitGroupCardTextTest` | 分组卡片文案：乘车站数（没对齐显示待定）、直达 / 换乘摘要、上车时间（首程 ETA + 乘车站数、步行按 80 米/分、第三程累加前面各程、乘车中以下车站为锚点、前一程没对齐给空）、跟车阶段标签与进度、换乘前下一程实时、卡片大字（等车 / 未追踪 / 乘车中到站） | androidHostTest（只 JVM） |
@@ -108,10 +108,11 @@ Koin 由 `TrackrApp.onCreate` 启动，Robolectric 用例里每个用例都会�
 | `:feature:bus` `feature/bus/citypicker` | `CityPickerItemRowTest` | 城市选择列表项渲染与点击、没省份标签时不显示省份 | Robolectric Compose UI |
 | `:feature:search` `ui/screens/search` | `SearchViewModelTest` | 搜索（第 17 步从首页拆出来）：搜索历史加入去重排序、删一条、清空、容量上限；输入防抖 300 ms 后只搜一次、关键字去首尾空格、防抖内换词取消旧的、新词取消进行中的请求、「搜索中」状态；空查询清结果并取消待发的搜索；换城市清结果保留查询词、换数据源有词才重搜；用选中城市和首页当前坐标搜（拆分前读首页的 currentLat / currentLng，经 `HomeCoordinates` 传过来），没有首页坐标时用 GPS、再没有用城市中心 | commonTest（JVM；iOS 只编译和链接测试，不跑） |
 | `:feature:stop` `ui/screens/stopdetail` | `StopDetailViewModelTest` | 站点详情：初次加载站台并解析站名、切物理站台后用那个站台刷新、收藏切换、轮询暂停恢复、上一轮没回来跳过本轮、回到页面只在数据过时时刷新（关了自动轮询不刷） | commonTest（JVM；iOS 只编译和链接测试，不跑） |
-| `:feature:line` `ui/screens/linedetail` | `LineDetailViewModelTest` | 线路详情：初次加载（带目标站序只请求一次、不带时为默认站补一次）、选站并重置倒计时、跟车、走向条横纵切换、收藏切换、乘车码弹层与偏好、提醒站数夹在范围内、开始追踪传单线路目标、车都过了用时刻表补下一班（快来的车不用）、上一轮没回来跳过、回到页面只在过时时刷新 | commonTest（JVM；iOS 只编译和链接测试，不跑） |
+| `:feature:line` `ui/screens/linedetail` | `LineDetailViewModelTest` | 线路详情（第 20 步 v3）：初次加载拆成静态 / 实时两半（带目标站序只请求一次、不带时为默认站补一次）；选站 / 手动刷新后下一轮从那一刻起再等 10 秒；下拉刷新只在下拉时画圈；站表先读磁盘缓存（网络没回来先显示、不挡请求、站表变了才写回、静态部分沿用旧实例、缓存上点过的站不被初次结果改掉）；跟车；收藏切换及提示条（有分组时带「换分组」、换分组后提示）；定时提醒保存并提示；换向找同名站；乘车码弹层与偏好；追踪当前站（提前 2 站）和「追踪本站」判断；车都过了用时刻表补下一班（快来的车不用）；上一轮没回来跳过；回到页面只在过时时刷新 | commonTest（JVM；iOS 只编译和链接测试，不跑） |
 |  | `BusFollowContentTest` | 跟车内容渲染与空车辆处理 | Robolectric Compose UI |
-|  | `StationArrivalContentTest` | 线路页到站大字：在路上、到站了、车都过了只给下一班始发时间（没有时用时刻表或提示）、首班、末班已过；反向切换按钮已去掉 | Robolectric Compose UI |
-| `:feature:line` `ui/components` | `ExpressiveRouteRailUiTest` | 经典横向与纵向走向条渲染、逐字竖排、车辆胶囊不进文字、点击事件响应、线段颜色 | Robolectric Compose UI |
+|  | `StationArrivalContentTest` | 线路页主卡：在路上（大字分钟、小字站数、车牌、预计到达、下一辆）、到站了、车都过了只给下一班始发时间（没有时用时刻表或提示）、首班、末班已过、实时没回来显示「正在查车…」、追踪中标记、预警 chips 已去掉、「全线 N 辆车在途 · 查看」与「XX站上车」点击；反向切换按钮不在主卡 | Robolectric Compose UI |
+| `:feature:line` `ui/components` | `ExpressiveRouteRailUiTest` | 竖向走向条（第 20 步删了横向）渲染与点击、「候车中」标记、放进 `LazyColumn` 的 `routeRailItems` 渲染与点击、车辆标签不进文字、线段颜色 |
+|  | `TransitCodeBottomSheetTest` | 乘车码选择弹层：两个渠道都显示，点支付宝回调 `(ALIPAY, 不记住)` | Robolectric Compose UI |
 | `:feature:line` `ui/components/timetable` | `TimetableBottomSheetTest` | 时刻表底部弹窗渲染 | Robolectric Compose UI |
 | `:feature:route` `ui/screens/routeplan` | `RoutePlanViewModelTest` | 路线规划：输入提示防抖只请求最后一个词、太短的词不请求并清空、同城同词命中 LRU 缓存；算路取消上一次、相同查询走缓存、「我的位置」不可用时报错且不查 POI、跨城才带 `cityd`；高德 Key 跟着仓库走、旧 Web 槽不当 Android Key；存入收藏没选分组时用当前选中的收藏分组 | commonTest（JVM；iOS 只编译和链接测试，不跑） |
 |  | `RoutePlanScreenTest` | 路线规划搜索台、起终点互换、存入收藏分组弹窗、方案卡片与特征标签（每个方案一个、并列给第一个、都不突出就不给）、方案摘要时间与分段文字、跟车状态文字、方案面板切页与按选中方案开始跟车、跟车中显示状态条；没有「配置Key」胶囊；只有 Web Key / 没有地图会话时不画地图、没有回中按钮 | Robolectric Compose UI |

@@ -13,10 +13,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material.icons.rounded.ChevronRight
-import androidx.compose.material.icons.rounded.DirectionsBus
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -30,6 +26,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.trackr.core.designsystem.resources.Res
+import com.trackr.core.designsystem.resources.ic_back
+import com.trackr.core.designsystem.resources.ic_bus
+import com.trackr.core.designsystem.resources.ic_chevron_right
 import com.trackr.core.designsystem.theme.busColors
 import com.trackr.core.domain.math.RouteProjectionMath
 import com.trackr.core.model.BusLineDetail
@@ -37,6 +37,7 @@ import com.trackr.core.model.BusStop
 import com.trackr.core.model.LiveBus
 import com.trackr.core.model.sanitizePlateOrFleetNo
 import com.trackr.ui.components.common.BusArrivalBadge
+import org.jetbrains.compose.resources.vectorResource
 
 /**
  * 状态 2：车辆列表内容 (`BUS_LIST`)
@@ -63,7 +64,7 @@ fun BusListContent(
         ) {
             IconButton(onClick = onBack, modifier = Modifier.size(32.dp)) {
                 Icon(
-                    imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                    imageVector = vectorResource(Res.drawable.ic_back),
                     contentDescription = "返回站点卡",
                     modifier = Modifier.size(18.dp)
                 )
@@ -136,7 +137,7 @@ fun BusListContent(
                             ) {
                                 Box(contentAlignment = Alignment.Center) {
                                     Icon(
-                                        imageVector = Icons.Rounded.DirectionsBus,
+                                        imageVector = vectorResource(Res.drawable.ic_bus),
                                         contentDescription = null,
                                         tint = if (isPassed) busColors.busPassedGray else busColors.busChipContent,
                                         modifier = Modifier.size(20.dp)
@@ -213,7 +214,7 @@ fun BusListContent(
 
                             Spacer(modifier = Modifier.width(4.dp))
                             Icon(
-                                imageVector = Icons.Rounded.ChevronRight,
+                                imageVector = vectorResource(Res.drawable.ic_chevron_right),
                                 contentDescription = "查看单车跟随",
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.size(18.dp)

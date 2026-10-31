@@ -18,10 +18,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Alarm
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.DirectionsBus
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -45,9 +41,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.trackr.core.designsystem.resources.Res
+import com.trackr.core.designsystem.resources.ic_clock
 import com.trackr.core.model.ScheduledReminder
-import java.util.Calendar
-import java.util.UUID
+import org.jetbrains.compose.resources.vectorResource
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -59,7 +56,6 @@ fun ScheduledReminderDialog(
     onDismissRequest: () -> Unit,
     onConfirm: (hour: Int, minute: Int, daysOfWeek: Set<Int>, autoStartTracking: Boolean) -> Unit
 ) {
-    val initialCal = Calendar.getInstance()
     val initialHour = initialReminder?.hour ?: 8
     val initialMinute = initialReminder?.minute ?: 0
     val timePickerState = rememberTimePickerState(
@@ -89,7 +85,7 @@ fun ScheduledReminderDialog(
         onDismissRequest = onDismissRequest,
         icon = {
             Icon(
-                imageVector = Icons.Default.Alarm,
+                imageVector = vectorResource(Res.drawable.ic_clock),
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.size(28.dp)

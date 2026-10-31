@@ -13,9 +13,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.AccessTime
-import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -29,8 +26,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.trackr.core.designsystem.component.TrackrBottomSheet
+import com.trackr.core.designsystem.resources.Res
+import com.trackr.core.designsystem.resources.ic_clock
+import com.trackr.core.designsystem.resources.ic_close
 import com.trackr.core.model.BusLineDirection
 import com.trackr.core.model.LineTimetable
+import org.jetbrains.compose.resources.vectorResource
 
 /**
  * 发车时刻表 BottomSheet 弹窗（基于 TrackrBottomSheet 统一规范封装）
@@ -71,7 +72,7 @@ fun TimetableBottomSheet(
                     )
                 }
                 IconButton(onClick = onDismiss) {
-                    Icon(imageVector = Icons.Rounded.Close, contentDescription = "关闭")
+                    Icon(imageVector = vectorResource(Res.drawable.ic_close), contentDescription = "关闭")
                 }
             }
 
@@ -89,7 +90,7 @@ fun TimetableBottomSheet(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(
-                            imageVector = Icons.Rounded.AccessTime,
+                            imageVector = vectorResource(Res.drawable.ic_clock),
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.primary
                         )

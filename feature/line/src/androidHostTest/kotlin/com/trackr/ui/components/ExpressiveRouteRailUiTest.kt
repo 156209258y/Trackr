@@ -1,5 +1,6 @@
 package com.trackr.ui.components
 
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
@@ -46,17 +47,55 @@ class ExpressiveRouteRailUiTest {
             }
         }
 
-        // 验证竖排站名字元逐字渲染与显示
-        composeTestRule.onNodeWithText("汉").assertIsDisplayed()
-        composeTestRule.onNodeWithText("口").assertIsDisplayed()
-        composeTestRule.onNodeWithText("路").assertIsDisplayed()
+        // 纵向时间轴：站名完整横排显示
+        composeTestRule.onNodeWithText("汉口路").assertIsDisplayed()
+        composeTestRule.onNodeWithText("人民广场").assertIsDisplayed()
+        composeTestRule.onNodeWithText("上海体育馆").assertIsDisplayed()
+        // 选中站（人民广场）带「候车中」标签
+        composeTestRule.onNodeWithText("候车中").assertIsDisplayed()
 
-        // 点击第三站（上海体育馆）中的字元触发站台选择
-        composeTestRule.onNodeWithText("体").performClick()
+        // 点击第三站（上海体育馆）触发站台选择
+        composeTestRule.onNodeWithText("上海体育馆").performClick()
 
         assertNotNull(selectedStop)
         assertEquals("上海体育馆", selectedStop?.name)
         assertEquals(3, selectedStop?.order)
+    }
+
+    @Test
+    fun testRouteRailItems_insideLazyColumn_rendersAndHandlesClick() {
+        val stops = listOf(
+            BusStop(stopId = "1", name = "汉口路", order = 1),
+            BusStop(stopId = "2", name = "人民广场", order = 2),
+            BusStop(stopId = "3", name = "上海体育馆", order = 3)
+        )
+        val buses = listOf(
+            LiveBus(busId = "bus_101", plateOrFleetNo = "沪A1234", order = 2, etaSeconds = 60)
+        )
+
+        var selectedStop: BusStop? = null
+
+        composeTestRule.setContent {
+            TrackrTheme {
+                LazyColumn {
+                    routeRailItems(
+                        stops = stops,
+                        busesByOrder = buses.groupBy { it.order },
+                        selectedOrder = 1,
+                        selectedBusId = null,
+                        onSelectStop = { selectedStop = it },
+                        onSelectBus = {}
+                    )
+                }
+            }
+        }
+
+        composeTestRule.onNodeWithText("汉口路").assertIsDisplayed()
+        composeTestRule.onNodeWithText("1234").assertIsDisplayed()
+
+        composeTestRule.onNodeWithText("上海体育馆").performClick()
+        assertEquals(3, selectedStop?.order)
+        assertEquals(2, routeRailItemIndex(stops, 3))
     }
 
     @Test
@@ -74,7 +113,6 @@ class ExpressiveRouteRailUiTest {
                     stops = stops,
                     buses = emptyList(),
                     selectedStop = stops[0],
-                    layoutMode = RouteRailLayoutMode.Vertical,
                     onSelectStop = { clickedStop = it },
                     onSelectBus = {}
                 )
@@ -106,7 +144,6 @@ class ExpressiveRouteRailUiTest {
                     stops = stops,
                     buses = buses,
                     selectedStop = stops[0],
-                    layoutMode = RouteRailLayoutMode.Vertical,
                     onSelectStop = {},
                     onSelectBus = {}
                 )
