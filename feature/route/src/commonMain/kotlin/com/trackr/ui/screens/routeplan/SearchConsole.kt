@@ -1,0 +1,308 @@
+package com.trackr.ui.screens.routeplan
+
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.trackr.core.designsystem.resources.Res
+import com.trackr.core.designsystem.resources.ic_bus
+import com.trackr.core.designsystem.resources.ic_close
+import com.trackr.core.designsystem.resources.ic_search
+import com.trackr.core.designsystem.resources.ic_swap_vertical
+import com.trackr.core.designsystem.theme.extendedColors
+import com.trackr.core.model.AmapTipItem
+import org.jetbrains.compose.resources.vectorResource
+
+/** 顶部悬浮搜索岛：起点 / 终点两行 + 互换 + 规划，下面是输入提示 */
+@Composable
+internal fun SearchConsole(
+    originText: String,
+    destText: String,
+    tipsField: TipsField?,
+    tips: List<AmapTipItem>,
+    onEvent: (RoutePlanEvent) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(modifier = modifier) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .shadow(elevation = 8.dp, shape = RoundedCornerShape(24.dp))
+                .testTag("top_search_console"),
+            shape = RoundedCornerShape(24.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f)
+            )
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    PlaceInputRow(
+                        value = originText,
+                        placeholder = "我的位置 / 输入起点站",
+                        dotColor = MaterialTheme.extendedColors.success,
+                        inputTag = "input_origin",
+                        clearDescription = "清空起点",
+                        imeAction = ImeAction.Default,
+                        onValueChange = { onEvent(RoutePlanEvent.OriginChanged(it)) },
+                        onClear = { onEvent(RoutePlanEvent.ClearOrigin) },
+                        onSearch = {}
+                    )
+
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(start = 20.dp)
+                            .height(0.8.dp)
+                            .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
+                    )
+
+                    PlaceInputRow(
+                        value = destText,
+                        placeholder = "输入目的地、商圈或公交地铁站",
+                        dotColor = MaterialTheme.colorScheme.error,
+                        inputTag = "input_dest",
+                        clearDescription = "清空终点",
+                        imeAction = ImeAction.Search,
+                        onValueChange = { onEvent(RoutePlanEvent.DestChanged(it)) },
+                        onClear = { onEvent(RoutePlanEvent.ClearDest) },
+                        onSearch = { onEvent(RoutePlanEvent.Submit) }
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(8.dp))
+
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    IconButton(
+                        onClick = { onEvent(RoutePlanEvent.SwapOriginDest) },
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
+                            .testTag("btn_swap_origin_dest")
+                    ) {
+                        Icon(
+                            imageVector = vectorResource(Res.drawable.ic_swap_vertical),
+                            contentDescription = "互换起终点",
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+
+                    IconButton(
+                        onClick = { onEvent(RoutePlanEvent.Submit) },
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.primary)
+                            .testTag("btn_trigger_plan")
+                    ) {
+                        Icon(
+                            imageVector = vectorResource(Res.drawable.ic_search),
+                            contentDescription = "规划",
+                            tint = MaterialTheme.colorScheme.onPrimary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
+            }
+        }
+
+        AnimatedVisibility(
+            visible = tipsField != null && tips.isNotEmpty(),
+            enter = fadeIn(),
+            exit = fadeOut()
+        ) {
+            TipsCard(
+                tips = tips,
+                onPick = { tip -> tipsField?.let { onEvent(RoutePlanEvent.PickTip(it, tip)) } }
+            )
+        }
+    }
+}
+
+@Composable
+private fun PlaceInputRow(
+    value: String,
+    placeholder: String,
+    dotColor: Color,
+    inputTag: String,
+    clearDescription: String,
+    imeAction: ImeAction,
+    onValueChange: (String) -> Unit,
+    onClear: () -> Unit,
+    onSearch: () -> Unit
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Box(
+            modifier = Modifier
+                .size(10.dp)
+                .background(dotColor, CircleShape)
+        )
+        Spacer(modifier = Modifier.width(10.dp))
+        BasicTextField(
+            value = value,
+            onValueChange = onValueChange,
+            modifier = Modifier
+                .weight(1f)
+                .testTag(inputTag),
+            keyboardOptions = KeyboardOptions(imeAction = imeAction),
+            keyboardActions = KeyboardActions(onSearch = { onSearch() }),
+            textStyle = TextStyle(
+                fontSize = 14.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface
+            ),
+            singleLine = true,
+            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+            decorationBox = { innerTextField ->
+                if (value.isEmpty()) {
+                    Text(
+                        text = placeholder,
+                        style = MaterialTheme.typography.bodyMedium.copy(
+                            color = MaterialTheme.colorScheme.outline
+                        )
+                    )
+                }
+                innerTextField()
+            }
+        )
+        if (value.isNotEmpty()) {
+            IconButton(onClick = onClear, modifier = Modifier.size(24.dp)) {
+                Icon(
+                    imageVector = vectorResource(Res.drawable.ic_close),
+                    contentDescription = clearDescription,
+                    tint = MaterialTheme.colorScheme.outline,
+                    modifier = Modifier.size(16.dp)
+                )
+            }
+        }
+    }
+}
+
+/** 输入提示下拉卡片 */
+@Composable
+private fun TipsCard(
+    tips: List<AmapTipItem>,
+    onPick: (AmapTipItem) -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 6.dp)
+            .heightIn(max = 240.dp)
+            .shadow(elevation = 6.dp, shape = RoundedCornerShape(16.dp))
+            .testTag("route_plan_tips"),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+    ) {
+        LazyColumn(
+            modifier = Modifier.fillMaxWidth(),
+            contentPadding = PaddingValues(vertical = 4.dp)
+        ) {
+            // 高德提示可能重名，key 带上序号保证唯一
+            itemsIndexed(
+                items = tips,
+                key = { index, tip -> "$index|${tip.name}|${tip.location}" },
+                contentType = { _, _ -> "tip" }
+            ) { _, tip ->
+                TipRow(tip = tip, onClick = { onPick(tip) })
+            }
+        }
+    }
+}
+
+@Composable
+private fun TipRow(tip: AmapTipItem, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        val isStation = tip.address.contains("地铁") || tip.name.contains("地铁") || tip.name.contains("站")
+        Icon(
+            imageVector = vectorResource(if (isStation) Res.drawable.ic_bus else Res.drawable.ic_search),
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(18.dp)
+        )
+        Spacer(modifier = Modifier.width(12.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = tip.name,
+                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            val detail = listOfNotNull(
+                tip.district.takeIf { it.isNotBlank() },
+                tip.address.takeIf { it.isNotBlank() }
+            ).joinToString(" · ")
+            if (detail.isNotBlank()) {
+                Text(
+                    text = detail,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.outline,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
+    }
+}

@@ -1,16 +1,21 @@
 package com.trackr.ui.screens.routeplan
 
 import androidx.activity.ComponentActivity
-import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
-import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.SemanticsNodeInteraction
+import androidx.compose.ui.test.performSemanticsAction
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.performTextInput
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.trackr.core.data.repository.DefaultTrackingRepository
@@ -20,7 +25,7 @@ import com.trackr.core.data.route.FavoriteGroupSelection
 import com.trackr.core.data.route.RouteAlignmentService
 import com.trackr.core.data.route.RouteGroupSaver
 import com.trackr.core.domain.platform.AppSigningInfo
-import com.trackr.core.domain.platform.TransitCodeLauncher
+import com.trackr.core.model.AmapTipItem
 import com.trackr.core.model.AmapTransitSchemeResult
 import com.trackr.core.model.CandidateLine
 import com.trackr.core.model.FavoriteGroup
@@ -30,23 +35,22 @@ import com.trackr.core.model.TrackingSessionState
 import com.trackr.core.model.TransitCity
 import com.trackr.core.model.TransitGroup
 import com.trackr.core.model.TransitLeg
-import com.trackr.core.testing.FakeAmapKeyRepository
 import com.trackr.core.testing.FakeAmapRouteGateway
 import com.trackr.core.testing.FakeAppSigningInfo
 import com.trackr.core.testing.FakeRealtimeRepository
 import com.trackr.core.testing.FakeSettingsRepository
 import com.trackr.core.testing.FakeTrackingController
-import com.trackr.core.testing.FakeTransitCodeLauncher
 import com.trackr.core.testing.FakeUserLocationStore
 import com.trackr.core.testing.InMemoryRouteGroupRepository
 import com.trackr.ui.screens.routedetail.RouteDetailViewModel
+import com.trackr.ui.screens.routeplan.dialog.SaveFavoriteDialog
+import com.trackr.ui.screens.routeplan.map.ROUTE_PLAN_NO_MAP_TAG
+import com.trackr.ui.screens.routeplan.map.RouteMapState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.launch
 import org.junit.After
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
@@ -56,9 +60,8 @@ import org.koin.core.context.startKoin
 import org.koin.core.context.stopKoin
 import org.koin.dsl.module
 import org.robolectric.annotation.Config
-import java.time.LocalDateTime
-import java.time.ZoneId
 
+/** 第 24 步：测无状态 [RoutePlanScreen]（假状态 + 记事件），外加一条 [RoutePlanRoute] 的「已收藏 · 去看看」 */
 @RunWith(AndroidJUnit4::class)
 @Config(sdk = [34])
 class RoutePlanScreenTest {
@@ -66,37 +69,22 @@ class RoutePlanScreenTest {
     @get:Rule
     val composeTestRule = createAndroidComposeRule<ComponentActivity>()
 
-    private lateinit var groupRepository: InMemoryRouteGroupRepository
-    private lateinit var settings: FakeSettingsRepository
-    private lateinit var realtime: FakeRealtimeRepository
-    private lateinit var alignment: RouteAlignmentService
-    private lateinit var trackingRepository: DefaultTrackingRepository
-    private lateinit var trackingController: FakeTrackingController
+    private val events = mutableListOf<RoutePlanEvent>()
+
+    /**
+     * 点击走语义动作：Robolectric 默认窗口只有 320x470，底部面板在窗口下沿外，坐标点击会被丢掉。
+     */
+    private fun SemanticsNodeInteraction.tap(): SemanticsNodeInteraction =
+        performSemanticsAction(SemanticsActions.OnClick)
+
+    /** 最近一个用户操作发出的事件（Pager 停稳时会自动发 SelectScheme，跳过它） */
+    private fun lastAction(): RoutePlanEvent = events.last { it !is RoutePlanEvent.SelectScheme }
 
     @Before
     fun setup() {
-        // 页面里 koinInject() 取的平台能力（地图诊断弹窗的签名信息等）
+        // 地图诊断弹窗用 koinInject() 取签名信息
         stopKoin()
-        startKoin {
-            modules(
-                module {
-                    single<AppSigningInfo> { FakeAppSigningInfo() }
-                    single<TransitCodeLauncher> { FakeTransitCodeLauncher() }
-                }
-            )
-        }
-        // 每个测试一份内存里的路线 / 收藏分组（和原来清空 SharedPreferences 一样从空开始）
-        groupRepository = InMemoryRouteGroupRepository(Dispatchers.Unconfined)
-        val shenzhen = TransitCity(cityId = "0755", cityName = "深圳")
-        settings = FakeSettingsRepository(initialCity = shenzhen)
-        realtime = FakeRealtimeRepository(currentCity = { shenzhen })
-        alignment = RouteAlignmentService(settings, realtime, coordinator = null, ioDispatcher = Dispatchers.Unconfined)
-        // 每个测试自己一份追踪会话，不会串状态
-        trackingRepository = DefaultTrackingRepository(
-            InMemoryTrackingSessionStore(),
-            CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
-        )
-        trackingController = FakeTrackingController(trackingRepository)
+        startKoin { modules(module { single<AppSigningInfo> { FakeAppSigningInfo() } }) }
     }
 
     @After
@@ -104,252 +92,15 @@ class RoutePlanScreenTest {
         stopKoin()
     }
 
-    private fun createViewModel(amapKeys: FakeAmapKeyRepository? = null): RoutePlanViewModel {
-        // 不发真实高德请求；没给 Key 时通道当未配置（和原来 amapKeys = null 一样）
-        val gateway = FakeAmapRouteGateway().apply {
-            configured = amapKeys?.hasMapKey?.value ?: false
-        }
-        return RoutePlanViewModel(
-            routePlan = DefaultRoutePlanRepository(
-                gateway = gateway,
-                alignment = alignment,
-                coordinator = null,
-                ioDispatcher = Dispatchers.Unconfined
-            ),
-            settings = settings,
-            realtime = realtime,
-            userLocationStore = FakeUserLocationStore(),
-            groupRepository = groupRepository,
-            groupSaver = RouteGroupSaver(groupRepository, alignment, FavoriteGroupSelection()),
-            amapKeys = amapKeys
-        )
-    }
-
-    private fun createRouteDetailViewModel(): RouteDetailViewModel {
-        return RouteDetailViewModel(
-            groupRepository = groupRepository,
-            settings = settings,
-            realtime = realtime,
-            alignment = alignment,
-            trackingRepository = trackingRepository,
-            trackingController = trackingController,
-            ioDispatcher = Dispatchers.Unconfined,
-            enableAutoRefresh = false
-        )
-    }
-
-    private fun createSampleScheme(transferCount: Int = 0): AmapTransitSchemeResult {
-        val leg1 = TransitLeg(
-            legIndex = 0,
-            fromStopName = "深大北门",
-            toStopName = if (transferCount == 0) "高新园" else "前海湾",
-            candidateLines = listOf(
-                CandidateLine(
-                    cityId = "0755",
-                    lineId = "line_320",
-                    lineName = "320路",
-                    startStopName = "深大北门",
-                    endStopName = if (transferCount == 0) "高新园" else "前海湾"
-                )
-            )
-        )
-        val legs = if (transferCount == 0) {
-            listOf(leg1)
-        } else {
-            val leg2 = TransitLeg(
-                legIndex = 1,
-                fromStopName = "前海湾",
-                toStopName = "高新园",
-                candidateLines = listOf(
-                    CandidateLine(
-                        cityId = "0755",
-                        lineId = "line_m194",
-                        lineName = "M194路",
-                        startStopName = "前海湾",
-                        endStopName = "高新园"
-                    )
-                )
-            )
-            listOf(leg1, leg2)
-        }
-
-        val group = TransitGroup(
-            id = "group_sample_1",
-            name = "深大北门 ➔ 高新园",
-            legs = legs
-        )
-
-        return AmapTransitSchemeResult(
-            title = if (transferCount == 0) "320路 直达" else "320路 ➔ M194路 换乘",
-            durationMinutes = 18,
-            walkingMeters = 80,
-            costYuan = "2.5",
-            transferCount = transferCount,
-            group = group
-        )
-    }
-
-    @Test
-    fun testTopSearchConsole_initialRenderingAndQuickFill() {
-        val viewModel = createViewModel()
-        val routeDetailViewModel = createRouteDetailViewModel()
-        composeTestRule.setContent {
-            RoutePlanScreen(
-                viewModel = viewModel,
-                routeDetailViewModel = routeDetailViewModel,
-                onNavigateToFavorites = {},
-                onNavigateToLineDetail = { _, _, _, _, _, _ -> }
-            )
-        }
-
-        // 验证顶部搜索控制台初始占位文案展示
-        composeTestRule.onNodeWithText("我的位置 / 输入起点站").assertIsDisplayed()
-        composeTestRule.onNodeWithText("输入目的地、商圈或公交地铁站").assertIsDisplayed()
-
-        // 验证规划触发按钮；「配置Key」胶囊已删（D2：Key 在「更多」页配）
-        composeTestRule.onNodeWithTag("btn_trigger_plan").assertIsDisplayed()
-        composeTestRule.onNodeWithTag("btn_key_config").assertDoesNotExist()
-
-        // 输入起点
-        composeTestRule.onNodeWithTag("input_origin").performTextInput("科技园")
-        composeTestRule.waitForIdle()
-
-        // 验证起点已填充
-        composeTestRule.onNodeWithText("科技园").assertIsDisplayed()
-    }
-
-    @Test
-    fun onlyWebKey_showsSearchAndNoMap_noRecenterNoKeyEntry() {
-        // Q18：只有 Web Key 时有路线页，能搜能算，但不画地图（也就没有回中按钮）
-        val viewModel = createViewModel(FakeAmapKeyRepository(webKey = "web_key_abcdef"))
-        val routeDetailViewModel = createRouteDetailViewModel()
-        composeTestRule.setContent {
-            RoutePlanScreen(viewModel = viewModel, routeDetailViewModel = routeDetailViewModel)
-        }
-
-        composeTestRule.onNodeWithTag("top_search_console").assertIsDisplayed()
-        composeTestRule.onNodeWithTag("btn_trigger_plan").assertIsDisplayed()
-        composeTestRule.onNodeWithTag("route_plan_no_map").assertExists()
-        composeTestRule.onNodeWithTag("btn_recenter").assertDoesNotExist()
-        composeTestRule.onNodeWithTag("btn_key_config").assertDoesNotExist()
-        composeTestRule.onNodeWithText("配置 Key").assertDoesNotExist()
-    }
-
-    @Test
-    fun androidKeyWithoutMapSession_drawsNoMapAndNoFallbackSketch() {
-        // 有 Android Key 但拿不到地图会话（测试环境 / 设备不支持）：不再退回内置示意图，只留底色
-        val viewModel = createViewModel(FakeAmapKeyRepository(androidKey = "android_key_123456"))
-        val routeDetailViewModel = createRouteDetailViewModel()
-        assertTrue(viewModel.canShowMap.value)
-        composeTestRule.setContent {
-            RoutePlanScreen(viewModel = viewModel, routeDetailViewModel = routeDetailViewModel, mapSession = null)
-        }
-
-        composeTestRule.onNodeWithTag("route_plan_no_map").assertExists()
-        composeTestRule.onNodeWithTag("btn_recenter").assertDoesNotExist()
-        composeTestRule.onNodeWithTag("card_map_timeout").assertDoesNotExist()
-    }
-
-    @Test
-    fun testSwapOriginAndDestination_swapsInputValues() {
-        val viewModel = createViewModel()
-        val routeDetailViewModel = createRouteDetailViewModel()
-        composeTestRule.setContent {
-            RoutePlanScreen(
-                viewModel = viewModel,
-                routeDetailViewModel = routeDetailViewModel,
-                onNavigateToFavorites = {},
-                onNavigateToLineDetail = { _, _, _, _, _, _ -> }
-            )
-        }
-
-        // 输入起点与终点
-        composeTestRule.onNodeWithTag("input_origin").performTextInput("深大北门")
-        composeTestRule.onNodeWithTag("input_dest").performTextInput("高新园")
-        composeTestRule.waitForIdle()
-
-        // 点击互换按钮
-        composeTestRule.onNodeWithTag("btn_swap_origin_dest").performClick()
-        composeTestRule.waitForIdle()
-
-        // 验证起终点互换
-        composeTestRule.onNodeWithTag("input_origin").assertIsDisplayed()
-        composeTestRule.onNodeWithTag("input_dest").assertIsDisplayed()
-    }
-
-    @Test
-    fun testSaveFavoriteGroupDialog_savesAndInvokesCallback() {
-        val sampleScheme = createSampleScheme(transferCount = 0)
-        var savedGroupId: String? = "uncalled"
-        var savedCustomName: String? = null
-
-        composeTestRule.setContent {
-            SaveFavoriteGroupDialog(
-                scheme = sampleScheme,
-                favoriteGroups = listOf(
-                    FavoriteGroup(id = "commute", name = "上班通勤"),
-                    FavoriteGroup(id = "home", name = "回家线路")
-                ),
-                onDismiss = {},
-                onConfirmSave = { groupId, customName ->
-                    savedGroupId = groupId
-                    savedCustomName = customName
-                },
-                onCreateNewGroup = {}
-            )
-        }
-
-        composeTestRule.onNodeWithText("存入收藏").assertIsDisplayed()
-        composeTestRule.onNodeWithText("上班通勤").assertIsDisplayed()
-        composeTestRule.onNodeWithText("回家线路").assertIsDisplayed()
-
-        // 选中“上班通勤”
-        composeTestRule.onNodeWithText("上班通勤").performClick()
-
-        // 点击确认存入
-        composeTestRule.onNodeWithTag("btn_confirm_save_favorite").performClick()
-        composeTestRule.waitForIdle()
-
-        assertEquals("commute", savedGroupId)
-        assertEquals("深大北门 ➔ 高新园", savedCustomName)
-    }
-
-    @Test
-    fun testBottomAdaptiveRouteSheet_displaysSchemeAndMonitorAction() {
-        val sampleScheme = createSampleScheme(transferCount = 0)
-        var monitored = false
-        var savedFavorite = false
-
-        composeTestRule.setContent {
-            // 直接渲染存入与监控按钮行为的单元隔离验证
-            SaveFavoriteGroupDialog(
-                scheme = sampleScheme,
-                favoriteGroups = emptyList(),
-                onDismiss = {},
-                onConfirmSave = { _, _ -> savedFavorite = true },
-                onCreateNewGroup = {}
-            )
-        }
-
-        composeTestRule.onNodeWithTag("btn_confirm_save_favorite").performClick()
-        assertTrue("Confirm save should trigger save callback", savedFavorite)
-    }
-
-    // ---------------- 方案快速切换 ----------------
-
-    private fun scheme(
-        id: String,
-        minutes: Int,
-        transfers: Int,
-        walk: Int,
-        lineNames: List<String>
-    ): AmapTransitSchemeResult {
+    private fun scheme(id: String, minutes: Int, transfers: Int, walk: Int, lineNames: List<String>): AmapTransitSchemeResult {
         val legs = lineNames.mapIndexed { index, name ->
             TransitLeg(
                 legIndex = index,
                 fromStopName = "站$index",
                 toStopName = "站${index + 1}",
-                candidateLines = listOf(CandidateLine(cityId = "0755", lineId = "amap_$name", lineName = name)),
+                candidateLines = listOf(
+                    CandidateLine(cityId = "0755", lineId = "amap_$name", lineName = name, fromStopOrder = index + 1, toStopOrder = index + 5)
+                ),
                 walkingDistanceMeters = if (index == 0) 0 else 80
             )
         }
@@ -363,138 +114,259 @@ class RoutePlanScreenTest {
         )
     }
 
-    private val demoSchemes = listOf(
-        scheme("s0", 32, 1, 820, listOf("B612", "M492")),
-        scheme("s1", 38, 0, 640, listOf("M375")),
-        scheme("s2", 35, 1, 260, listOf("B796", "323")),
-        scheme("s3", 36, 1, 1100, listOf("地铁1号线", "B612"))
-    )
-
-    @Test
-    fun schemeFeatureTag_pickOneTagPerScheme() {
-        assertEquals("最快", schemeFeatureTag(demoSchemes, 0))
-        assertEquals("直达", schemeFeatureTag(demoSchemes, 1))
-        assertEquals("少步行", schemeFeatureTag(demoSchemes, 2))
-        assertEquals("地铁", schemeFeatureTag(demoSchemes, 3))
-    }
-
-    @Test
-    fun schemeFeatureTag_tiesGoToFirst_andNoTagWhenNothingStandsOut() {
-        val tie = listOf(
-            scheme("a", 30, 1, 500, listOf("1", "2")),
-            scheme("b", 30, 1, 500, listOf("3", "4"))
-        )
-        assertEquals("最快", schemeFeatureTag(tie, 0))
-        assertNull(schemeFeatureTag(tie, 1))
-        // 只有一个方案时不比较，换乘方案也不是地铁 → 不显示
-        assertNull(schemeFeatureTag(listOf(scheme("c", 30, 1, 500, listOf("1", "2"))), 0))
-        assertEquals("少换乘", schemeFeatureTag(
-            listOf(scheme("d", 30, 2, 500, listOf("1", "2", "3")), scheme("e", 35, 1, 900, listOf("4", "5"))), 1
-        ))
-    }
-
-    @Test
-    fun schemeTexts_summaryTimesAndSegments() {
-        assertEquals("步行 820 米 · 换乘 1 次 · ¥4.0", schemeSummaryText(demoSchemes[0]))
-        assertEquals("步行 640 米 · 不用换乘 · ¥4.0", schemeSummaryText(demoSchemes[1]))
-        assertEquals("直达", schemeTransferText(demoSchemes[1]))
-        assertEquals("换 1 次", schemeTransferText(demoSchemes[0]))
-
-        val zone = ZoneId.of("Asia/Shanghai")
-        val now = LocalDateTime.of(2026, 10, 31, 7, 42).atZone(zone).toInstant().toEpochMilli()
-        assertEquals("07:42 出发 · 08:14 到", departArriveText(now, 32, zone))
-
-        // 步行 240 米：第 2 程前 80 米 + 末段 160 米；站序不可信，两程平分剩余时长
-        val segments = planSegments(scheme("x", 30, 1, 240, listOf("B612", "M492")))
-        assertEquals(listOf(false, true, false, true), segments.map { it.isWalk })
-        assertEquals(listOf("B612", "", "M492", ""), segments.map { it.label })
-        assertEquals(1f, segments[1].weight, 0.01f)
-        assertEquals(2f, segments[3].weight, 0.01f)
-        assertEquals(13.5f, segments[0].weight, 0.01f)
-    }
-
-    private fun trackingSession(groupId: String, phase: LegPhase, stops: Int, eta: Int) = GroupTrackingSessionState(
-        groupId = groupId,
-        activeLegIndex = 0,
-        totalLegs = 2,
-        trackingSessionState = TrackingSessionState(
-            isActive = true,
-            legPhase = phase,
-            stopsRemaining = stops,
-            etaSeconds = eta,
-            currentLegIndex = 0,
-            totalLegs = 2
+    private val demoTabs = pickSchemeTabs(
+        listOf(
+            scheme("s0", 32, 1, 820, listOf("B612", "M492")),
+            scheme("s1", 38, 0, 640, listOf("M375")),
+            scheme("s2", 35, 1, 260, listOf("B796", "323")),
+            scheme("s3", 36, 1, 1100, listOf("地铁1号线", "B612"))
         )
     )
 
-    @Test
-    fun trackingStatusText_byPhase() {
-        assertEquals("第 1/2 程 · 等车 · 4 分钟", trackingStatusText(trackingSession("s0", LegPhase.WAITING_BOARD, 2, 240)))
-        assertEquals("第 1/2 程 · 乘车 · 2 站后下车", trackingStatusText(trackingSession("s0", LegPhase.ON_BOARD, 2, 300)))
-    }
-
-    @Test
-    fun schemePanel_tabsSwitchPager_andStartTrackingUsesSelectedScheme() {
-        var started: AmapTransitSchemeResult? = null
-        var clickedOrder = -1
+    /** 无状态页面 + 一个最小的「VM」：只把输入框事件写回状态，其他事件记下来 */
+    private fun setScreen(initial: RoutePlanUiState) {
         composeTestRule.setContent {
-            val pagerState = rememberPagerState { demoSchemes.size }
-            val scope = rememberCoroutineScope()
-            RoutePlanSchemePanel(
-                schemes = demoSchemes,
-                pagerState = pagerState,
-                trackingSession = null,
-                onSelectScheme = { scope.launch { pagerState.animateScrollToPage(it) } },
-                onLineClick = { clickedOrder = it.fromStopOrder },
-                onSaveFavorite = {},
-                onStartTracking = { started = it },
-                onConfirmBoarded = {},
-                onStopTracking = {}
+            var state by remember { mutableStateOf(initial) }
+            RoutePlanScreen(
+                state = state,
+                onEvent = { event ->
+                    events += event
+                    when (event) {
+                        is RoutePlanEvent.OriginChanged -> state = state.copy(originText = event.text)
+                        is RoutePlanEvent.DestChanged -> state = state.copy(destText = event.text)
+                        RoutePlanEvent.SwapOriginDest -> state = state.copy(originText = state.destText, destText = state.originText)
+                        else -> Unit
+                    }
+                }
             )
         }
+    }
 
-        // 4 个方案标签一直可见，没有"展开全部方案"
-        (0 until 4).forEach { composeTestRule.onNodeWithTag("scheme_tab_$it").assertIsDisplayed() }
-        composeTestRule.onAllNodesWithText("展开全部", substring = true).assertCountEquals(0)
-        composeTestRule.onNodeWithTag("scheme_duration_0").assertTextEquals("32 分钟")
-        composeTestRule.onNodeWithText("收藏").assertIsDisplayed()
+    @Test
+    fun searchConsole_placeholdersAndTyping() {
+        setScreen(RoutePlanUiState())
 
-        // 点第 3 个标签切到对应详情
-        composeTestRule.onNodeWithTag("scheme_tab_2").performClick()
+        composeTestRule.onNodeWithText("我的位置 / 输入起点站").assertIsDisplayed()
+        composeTestRule.onNodeWithText("输入目的地、商圈或公交地铁站").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("btn_trigger_plan").assertIsDisplayed()
+        // 「配置Key」胶囊已删（D2：Key 在「更多」页配）
+        composeTestRule.onNodeWithTag("btn_key_config").assertDoesNotExist()
+        composeTestRule.onNodeWithText("配置 Key").assertDoesNotExist()
+
+        composeTestRule.onNodeWithTag("input_origin").performTextInput("科技园")
+        composeTestRule.onNodeWithText("科技园").assertIsDisplayed()
+        assertEquals(RoutePlanEvent.OriginChanged("科技园"), lastAction())
+
+        composeTestRule.onNodeWithTag("btn_trigger_plan").tap()
+        assertEquals(RoutePlanEvent.Submit, lastAction())
+    }
+
+    @Test
+    fun swap_sendsSwapEvent() {
+        setScreen(RoutePlanUiState(originText = "深大北门", destText = "高新园"))
+        composeTestRule.onNodeWithTag("btn_swap_origin_dest").tap()
         composeTestRule.waitForIdle()
-        composeTestRule.onNodeWithTag("scheme_duration_2").assertIsDisplayed()
+        assertEquals(RoutePlanEvent.SwapOriginDest, lastAction())
+        composeTestRule.onNodeWithTag("input_origin").assertTextEquals("高新园")
+    }
+
+    @Test
+    fun cannotShowMap_onlyWebKey_noMapAreaNoRecenter() {
+        // Q18：只有 Web Key 时有路线页，能搜能算，但不画地图（也就没有回到定位按钮）
+        setScreen(RoutePlanUiState(canShowMap = false))
+        composeTestRule.onNodeWithTag("top_search_console").assertIsDisplayed()
+        composeTestRule.onNodeWithTag(ROUTE_PLAN_NO_MAP_TAG).assertExists()
+        composeTestRule.onNodeWithTag("btn_recenter").assertDoesNotExist()
+    }
+
+    @Test
+    fun canShowMap_butNoMapSession_drawsNoMapAndNoFallbackSketch() {
+        // 有 Android Key 但拿不到地图会话（测试环境 / 设备不支持）：不退回内置示意图，只留底色
+        setScreen(RoutePlanUiState(canShowMap = true, map = RouteMapState(androidKey = "android_key_123456")))
+        composeTestRule.onNodeWithTag(ROUTE_PLAN_NO_MAP_TAG).assertExists()
+        composeTestRule.onNodeWithTag("btn_recenter").assertDoesNotExist()
+        composeTestRule.onNodeWithTag("card_map_timeout").assertDoesNotExist()
+    }
+
+    @Test
+    fun tips_listAndPick_andBackDismissesTips() {
+        val tips = listOf(AmapTipItem(name = "西湖站", district = "西湖区"), AmapTipItem(name = "西湖站", address = "同名"))
+        setScreen(RoutePlanUiState(destText = "西湖", tipsField = TipsField.Dest, tips = tips))
+
+        // 重名的提示也能显示（key 带序号）
+        composeTestRule.onAllNodesWithText("西湖站").assertCountEquals(2)
+        composeTestRule.onNodeWithText("西湖区").tap()
+        assertEquals(RoutePlanEvent.PickTip(TipsField.Dest, tips[0]), lastAction())
+
+        // 返回键先收起提示
+        composeTestRule.runOnUiThread {
+            composeTestRule.activity.onBackPressedDispatcher.onBackPressed()
+        }
+        composeTestRule.waitForIdle()
+        assertEquals(RoutePlanEvent.DismissTips, lastAction())
+    }
+
+    @Test
+    fun noTips_backIsNotConsumed() {
+        setScreen(RoutePlanUiState())
+        composeTestRule.runOnUiThread {
+            composeTestRule.activity.onBackPressedDispatcher.onBackPressed()
+        }
+        composeTestRule.waitForIdle()
+        assertTrue(events.none { it == RoutePlanEvent.DismissTips })
+    }
+
+    @Test
+    fun schemePanel_threeFixedTabs_switchPager_andStartTrackingUsesSelected() {
+        setScreen(RoutePlanUiState(schemeTabs = demoTabs))
+
+        // 3 个标签一直可见，名字写清楚
+        (0 until 3).forEach { composeTestRule.onNodeWithTag("scheme_tab_$it").assertExists() }
+        composeTestRule.onNodeWithTag("scheme_tab_3").assertDoesNotExist()
+        composeTestRule.onNodeWithText("最快").assertExists()
+        composeTestRule.onNodeWithText("少换乘").assertExists()
+        composeTestRule.onNodeWithText("少走路").assertExists()
+        composeTestRule.onNodeWithTag("scheme_duration_0").assertTextEquals("32 分钟")
+        composeTestRule.onNodeWithText("收藏").assertExists()
+
+        // 点第 3 个标签（少走路 = s2）切到对应详情
+        composeTestRule.onNodeWithTag("scheme_tab_2").tap()
+        composeTestRule.waitForIdle()
         composeTestRule.onNodeWithTag("scheme_summary_2").assertTextEquals("步行 260 米 · 换乘 1 次 · ¥4.0")
+        assertEquals(RoutePlanEvent.SelectScheme(2), events.last { it is RoutePlanEvent.SelectScheme })
 
-        // 胶囊跳详情传上车站
-        composeTestRule.onNodeWithTag("scheme_line_chip_B796").performClick()
-        assertEquals(1, clickedOrder)
+        // 线路胶囊 → 打开线路
+        composeTestRule.onNodeWithTag("scheme_line_chip_B796").tap()
+        assertEquals("B796", (lastAction() as RoutePlanEvent.OpenLine).line.lineName)
 
-        composeTestRule.onNodeWithTag("btn_start_monitor").performClick()
-        assertEquals("s2", started?.group?.id)
+        // 开始追踪只追踪选中的这个方案（不收藏）
+        composeTestRule.onNodeWithTag("btn_start_monitor").tap()
+        assertEquals("s2", (lastAction() as RoutePlanEvent.StartTracking).scheme.group.id)
+        assertTrue(events.none { it is RoutePlanEvent.ConfirmSave || it == RoutePlanEvent.OpenSaveDialog })
+
+        composeTestRule.onNodeWithTag("btn_save_favorite").tap()
+        assertEquals(RoutePlanEvent.OpenSaveDialog, lastAction())
     }
 
     @Test
     fun schemePanel_trackingCurrentScheme_showsStatusBarInsteadOfButtons() {
-        var stopped = false
+        val session = GroupTrackingSessionState(
+            groupId = "s0",
+            activeLegIndex = 0,
+            totalLegs = 2,
+            trackingSessionState = TrackingSessionState(
+                isActive = true,
+                legPhase = LegPhase.WAITING_BOARD,
+                stopsRemaining = 2,
+                etaSeconds = 240,
+                currentLegIndex = 0,
+                totalLegs = 2
+            )
+        )
+        setScreen(RoutePlanUiState(schemeTabs = demoTabs, trackingSession = session))
+
+        composeTestRule.onNodeWithTag("tracking_status_text").assertTextEquals("第 1/2 程 · 等车 · 4 分钟")
+        composeTestRule.onNodeWithTag("btn_plan_confirm_boarded").tap()
+        assertEquals(RoutePlanEvent.ConfirmBoarded, lastAction())
+        composeTestRule.onNodeWithTag("btn_start_monitor").assertDoesNotExist()
+        composeTestRule.onNodeWithTag("btn_plan_stop_tracking").tap()
+        assertEquals(RoutePlanEvent.StopTracking, lastAction())
+    }
+
+    @Test
+    fun planningAndError_states() {
+        setScreen(RoutePlanUiState(planError = "在当前城市未找到合适的公交换乘方案"))
+        composeTestRule.onNodeWithTag("route_plan_error").assertExists()
+        composeTestRule.onNodeWithText("重新规划").tap()
+        assertEquals(RoutePlanEvent.Retry, lastAction())
+    }
+
+    @Test
+    fun saveDialog_savesWithChosenGroup() {
+        var savedGroupId: String? = "uncalled"
+        var savedName: String? = null
         composeTestRule.setContent {
-            val pagerState = rememberPagerState { demoSchemes.size }
-            RoutePlanSchemePanel(
-                schemes = demoSchemes,
-                pagerState = pagerState,
-                trackingSession = trackingSession("s0", LegPhase.WAITING_BOARD, 2, 240),
-                onSelectScheme = {},
-                onLineClick = {},
-                onSaveFavorite = {},
-                onStartTracking = {},
-                onConfirmBoarded = {},
-                onStopTracking = { stopped = true }
+            SaveFavoriteDialog(
+                scheme = demoTabs[0].scheme,
+                favoriteGroups = listOf(FavoriteGroup(id = "commute", name = "上班通勤"), FavoriteGroup(id = "home", name = "回家线路")),
+                onDismiss = {},
+                onConfirmSave = { groupId, name ->
+                    savedGroupId = groupId
+                    savedName = name
+                },
+                onCreateNewGroup = {}
             )
         }
 
-        composeTestRule.onNodeWithTag("tracking_status_text").assertTextEquals("第 1/2 程 · 等车 · 4 分钟")
-        composeTestRule.onNodeWithTag("btn_plan_confirm_boarded").assertIsDisplayed()
-        composeTestRule.onNodeWithTag("btn_start_monitor").assertDoesNotExist()
-        composeTestRule.onNodeWithTag("btn_plan_stop_tracking").performClick()
-        assertTrue(stopped)
+        composeTestRule.onNodeWithText("存入收藏").assertIsDisplayed()
+        composeTestRule.onNodeWithText("上班通勤").tap()
+        composeTestRule.onNodeWithTag("btn_confirm_save_favorite").tap()
+        composeTestRule.waitForIdle()
+
+        assertEquals("commute", savedGroupId)
+        assertEquals("s0", savedName)
+    }
+
+    // ---------------- Route：收藏后留在本页，Snackbar「去看看」 ----------------
+
+    @Test
+    fun route_saveFavorite_staysOnPage_snackbarGoToFavorites() {
+        val shenzhen = TransitCity(cityId = "0755", cityName = "深圳")
+        val settings = FakeSettingsRepository(initialCity = shenzhen)
+        val realtime = FakeRealtimeRepository(currentCity = { shenzhen })
+        val groupRepository = InMemoryRouteGroupRepository(Dispatchers.Unconfined)
+        val alignment = RouteAlignmentService(settings, realtime, coordinator = null, ioDispatcher = Dispatchers.Unconfined)
+        val gateway = FakeAmapRouteGateway().apply { planResult = { listOf(demoTabs[0].scheme) } }
+        val viewModel = RoutePlanViewModel(
+            routePlan = DefaultRoutePlanRepository(gateway, alignment, coordinator = null, ioDispatcher = Dispatchers.Unconfined),
+            settings = settings,
+            realtime = realtime,
+            userLocationStore = FakeUserLocationStore(),
+            groupRepository = groupRepository,
+            groupSaver = RouteGroupSaver(groupRepository, alignment, FavoriteGroupSelection())
+        )
+        val trackingRepository = DefaultTrackingRepository(
+            InMemoryTrackingSessionStore(),
+            CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
+        )
+        val routeDetailViewModel = RouteDetailViewModel(
+            groupRepository = groupRepository,
+            settings = settings,
+            realtime = realtime,
+            alignment = alignment,
+            trackingRepository = trackingRepository,
+            trackingController = FakeTrackingController(trackingRepository),
+            ioDispatcher = Dispatchers.Unconfined,
+            enableAutoRefresh = false
+        )
+        var wentToFavorites = 0
+        composeTestRule.setContent {
+            RoutePlanRoute(
+                viewModel = viewModel,
+                routeDetailViewModel = routeDetailViewModel,
+                onNavigateToFavorites = { wentToFavorites++ },
+                onNavigateToLineDetail = { _, _ -> }
+            )
+        }
+
+        viewModel.planTransitRoute(AmapTipItem(name = "甲", location = "114.1,22.5"), AmapTipItem(name = "乙", location = "114.2,22.6"))
+        composeTestRule.waitUntil(5_000) { viewModel.uiState.value.schemeTabs.isNotEmpty() }
+        composeTestRule.onNodeWithTag("btn_save_favorite").tap()
+        composeTestRule.waitUntil(5_000) {
+            composeTestRule.onAllNodesWithTag("btn_confirm_save_favorite").fetchSemanticsNodes().isNotEmpty()
+        }
+        composeTestRule.onNodeWithTag("btn_confirm_save_favorite").tap()
+
+        composeTestRule.waitUntil(5_000) {
+            composeTestRule.onAllNodesWithText(RoutePlanViewModel.SAVED_MESSAGE).fetchSemanticsNodes().isNotEmpty()
+        }
+        // 没有自动跳收藏页，方案还在
+        assertEquals(0, wentToFavorites)
+        composeTestRule.onNodeWithTag("btn_start_monitor").assertExists()
+        assertTrue(groupRepository.groups.value.any { it.id == "s0" })
+
+        composeTestRule.onNodeWithText("去看看").tap()
+        composeTestRule.waitForIdle()
+        assertEquals(1, wentToFavorites)
     }
 }

@@ -1,5 +1,8 @@
 package com.trackr.ui.screens.routeplan
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.trackr.core.data.repository.AmapKeyRepository
@@ -18,22 +21,35 @@ import com.trackr.core.model.GroupCategory
 import com.trackr.core.model.TransitCity
 import com.trackr.core.model.TransitGroup
 import com.trackr.data.repository.IRouteGroupRepository
+import com.trackr.core.data.route.MAX_VISIBLE_SCHEMES
+import com.trackr.ui.screens.routeplan.map.RouteMapState
+import com.trackr.ui.screens.routeplan.map.cityCenterGcj02
+import com.trackr.ui.screens.routeplan.map.wgs84ToGcj02Point
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /**
- * 路线规划 ViewModel（第 17 步从 `FavoritesGroupViewModel` 拆出，逻辑原样搬）：
+ * 路线规划 ViewModel（第 17 步从 `FavoritesGroupViewModel` 拆出）：
  * 起终点输入提示（防抖 300 ms、太短不查、新词取消旧词）、算路（新的一次取消上一次）、
  * 「我的位置」（定位不到直接报错）、方案存进收藏。缓存与对齐在 [RoutePlanRepository]。
  *
- * 追踪（开始 / 我上车了 / 结束）、追踪提示走 `RouteDetailViewModel`（和收藏页共用一个实例），和原来一样。
+ * 第 24 步：输入框、选中方案、存收藏弹窗也放进来，页面只吃 [uiState]、发 [RoutePlanEvent]；
+ * 一次性提示走 [userMessages]（收藏后「已收藏 · 去看看」）。
+ *
+ * 追踪（开始 / 我上车了 / 结束）、追踪提示走 `RouteDetailViewModel`（和收藏页共用一个实例），和原来一样，
+ * 由 `RoutePlanRoute` 分发。
  */
 @OptIn(FlowPreview::class)
 class RoutePlanViewModel(
@@ -58,6 +74,9 @@ class RoutePlanViewModel(
 
         /** 输入提示防抖 */
         const val TIPS_DEBOUNCE_MS = 300L
+
+        /** 存进收藏后的提示（带「去看看」） */
+        const val SAVED_MESSAGE = "已收藏"
 
         /** 系统 lastKnown 定位兜底的最大年龄 */
         const val MAX_LAST_KNOWN_AGE_MS = DefaultLocationRepository.MAX_LAST_KNOWN_AGE_MS
@@ -110,9 +129,268 @@ class RoutePlanViewModel(
     /** 路线页是否画地图（有 Android Key，§2.5）；只有 Web Key 时只出搜索和方案（Q18） */
     val canShowMap: StateFlow<Boolean> = amapKeys?.canShowMap ?: MutableStateFlow(false)
 
+    /**
+     * 输入框文字用 Compose 快照状态（同步更新），不走 Flow：输入框的值必须当帧改好，
+     * 否则中文输入法组字时光标会跳。Route 读它填进 [RoutePlanUiState]。
+     */
+    var originText: String by mutableStateOf("")
+        private set
+    var destText: String by mutableStateOf("")
+        private set
+
+    /** 两个输入框选中的提示、提示是否被收起（原来是页面里的 remember） */
+    private data class InputState(
+        val selectedOrigin: AmapTipItem? = null,
+        val selectedDest: AmapTipItem? = null,
+        val dismissOriginTips: Boolean = false,
+        val dismissDestTips: Boolean = false
+    )
+
+    private val input = MutableStateFlow(InputState())
+    private val selectedTab = MutableStateFlow(0)
+    private val showSaveDialog = MutableStateFlow(false)
+
+    /** 方案标签和它们的方案（地图画这几个）；一次算好，列表实例只在方案变了时换 */
+    private data class TabsPart(
+        val tabs: List<SchemeTabUi> = emptyList(),
+        val schemes: List<AmapTransitSchemeResult> = emptyList()
+    )
+
+    /** 方案标签：前 [MAX_VISIBLE_SCHEMES] 个方案（和对齐范围一致）里选最多 3 个 */
+    private val tabsPart: StateFlow<TabsPart> = _plannedSchemes
+        .map { schemes ->
+            val tabs = pickSchemeTabs(schemes.take(MAX_VISIBLE_SCHEMES))
+            TabsPart(tabs, tabs.map { it.scheme })
+        }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, TabsPart())
+
+    private val _userMessages = MutableStateFlow<List<RoutePlanMessage>>(emptyList())
+
+    /** 一次性提示：页面显示第一条，显示完发 [RoutePlanEvent.MessageShown] */
+    val userMessages: StateFlow<List<RoutePlanMessage>> = _userMessages.asStateFlow()
+    private var nextMessageId = 1L
+
+    private data class PlanPart(
+        val tabs: TabsPart,
+        val selectedTab: Int,
+        val isPlanning: Boolean,
+        val planError: String?,
+        val showSaveDialog: Boolean
+    )
+
+    private data class MapPart(
+        val canShowMap: Boolean,
+        val androidKey: String?,
+        val userLocationWgs: Pair<Double, Double>?,
+        val city: TransitCity
+    )
+
+    private val planPart = combine(
+        tabsPart,
+        selectedTab,
+        _isPlanningRoute,
+        _planErrorMessage,
+        showSaveDialog
+    ) { tabs, selected, planning, error, saveDialog ->
+        PlanPart(tabs, selected.coerceIn(0, (tabs.tabs.size - 1).coerceAtLeast(0)), planning, error, saveDialog)
+    }
+
+    private val mapPart = combine(canShowMap, customAmapApiKey, userLocation, currentCity) { show, key, location, city ->
+        MapPart(show, key, location, city)
+    }
+
+    private val tipsPart = combine(input, _amapOriginTips, _amapDestTips) { inputState, originTips, destTips ->
+        // 和原来一样：终点提示优先；选中了某条提示、被收起或没结果时不显示
+        val destVisible = !inputState.dismissDestTips && inputState.selectedDest == null && destTips.isNotEmpty()
+        val originVisible = !inputState.dismissOriginTips && inputState.selectedOrigin == null && originTips.isNotEmpty()
+        val field = when {
+            destVisible -> TipsField.Dest
+            originVisible -> TipsField.Origin
+            else -> null
+        }
+        Triple(inputState, field, if (field == TipsField.Dest) destTips else if (field == TipsField.Origin) originTips else emptyList())
+    }
+
+    /** 页面状态；输入框文字（[originText] / [destText]）和追踪会话由 Route 填进来 */
+    val uiState: StateFlow<RoutePlanUiState> = combine(
+        tipsPart,
+        planPart,
+        mapPart,
+        favoriteGroups
+    ) { (inputState, tipsField, tips), plan, mapState, groups ->
+        RoutePlanUiState(
+            tipsField = tipsField,
+            tips = tips,
+            isPlanning = plan.isPlanning,
+            planError = plan.planError,
+            schemeTabs = plan.tabs.tabs,
+            selectedTab = plan.selectedTab,
+            canShowMap = mapState.canShowMap,
+            map = RouteMapState(
+                schemes = plan.tabs.schemes,
+                selectedIndex = plan.selectedTab,
+                myLocation = mapState.userLocationWgs?.let { (lat, lng) -> wgs84ToGcj02Point(lat, lng) },
+                cityCenter = cityCenterGcj02(mapState.city.cityName),
+                androidKey = mapState.androidKey
+            ),
+            favoriteGroups = groups,
+            showSaveDialog = plan.showSaveDialog
+        )
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, RoutePlanUiState())
+
     init {
         observeTipsQuery(originTipsQuery, _amapOriginTips)
         observeTipsQuery(destTipsQuery, _amapDestTips)
+        // 新的提示到了就重新显示（原来页面里的 LaunchedEffect(originTips / destTips)）
+        viewModelScope.launch {
+            _amapOriginTips.collect { tips ->
+                if (tips.isNotEmpty()) input.update { it.copy(dismissOriginTips = false) }
+            }
+        }
+        viewModelScope.launch {
+            _amapDestTips.collect { tips ->
+                if (tips.isNotEmpty()) input.update { it.copy(dismissDestTips = false) }
+            }
+        }
+    }
+
+    /** 页面事件（追踪三件事和打开线路由 Route 处理，这里忽略） */
+    fun onEvent(event: RoutePlanEvent) {
+        when (event) {
+            is RoutePlanEvent.OriginChanged -> {
+                originText = event.text
+                input.update { it.copy(selectedOrigin = null, dismissOriginTips = false) }
+                searchOriginTips(event.text)
+            }
+            is RoutePlanEvent.DestChanged -> {
+                destText = event.text
+                input.update { it.copy(selectedDest = null, dismissDestTips = false) }
+                searchDestTips(event.text)
+            }
+            RoutePlanEvent.ClearOrigin -> {
+                originText = ""
+                input.update { it.copy(selectedOrigin = null) }
+                searchOriginTips("")
+                clearPlanError()
+            }
+            RoutePlanEvent.ClearDest -> {
+                destText = ""
+                input.update { it.copy(selectedDest = null) }
+                searchDestTips("")
+                clearPlanError()
+            }
+            RoutePlanEvent.SwapOriginDest -> {
+                val oldOrigin = originText
+                originText = destText
+                destText = oldOrigin
+                input.update { it.copy(selectedOrigin = it.selectedDest, selectedDest = it.selectedOrigin) }
+                submitPlan()
+            }
+            RoutePlanEvent.Submit -> submitPlan()
+            RoutePlanEvent.Retry -> {
+                // 和原来一样：起终点都填了才重算
+                if (originText.isNotBlank() && destText.isNotBlank()) {
+                    val state = input.value
+                    planTransitRoute(
+                        state.selectedOrigin ?: AmapTipItem(name = originText),
+                        state.selectedDest ?: AmapTipItem(name = destText)
+                    )
+                }
+            }
+            is RoutePlanEvent.PickTip -> pickTip(event.field, event.tip)
+            RoutePlanEvent.DismissTips -> dismissTips()
+            is RoutePlanEvent.SelectScheme -> selectedTab.value = event.index
+            RoutePlanEvent.OpenSaveDialog -> {
+                if (currentScheme() != null) showSaveDialog.value = true
+            }
+            RoutePlanEvent.DismissSaveDialog -> showSaveDialog.value = false
+            is RoutePlanEvent.ConfirmSave -> saveCurrentScheme(event.groupId, event.name)
+            is RoutePlanEvent.CreateGroup -> createFavoriteGroup(event.name)
+            is RoutePlanEvent.MessageShown -> _userMessages.update { list -> list.filterNot { it.id == event.id } }
+            is RoutePlanEvent.OpenLine,
+            is RoutePlanEvent.StartTracking,
+            RoutePlanEvent.ConfirmBoarded,
+            RoutePlanEvent.StopTracking -> Unit
+        }
+    }
+
+    /** 加一条一次性提示（追踪对齐失败等 `RouteDetailViewModel` 的提示也经这里显示） */
+    fun postMessage(text: String, action: RoutePlanMessageAction? = null) {
+        val message = RoutePlanMessage(id = nextMessageId++, text = text, action = action)
+        _userMessages.update { it + message }
+    }
+
+    /** 键盘「搜索」/ 规划按钮 / 互换后：终点填了才算；起点空着就从「我的位置」出发 */
+    private fun submitPlan() {
+        if (destText.isBlank()) return
+        val state = input.value
+        val origin = if (originText.isBlank()) {
+            AmapTipItem(name = MY_LOCATION_NAME, location = "")
+        } else {
+            state.selectedOrigin ?: AmapTipItem(name = originText)
+        }
+        planTransitRoute(origin, state.selectedDest ?: AmapTipItem(name = destText))
+    }
+
+    /** 点一条提示：填进输入框、收起提示；另一个框也填了就直接算（和原来一样，起点空着时选终点不自动算） */
+    private fun pickTip(field: TipsField, tip: AmapTipItem) {
+        when (field) {
+            TipsField.Dest -> {
+                destText = tip.name
+                input.update { it.copy(selectedDest = tip, dismissDestTips = true) }
+                searchDestTips("")
+                if (originText.isNotBlank()) {
+                    planTransitRoute(input.value.selectedOrigin ?: AmapTipItem(name = originText), tip)
+                }
+            }
+            TipsField.Origin -> {
+                originText = tip.name
+                input.update { it.copy(selectedOrigin = tip, dismissOriginTips = true) }
+                searchOriginTips("")
+                if (destText.isNotBlank()) {
+                    planTransitRoute(tip, input.value.selectedDest ?: AmapTipItem(name = destText))
+                }
+            }
+        }
+    }
+
+    /** 现在显示哪个框的提示（同步算，不等 [uiState] 下一帧） */
+    private fun visibleTipsField(): TipsField? {
+        val state = input.value
+        return when {
+            !state.dismissDestTips && state.selectedDest == null && _amapDestTips.value.isNotEmpty() -> TipsField.Dest
+            !state.dismissOriginTips && state.selectedOrigin == null && _amapOriginTips.value.isNotEmpty() -> TipsField.Origin
+            else -> null
+        }
+    }
+
+    /** 选中的方案（同步算） */
+    private fun currentScheme(): AmapTransitSchemeResult? =
+        pickSchemeTabs(_plannedSchemes.value.take(MAX_VISIBLE_SCHEMES)).getOrNull(selectedTab.value)?.scheme
+
+    /** 返回键：先收起终点提示，再收起起点提示 */
+    private fun dismissTips() {
+        when (visibleTipsField()) {
+            TipsField.Dest -> {
+                input.update { it.copy(dismissDestTips = true) }
+                searchDestTips("")
+            }
+            TipsField.Origin -> {
+                input.update { it.copy(dismissOriginTips = true) }
+                searchOriginTips("")
+            }
+            null -> Unit
+        }
+    }
+
+    /** 存进收藏后留在本页，提示「已收藏 · 去看看」（v3：不再自动跳收藏页） */
+    private fun saveCurrentScheme(groupId: String?, name: String) {
+        val scheme = currentScheme() ?: return
+        showSaveDialog.value = false
+        viewModelScope.launch {
+            groupSaver.saveAsFavorite(scheme.group, groupId, GroupCategory.CUSTOM, name)
+            postMessage(SAVED_MESSAGE, RoutePlanMessageAction.GoToFavorites)
+        }
     }
 
     fun createFavoriteGroup(name: String) {
@@ -226,6 +504,8 @@ class RoutePlanViewModel(
             val schemes = routePlan.planTransit(effectiveOrigin, effectiveDest, city, useAmap = hasAmap)
 
             if (schemes.isNotEmpty()) {
+                // 新的规划结果回到第一个标签
+                selectedTab.value = 0
                 _plannedSchemes.value = schemes
                 onComplete?.invoke(true)
             } else {
@@ -311,5 +591,10 @@ class RoutePlanViewModel(
         _amapOriginTips.value = emptyList()
         _amapDestTips.value = emptyList()
         _planErrorMessage.value = null
+        originText = ""
+        destText = ""
+        input.value = InputState()
+        selectedTab.value = 0
+        showSaveDialog.value = false
     }
 }

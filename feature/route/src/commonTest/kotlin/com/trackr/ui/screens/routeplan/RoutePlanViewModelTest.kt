@@ -86,7 +86,8 @@ class RoutePlanViewModelTest {
     /** 原 createViewModelWithGateway：墙钟固定 1_000_000_000L，没有本地兜底（coordinator = null） */
     private fun createViewModelWithGateway(
         gateway: AmapRouteGateway,
-        amapKeys: AmapKeyRepository? = null
+        amapKeys: AmapKeyRepository? = null,
+        userLocationStore: FakeUserLocationStore = FakeUserLocationStore()
     ): RoutePlanViewModel = RoutePlanViewModel(
         routePlan = DefaultRoutePlanRepository(
             gateway = gateway,
@@ -97,7 +98,7 @@ class RoutePlanViewModelTest {
         ),
         settings = settings,
         realtime = realtime,
-        userLocationStore = FakeUserLocationStore(),
+        userLocationStore = userLocationStore,
         groupRepository = groupRepository,
         groupSaver = groupSaver,
         amapKeys = amapKeys,
@@ -313,5 +314,164 @@ class RoutePlanViewModelTest {
         assertNotNull(reverse, "存进通勤应自动在'回家线路'中生成返程")
         assertEquals("乙站", reverse.originStopName)
         assertEquals("甲站", reverse.destinationStopName)
+    }
+
+    // ---------------- 第 24 步：页面状态与事件 ----------------
+
+    private fun scheme(id: String, minutes: Int, transfers: Int, walk: Int): AmapTransitSchemeResult =
+        sampleScheme(id).copy(durationMinutes = minutes, transferCount = transfers, walkingMeters = walk)
+
+    @Test
+    fun uiState_tabsAreFixedThree_andNewResultSelectsFirstTab() = runTest(main.dispatcher) {
+        val gateway = FakeAmapRouteGateway().apply {
+            planResult = {
+                listOf(
+                    scheme("fast", 30, 2, 900),
+                    scheme("direct", 40, 0, 700),
+                    scheme("walk", 45, 1, 100),
+                    scheme("other", 50, 1, 800)
+                )
+            }
+        }
+        val viewModel = createViewModelWithGateway(gateway)
+        testScheduler.runCurrent()
+
+        viewModel.planTransitRoute(AmapTipItem(name = "甲", location = "120.1,30.1"), AmapTipItem(name = "乙", location = "120.2,30.2"))
+        testScheduler.advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertEquals(listOf("最快", "少换乘", "少走路"), state.schemeTabs.map { it.label })
+        assertEquals(listOf("scheme_fast", "scheme_direct", "scheme_walk"), state.schemeTabs.map { it.scheme.group.id })
+        // 地图只画标签里的方案，选中的和标签一致
+        assertEquals(state.schemeTabs.map { it.scheme }, state.map.schemes)
+
+        viewModel.onEvent(RoutePlanEvent.SelectScheme(2))
+        testScheduler.advanceUntilIdle()
+        assertEquals(2, viewModel.uiState.value.selectedTab)
+        assertEquals(2, viewModel.uiState.value.map.selectedIndex)
+
+        // 再算一次（新结果）回到第一个标签
+        viewModel.planTransitRoute(AmapTipItem(name = "甲", location = "120.1,30.1"), AmapTipItem(name = "丙", location = "120.3,30.3"))
+        testScheduler.advanceUntilIdle()
+        assertEquals(0, viewModel.uiState.value.selectedTab)
+    }
+
+    @Test
+    fun saveScheme_staysOnPage_andPostsSavedMessageWithGoToFavorites() = runTest(main.dispatcher) {
+        val gateway = FakeAmapRouteGateway().apply { planResult = { listOf(sampleScheme("B")) } }
+        val viewModel = createViewModelWithGateway(gateway)
+        testScheduler.runCurrent()
+        viewModel.planTransitRoute(AmapTipItem(name = "甲", location = "120.1,30.1"), AmapTipItem(name = "B", location = "120.2,30.2"))
+        testScheduler.advanceUntilIdle()
+
+        viewModel.onEvent(RoutePlanEvent.OpenSaveDialog)
+        testScheduler.advanceUntilIdle()
+        assertTrue(viewModel.uiState.value.showSaveDialog)
+
+        viewModel.onEvent(RoutePlanEvent.ConfirmSave(groupId = null, name = "上班"))
+        testScheduler.advanceUntilIdle()
+
+        assertFalse(viewModel.uiState.value.showSaveDialog)
+        assertEquals("上班", groupRepository.getGroupById("scheme_B")?.name)
+        val message = viewModel.userMessages.value.single()
+        assertEquals(RoutePlanViewModel.SAVED_MESSAGE, message.text)
+        assertEquals(RoutePlanMessageAction.GoToFavorites, message.action)
+        // 方案还在（留在本页）
+        assertEquals(1, viewModel.uiState.value.schemeTabs.size)
+
+        viewModel.onEvent(RoutePlanEvent.MessageShown(message.id))
+        assertTrue(viewModel.userMessages.value.isEmpty())
+    }
+
+    @Test
+    fun pickTip_fillsInputHidesTips_andPlansWhenOtherFieldFilled() = runTest(main.dispatcher) {
+        val gateway = FakeAmapRouteGateway()
+        val viewModel = createViewModelWithGateway(gateway)
+        testScheduler.runCurrent()
+
+        viewModel.onEvent(RoutePlanEvent.DestChanged("西湖"))
+        testScheduler.advanceUntilIdle()
+        assertEquals(TipsField.Dest, viewModel.uiState.value.tipsField)
+        assertEquals(listOf("西湖站"), viewModel.uiState.value.tips.map { it.name })
+
+        // 起点空着：选终点不自动算（和原来一样）
+        val tip = viewModel.uiState.value.tips.first()
+        viewModel.onEvent(RoutePlanEvent.PickTip(TipsField.Dest, tip))
+        testScheduler.advanceUntilIdle()
+        assertEquals("西湖站", viewModel.destText)
+        assertNull(viewModel.uiState.value.tipsField)
+        assertTrue(gateway.planCalls.isEmpty())
+
+        // 起点填了再选：直接用选中的提示坐标算
+        viewModel.onEvent(RoutePlanEvent.OriginChanged("武林"))
+        testScheduler.advanceUntilIdle()
+        assertEquals(TipsField.Origin, viewModel.uiState.value.tipsField)
+        viewModel.onEvent(RoutePlanEvent.PickTip(TipsField.Origin, viewModel.uiState.value.tips.first()))
+        testScheduler.advanceUntilIdle()
+        assertEquals(1, gateway.planCalls.size)
+        assertEquals("120.100000,30.200000", gateway.planCalls.single().destLngLat)
+    }
+
+    @Test
+    fun dismissTips_hidesDestFirstThenOrigin() = runTest(main.dispatcher) {
+        val viewModel = createViewModelWithGateway(FakeAmapRouteGateway())
+        testScheduler.runCurrent()
+
+        viewModel.onEvent(RoutePlanEvent.OriginChanged("武林"))
+        viewModel.onEvent(RoutePlanEvent.DestChanged("西湖"))
+        testScheduler.advanceUntilIdle()
+        assertEquals(TipsField.Dest, viewModel.uiState.value.tipsField)
+
+        viewModel.onEvent(RoutePlanEvent.DismissTips)
+        testScheduler.advanceUntilIdle()
+        assertEquals(TipsField.Origin, viewModel.uiState.value.tipsField)
+
+        viewModel.onEvent(RoutePlanEvent.DismissTips)
+        testScheduler.advanceUntilIdle()
+        assertNull(viewModel.uiState.value.tipsField)
+        // 文字留着
+        assertEquals("武林", viewModel.originText)
+        assertEquals("西湖", viewModel.destText)
+    }
+
+    @Test
+    fun submit_blankOrigin_startsFromMyLocation_andSwapReplans() = runTest(main.dispatcher) {
+        val gateway = FakeAmapRouteGateway()
+        val viewModel = createViewModelWithGateway(gateway)
+        testScheduler.runCurrent()
+
+        // 终点空着：不算
+        viewModel.onEvent(RoutePlanEvent.Submit)
+        testScheduler.advanceUntilIdle()
+        assertNull(viewModel.uiState.value.planError)
+
+        // 起点空着 = 我的位置；没有定位时直接报错，不拿「我的位置」去搜
+        viewModel.onEvent(RoutePlanEvent.DestChanged("西湖"))
+        viewModel.onEvent(RoutePlanEvent.Submit)
+        testScheduler.advanceUntilIdle()
+        assertTrue(viewModel.uiState.value.planError.orEmpty().contains("定位不可用"))
+        assertTrue(gateway.planCalls.isEmpty())
+
+        // 互换：文字对调后再算一次（起点「西湖」、终点空 → 不算）
+        viewModel.onEvent(RoutePlanEvent.SwapOriginDest)
+        testScheduler.advanceUntilIdle()
+        assertEquals("西湖", viewModel.originText)
+        assertEquals("", viewModel.destText)
+        assertTrue(gateway.planCalls.isEmpty())
+    }
+
+    @Test
+    fun uiState_mapPointsAreGcj02() = runTest(main.dispatcher) {
+        // 301c124：城市中心和定位都是 WGS-84，给地图前先转 GCJ-02
+        val location = FakeUserLocationStore(initial = 30.25 to 120.15)
+        val viewModel = createViewModelWithGateway(FakeAmapRouteGateway(), userLocationStore = location)
+        testScheduler.advanceUntilIdle()
+
+        val map = viewModel.uiState.value.map
+        val myLocation = assertNotNull(map.myLocation)
+        assertTrue(myLocation.lat != 30.25 && myLocation.lng != 120.15)
+        assertEquals(com.trackr.ui.screens.routeplan.map.wgs84ToGcj02Point(30.25, 120.15), myLocation)
+        assertEquals(com.trackr.ui.screens.routeplan.map.cityCenterGcj02("杭州"), map.cityCenter)
+        assertNotNull(map.cityCenter)
     }
 }

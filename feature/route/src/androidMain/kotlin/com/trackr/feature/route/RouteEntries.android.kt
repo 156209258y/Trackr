@@ -1,5 +1,7 @@
 package com.trackr.feature.route
 
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.dropUnlessResumed
 import androidx.navigation3.runtime.EntryProviderScope
 import androidx.navigation3.runtime.NavKey
@@ -14,10 +16,8 @@ import com.trackr.data.remote.amap.AndroidAmapSdkKeyApplier
 import com.trackr.data.remote.amap.AndroidMapSdkInitializer
 import com.trackr.ui.navigation.LocalAppViewModelStoreOwner
 import com.trackr.ui.navigation.PendingScreen
-import com.trackr.ui.navigation.dropUnlessResumed
 import com.trackr.ui.screens.routedetail.RouteDetailViewModel
-import com.trackr.ui.screens.routeplan.LocalAmapMapSession
-import com.trackr.ui.screens.routeplan.RoutePlanScreen
+import com.trackr.ui.screens.routeplan.RoutePlanRoute
 import com.trackr.ui.screens.routeplan.RoutePlanViewModel
 import org.koin.android.ext.koin.androidContext
 import org.koin.compose.viewmodel.koinViewModel
@@ -29,24 +29,28 @@ actual fun EntryProviderScope<NavKey>.routeEntries(navigator: Navigator) {
         val appOwner = LocalAppViewModelStoreOwner.current
         val routePlanViewModel: RoutePlanViewModel = koinViewModel(viewModelStoreOwner = appOwner)
         val routeDetailViewModel: RouteDetailViewModel = koinViewModel(viewModelStoreOwner = appOwner)
-        RoutePlanScreen(
+        val lifecycleOwner = LocalLifecycleOwner.current
+        // 第 24 步：页面在 commonMain（RoutePlanRoute），地图会话从 LocalAmapMapSession 取（RouteMap 的 Android 实现里）
+        RoutePlanRoute(
             viewModel = routePlanViewModel,
             routeDetailViewModel = routeDetailViewModel,
-            mapSession = LocalAmapMapSession.current,
-            // 「收藏」不再是页签（第 17 步）：切到首页页签，让收藏页成为栈顶（已有就退到它，没有就回根再打开）
+            // 「去看看」：切到首页页签，让收藏页成为栈顶（已有就退到它，没有就回根再打开）
             onNavigateToFavorites = dropUnlessResumed {
                 navigator.showInTab(ScreenKey.Home, ScreenKey.FavoritesGroup)
             },
-            onNavigateToLineDetail = dropUnlessResumed { cityId, lineId, targetOrder, stopId, source, lineName ->
-                val key = ScreenKey.LineDetail(
-                    cityId = cityId,
-                    lineId = lineId,
-                    targetOrder = targetOrder,
-                    stopId = stopId,
-                    source = source,
-                    lineName = lineName
-                )
-                navigator.open(key)
+            onNavigateToLineDetail = { line, targetOrder ->
+                // 只在 RESUMED 时跳，防连点重复入栈（同 dropUnlessResumed）
+                if (lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) {
+                    val key = ScreenKey.LineDetail(
+                        cityId = line.cityId,
+                        lineId = line.lineId,
+                        targetOrder = targetOrder,
+                        stopId = "",
+                        source = line.source,
+                        lineName = line.lineName
+                    )
+                    navigator.open(key)
+                }
             }
         )
     }
