@@ -46,7 +46,7 @@
 | `:core:datastore` | 1 | `:feature:me` | 2 |
 | `:core:designsystem` | 2 | `:feature:route` | 5 |
 | `:core:domain` | 4 | `:feature:search` | 3 |
-| `:core:navigation` | 5 | `:feature:stop` | 1 |
+| `:core:navigation` | 5 | `:feature:stop` | 3 |
 | `:core:network` | 12 | `:core:testing` | 1 |
 
 `:core:model` 没有测试。KMP 模块的 `test` 由约定插件 `trackr.kmp.library` 补上，只跑 Android 主机测试（`testAndroidHostTest`）；iOS 另跑 `./gradlew :core:domain:iosSimulatorArm64Test`（`:core:network`、`:core:data` 同理，需要 Xcode 和 iOS 模拟器运行时），`:core:database` 的 DAO 测试同样在 iOS 模拟器上跑（`./gradlew :core:database:iosSimulatorArm64Test`，用 BundledSQLiteDriver），设计系统只做编译检查 `./gradlew :core:designsystem:compileKotlinIosSimulatorArm64`，导航做编译检查加测试链接 `./gradlew :core:navigation:linkDebugTestIosSimulatorArm64`。各 `:feature:*`、`:composeApp`、`:core:ui` 在 iOS 上也只做这两步：`./gradlew :feature:bus:compileKotlinIosSimulatorArm64`、`./gradlew :feature:bus:linkDebugTestIosSimulatorArm64`（其他模块换模块名）。
@@ -111,7 +111,9 @@ Koin 由 `TrackrApp.onCreate` 启动，Robolectric 用例里每个用例都会�
 | `:feature:search` `ui/screens/search` | `SearchViewModelTest` | 搜索（第 17 步从首页拆出来）：搜索历史加入去重排序、删一条、清空、容量上限；输入防抖 300 ms 后只搜一次、关键字去首尾空格、防抖内换词取消旧的、新词取消进行中的请求、「搜索中」状态；空查询清结果并取消待发的搜索；换城市清结果保留查询词、换数据源有词才重搜；用选中城市和首页当前坐标搜（拆分前读首页的 currentLat / currentLng，经 `HomeCoordinates` 传过来），没有首页坐标时用 GPS、再没有用城市中心；输入写进 `SavedStateHandle`，带着词重建时显示并只搜一次（第 23 步） | commonTest（JVM；iOS 只编译和链接测试，不跑） |
 |  | `SearchRowsTest` | 搜索结果摊成列表行（第 23 步）：每个方向一行「始发 → 终点」、小字只写已知的（地铁 · 运营时间 · 票价）、缺站名的退路、车站行途经线去重 / 退回地铁线名、距离、段内首中末位置、先线路后车站、重复线路 / 站 key 也唯一 | commonTest（JVM；iOS 只编译和链接测试，不跑） |
 |  | `SearchScreenTest` | v3 搜索页（第 23 步，无状态 `SearchScreen(state, onEvent)`）：没输入只显示最近搜过的词、没有推荐词和双引擎卡；点词 / 点字最右边都是搜这个词、点 × 才删；全清先确认；每个方向一行、点哪行进哪个方向；车站行显示途经线和距离、点了进站点；没结果的提示、搜索中不提示；输入 / 键盘搜索 / 清空 / 返回发对事件 | Robolectric Compose UI |
-| `:feature:stop` `ui/screens/stopdetail` | `StopDetailViewModelTest` | 站点详情：初次加载站台并解析站名、切物理站台后用那个站台刷新、收藏切换、轮询暂停恢复、上一轮没回来跳过本轮、回到页面只在数据过时时刷新（关了自动轮询不刷） | commonTest（JVM；iOS 只编译和链接测试，不跑） |
+| `:feature:stop` `ui/screens/stopdetail` | `StopDetailViewModelTest` | 站点详情：初次加载站台并解析站名、切物理站台后用那个站台刷新、收藏切换、轮询暂停恢复、上一轮没回来跳过本轮、回到页面只在数据过时时刷新（关了自动轮询不刷）；第 21 步 v3：站台按「往 终点」命名、缺数据或同名退回「站台 1 / 2」，行的到站文字和小字；选几条一起等（不设上限、不可选的行忽略、换站台清空勾选、返回先退出选线）、存成 1 程路线（只存一次）、开始一起等（失败留在选线并提示）；本站一起等进行中：按到站排序、切到会话的站台、页面自己不轮询、结束后补刷、别的站不显示；「再加一条」带上正在等的线、「我上车了」、「上了哪辆？」选车 / 还没上 / 划掉；乘车码（有默认直接开、「每次询问」弹选择、勾选记成默认）；下拉刷新 | commonTest（JVM；iOS 只编译和链接测试，不跑） |
+|  | `StopDetailScreenTest` | v3 站点详情（无状态 `StopDetailScreen(state, onEvent)`）：普通模式显示站台、线路行、没有「查看全线」，点行进线路、点站台切换、按钮发事件；选线模式计数和按钮、没勾时按钮不可点；一起等视图最先到的在前、有「我上车了」，上车后隐藏 | Robolectric Compose UI |
+|  | `ChooseBoardedBusTest` | 「上了哪辆？」弹层：标题、说明和每辆车都显示，点车发车 id，点「还没上」发 null | Robolectric Compose UI |
 | `:feature:line` `ui/screens/linedetail` | `LineDetailViewModelTest` | 线路详情（第 20 步 v3）：初次加载拆成静态 / 实时两半（带目标站序只请求一次、不带时为默认站补一次）；选站 / 手动刷新后下一轮从那一刻起再等 10 秒；下拉刷新只在下拉时画圈；站表先读磁盘缓存（网络没回来先显示、不挡请求、站表变了才写回、静态部分沿用旧实例、缓存上点过的站不被初次结果改掉）；跟车；收藏切换及提示条（有分组时带「换分组」、换分组后提示）；定时提醒保存并提示；换向找同名站；乘车码弹层与偏好；追踪当前站（提前 2 站）和「追踪本站」判断；车都过了用时刻表补下一班（快来的车不用）；上一轮没回来跳过；回到页面只在过时时刷新 | commonTest（JVM；iOS 只编译和链接测试，不跑） |
 |  | `BusFollowContentTest` | 跟车内容渲染与空车辆处理 | Robolectric Compose UI |
 |  | `StationArrivalContentTest` | 线路页主卡：在路上（大字分钟、小字站数、车牌、预计到达、下一辆）、到站了、车都过了只给下一班始发时间（没有时用时刻表或提示）、首班、末班已过、实时没回来显示「正在查车…」、追踪中标记、预警 chips 已去掉、「全线 N 辆车在途 · 查看」与「XX站上车」点击；反向切换按钮不在主卡 | Robolectric Compose UI |
@@ -137,7 +139,7 @@ Koin 由 `TrackrApp.onCreate` 启动，Robolectric 用例里每个用例都会�
 | :--- | :--- | :--- | :--- |
 | `:core:domain` `arrival` | `ArrivalTextTest` | 到站文字 8 种状态（在路上、快到/已到、车都过了、还没发车、末班已过、停运/无数据、加载中、没网）的大字/小字/色调/朗读文本，到站按 `ArrivalRules` 判，边界：0 站、≤3 分钟、末班刚过 | commonTest（JVM + iOS 模拟器） |
 | `:core:domain` `math` | `CoordTransformTest` | WGS-84 / GCJ-02 坐标转换 | commonTest（JVM + iOS 模拟器） |
-| `:core:domain` `tracking` | `TrackingEngineTest` | 追踪状态机：单线路选车、换车重置提醒、车辆短暂消失保持原车；路线两阶段（候车锁车、乘车到站、信号丢失）；定位跟车检测（待确认、上车、没赶上、超时兜底、错锁纠正）与定位档位；自适应轮询间隔与失败退避；下车站判定（含 WGS-84 转 GCJ-02）；开始 / 换乘切程（代际号 +1、只发换乘提醒）/ 走完结束 / 手动下一程 / 我上车了 / 改提醒站数；服务定位过滤；一起等（第 15 步，`watch_*`）：多线取最快、先后变化、到站提醒每辆一次、没定位不自动判上车、只有一辆在站、两辆在站定位分得清不弹窗 / 分不清或没定位写 `boardChoice`、选车与「还没上」、`boardChoice` 5 分钟清掉或被定位分清、手动上车按 A..A+1 最近、锁不到后续补锁并以终点为目标、某线无数据、10 条线等车阶段只发 1 次站点请求、有定位自动判上车且待确认只请求在站的线、只有 1 程无下车站到终点结束、上车后旧结果丢弃 | commonTest（JVM + iOS 模拟器） |
+| `:core:domain` `tracking` | `TrackingEngineTest` | 追踪状态机：单线路选车、换车重置提醒、车辆短暂消失保持原车；路线两阶段（候车锁车、乘车到站、信号丢失）；定位跟车检测（待确认、上车、没赶上、超时兜底、错锁纠正）与定位档位；自适应轮询间隔与失败退避；下车站判定（含 WGS-84 转 GCJ-02）；开始 / 换乘切程（代际号 +1、只发换乘提醒）/ 走完结束 / 手动下一程 / 我上车了 / 改提醒站数；服务定位过滤；一起等（第 15 步，`watch_*`）：多线取最快、先后变化、到站提醒每辆一次、没定位不自动判上车、只有一辆在站、两辆在站定位分得清不弹窗 / 分不清或没定位写 `boardChoice`、选车与「还没上」、`boardChoice` 5 分钟清掉或被定位分清、手动上车按 A..A+1 最近、锁不到后续补锁并以终点为目标、某线无数据、10 条线等车阶段只发 1 次站点请求、有定位自动判上车且待确认只请求在站的线、只有 1 程无下车站到终点结束、上车后旧结果丢弃；第 21 步：站点页存的 1 程无下车站路线存了能原样读回、开始时按一起等追，有下车站的路线照旧按路线追 | commonTest（JVM + iOS 模拟器） |
 | `:core:domain` 根目录 | `JvmParityTest` | 第 7 步换掉的 JVM API 与新写法逐个比对：公里数格式化、角度转弧度（逐位相同）、两种测距公式、分钟取整、提醒时刻格式化 | androidHostTest（只 JVM） |
 | `:core:navigation` | `NavigatorTest` | `Navigator` 纯逻辑：栈顶去重压栈、逐页返回、非首页页签根页返回回首页、首页根页返回交给系统；切页签保留各自的栈、再点当前页签回根并发 `reselect`；`applyDeepLink`（第 18 步合成返回栈：冷 / 热启动都把目标页签栈重置为 `[根, 目标]`、别的页签不动、重放幂等、跳过根和相邻重复、未知页签落到首页）；`showInTab`（规划页去收藏：栈里已有就退到它、没有就回根再压，不叠重复页）；页签隐藏时清栈回首页；`isShowingRootOf`（首页轮询条件）；`stacksShown`（叠放起始页签 / 只显示当前页签）；`TopLevel.visibleTabs` 没 Key 时只去掉「路线规划」；第 17 步起 3 个页签，「收藏」不能再当页签切、作为首页栈的子页打开，`popChildPage` 只在当前栈里退、根页不切页签 | commonTest（JVM + iOS 模拟器） |
 |  | `DeepLinkParserTest` | `DeepLinkParser` / `DeepLinkUris`（第 18 步，§3.6 表）：line / route / stop / tracking/board / transit-code 五种链接；和拼链接的函数往返（含掌上公交带中文和冒号的 id、线名里的 `& = # ? / +`）；scheme / host 不分大小写；外来 scheme、未知 host、段数不对、空白 / 控制字符 / 超长 id、坏的百分号编码忽略；可选参数坏了退回默认值 | commonTest（JVM + iOS 模拟器） |

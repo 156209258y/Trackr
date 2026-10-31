@@ -43,7 +43,7 @@
 - `:feature:*`（目录 `feature/<名字>/`）：功能模块，都用 `trackr.kmp.feature`。包名沿用搬来前的（`com.trackr.ui.screens.*`），模块入口在 `com.trackr.feature.<名字>`。
   - `:feature:bus`：v3 公交首页（第 19 步，全在 `commonMain`，包 `com.trackr.feature.bus`）：`BusHomeRoute` + 无状态 `BusHomeScreen(state, onEvent)`、`BusHomeViewModel`、城市选择。
   - `:feature:search`：搜索（`SearchViewModel`，entry 级，输入存 `SavedStateHandle`）。第 23 步起页面全在 commonMain：`SearchRoute` + 无状态 `SearchScreen(state, onEvent)`，结果行由 `searchRows()` 摊平；另依赖 `lifecycle-viewmodel-savedstate` 和 CMP 资源（用 `:core:designsystem` 的图标）。
-  - `:feature:stop`：站点详情（`StopDetailViewModel`）。
+  - `:feature:stop`：站点详情（`StopDetailViewModel`）。第 21 步起页面全在 commonMain：`StopDetailRoute` + 无状态 `StopDetailScreen(state, onEvent)`；选几条一起等、存成 1 程路线（`:core:domain` 的 `WatchTogetherRoute`）、一起等进行中视图、「上了哪辆？」弹层 `ChooseBoardedBusSheet`。
   - `:feature:line`：线路详情（`LineDetailViewModel`）、时刻表、走向条、定时提醒入口、乘车码弹层（`androidMain/res` 中英文案）。
   - `:feature:route`：路线规划（`RoutePlanViewModel`）、路线详情（`RouteDetailViewModel`）；高德 Android SDK 封装（`AmapSdkManager`、`AmapSdkKeyApplier`、`AndroidAmapRouteGateway`、地图会话）放 `androidMain`，Koin 在 `routeAndroidModule`。另依赖 `:core:network`。
   - `:feature:favorites`：编辑收藏（`FavoritesEditViewModel`，页面第 22 步做，现在是占位），以及旧收藏页用的卡片、分组弹窗组件。

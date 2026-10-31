@@ -1967,4 +1967,39 @@ class TrackingEngineTest {
         assertSame(boarded, stale.session)
         assertTrue(stale.effects.isEmpty())
     }
+
+    // ================================================================ 站点页收藏的一起等路线（第 21 步）
+
+    @Test
+    fun watchRoute_roundTrip_keepsLinesAndStop() {
+        val target = watchTarget(l325, lM194).copy(cityName = "深圳", stopLat = 0.0, stopLng = 0.0)
+        val route = WatchTogetherRoute.toRoute(target)
+        assertTrue(WatchTogetherRoute.isWatchRoute(route))
+        assertEquals("watch_sz_st1_L1-L2", route.id)
+        assertEquals(1, route.legs.size)
+        assertEquals("", route.legs.single().toStopName)
+        // 候选线没有「这条线上的站 id」字段，读回时用上车站 id 代替（线路接口按它找站）
+        val expected = target.copy(lines = target.lines.map { it.copy(stopIdOnLine = "st1") })
+        assertEquals(expected, WatchTogetherRoute.watchTargetOf(route))
+        // 同一组线顺序不同，id 一样（再存只会更新）
+        assertEquals(route.id, WatchTogetherRoute.toRoute(watchTarget(lM194, l325)).id)
+    }
+
+    @Test
+    fun watchRoute_begin_startsWatchTogether() {
+        val route = WatchTogetherRoute.toRoute(watchTarget(l325, lM194, l19))
+        val session = assertNotNull(TrackingEngine.begin("s1", 1, TrackingTarget.Route(group = route), NOW_MILLIS))
+        assertIs<TrackingTarget.WatchTogether>(session.target)
+        assertEquals(3, session.watchedLines.size)
+        assertEquals(LegPhase.WAITING_BOARD, session.state.legPhase)
+    }
+
+    @Test
+    fun routeWithDestination_begin_staysRoute() {
+        assertFalse(WatchTogetherRoute.isWatchRoute(group))
+        val oneLeg = routeTarget(legs = listOf(leg0))
+        val session = assertNotNull(TrackingEngine.begin("s1", 1, oneLeg, NOW_MILLIS))
+        assertIs<TrackingTarget.Route>(session.target)
+        assertTrue(session.watchedLines.isEmpty())
+    }
 }

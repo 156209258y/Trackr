@@ -118,7 +118,11 @@ object TrackingEngine {
 
             is TrackingTarget.Route -> {
                 val group = target.group
-                if (group.legs.isEmpty()) {
+                // 第 21 步：站点页收藏的「1 程、没有下车站」的路线按一起等追（否则上车即到「终点」）
+                val watch = WatchTogetherRoute.watchTargetOf(group)
+                if (watch != null) {
+                    WatchTogetherTracker.begin(sessionId, generation, watch, nowMillis)
+                } else if (group.legs.isEmpty()) {
                     null
                 } else {
                     val legIndex = target.startLeg.coerceIn(0, group.legs.lastIndex)

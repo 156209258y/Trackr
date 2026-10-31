@@ -3,7 +3,9 @@ package com.trackr.ui
 import android.app.Application
 import android.graphics.Bitmap
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.test.captureToImage
@@ -694,18 +696,21 @@ class ScreenshotGeneratorTest {
             favorites = fakeRepo,
             realtime = fakeRepo,
             userLocationStore = TransitUserLocationStore(fakeRepo),
+            trackingRepository = trackingRepository,
+            trackingController = trackingController,
+            transitCodeLauncher = FakeTransitCodeLauncher(),
             enableAutoPolling = false
         )
         mainDispatcherRule.testDispatcher.scheduler.advanceUntilIdle()
 
-        // 7. 综合枢纽站点详情 (Light Theme)
+        // 7. 综合枢纽站点详情 (Light Theme)；第 21 步起页面无状态，直接喂 VM 的状态
         composeTestRule.setContent {
             TrackrTheme(darkTheme = false) {
                 Surface(modifier = Modifier.fillMaxSize()) {
                     StopDetailScreen(
-                        viewModel = vm,
-                        onNavigateBack = {},
-                        onNavigateToLineDetail = { _, _, _, _, _, _ -> }
+                        state = vm.uiState.value,
+                        onEvent = {},
+                        snackbarHostState = remember { SnackbarHostState() }
                     )
                 }
             }
