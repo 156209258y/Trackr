@@ -2,6 +2,7 @@ package com.trackr.ui.screens.home
 
 import android.app.Application
 import androidx.test.core.app.ApplicationProvider
+import com.trackr.core.data.repository.DefaultLocationRepository
 import com.trackr.core.model.BusLineDirection
 import com.trackr.core.model.BusLineSummary
 import com.trackr.core.model.DataSourceType
@@ -9,7 +10,8 @@ import com.trackr.core.model.FavoriteStationLine
 import com.trackr.core.model.NearbyStop
 import com.trackr.core.model.TransitCity
 import com.trackr.core.model.TransitSearchResult
-import com.trackr.data.location.AndroidDeviceLocationProvider
+import com.trackr.data.location.AndroidLocationSource
+import com.trackr.data.location.AndroidMonotonicClock
 import com.trackr.data.repository.FakeTransitRepository
 import com.trackr.service.AndroidTrackingController
 import com.trackr.util.MainDispatcherRule
@@ -47,7 +49,7 @@ class HomeViewModelTest {
 
     private fun createViewModel(): HomeViewModel {
         return HomeViewModel(
-            locationProvider = AndroidDeviceLocationProvider(app),
+            locationRepository = DefaultLocationRepository(AndroidLocationSource(app), AndroidMonotonicClock),
             trackingController = AndroidTrackingController(app),
             repository = fakeRepository,
             enableAutoPolling = false
@@ -538,7 +540,7 @@ class HomeViewModelTest {
     @Test
     fun testPollingLifecycle_pauseResumeAndExplicitControl() = runTest {
         val vmWithAutoPolling = HomeViewModel(
-            locationProvider = AndroidDeviceLocationProvider(app),
+            locationRepository = DefaultLocationRepository(AndroidLocationSource(app), AndroidMonotonicClock),
             trackingController = AndroidTrackingController(app),
             repository = fakeRepository,
             enableAutoPolling = true
@@ -576,7 +578,7 @@ class HomeViewModelTest {
     fun testSetPollingActive_resumeAfterOneInterval_refreshesImmediately() = runTest {
         var now = 1_000_000L
         val viewModel = HomeViewModel(
-            locationProvider = AndroidDeviceLocationProvider(app),
+            locationRepository = DefaultLocationRepository(AndroidLocationSource(app), AndroidMonotonicClock),
             trackingController = AndroidTrackingController(app),
             repository = fakeRepository,
             enableAutoPolling = false,
@@ -599,7 +601,7 @@ class HomeViewModelTest {
     fun testSetPollingActive_resumeWithinInterval_doesNotRefreshImmediately() = runTest {
         var now = 1_000_000L
         val viewModel = HomeViewModel(
-            locationProvider = AndroidDeviceLocationProvider(app),
+            locationRepository = DefaultLocationRepository(AndroidLocationSource(app), AndroidMonotonicClock),
             trackingController = AndroidTrackingController(app),
             repository = fakeRepository,
             enableAutoPolling = false,

@@ -136,6 +136,8 @@ import com.amap.api.maps.model.PolylineOptions
 import com.trackr.BuildConfig
 import com.trackr.core.designsystem.theme.extendedColors
 import com.trackr.core.domain.math.CoordTransform
+import com.trackr.core.model.AmapTipItem
+import com.trackr.core.model.AmapTransitSchemeResult
 import com.trackr.core.model.CandidateLine
 import com.trackr.core.model.DataSourceType
 import com.trackr.core.model.GroupCategory
@@ -144,8 +146,6 @@ import com.trackr.core.model.LegPhase
 import com.trackr.core.model.ProvinceCityCatalog
 import com.trackr.core.model.TransitGroup
 import com.trackr.data.remote.amap.AmapSdkManager
-import com.trackr.data.remote.amap.AmapTipItem
-import com.trackr.data.remote.amap.AmapTransitSchemeResult
 import com.trackr.ui.screens.favoritesgroup.FavoritesGroupViewModel
 import com.trackr.ui.screens.favoritesgroup.boardStopOrderForDetail
 import com.trackr.ui.screens.favoritesgroup.components.etaMinutesOf

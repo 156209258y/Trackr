@@ -35,31 +35,22 @@
 
 ## 3. 测试目录与套件清单
 
-`./gradlew test` 共跑 58 个测试类：`:androidApp` 46 个，`:core:designsystem` 2 个，`:core:domain` 6 个，`:core:navigation` 3 个，`:core:testing` 1 个（`:core:model` 没有测试）。KMP 模块的 `test` 由约定插件 `trackr.kmp.library` 补上，只跑 Android 主机测试（`testAndroidHostTest`）；iOS 另跑 `./gradlew :core:domain:iosSimulatorArm64Test`（需要 Xcode 和 iOS 模拟器运行时），设计系统只做编译检查 `./gradlew :core:designsystem:compileKotlinIosSimulatorArm64`，导航做编译检查加测试链接 `./gradlew :core:navigation:linkDebugTestIosSimulatorArm64`。
+`./gradlew test` 共跑 65 个测试类：`:androidApp` 37 个，`:core:designsystem` 2 个，`:core:domain` 6 个，`:core:navigation` 3 个，`:core:network` 12 个，`:core:data` 4 个，`:core:testing` 1 个（`:core:model` 没有测试）。KMP 模块的 `test` 由约定插件 `trackr.kmp.library` 补上，只跑 Android 主机测试（`testAndroidHostTest`）；iOS 另跑 `./gradlew :core:domain:iosSimulatorArm64Test`（`:core:network`、`:core:data` 同理，需要 Xcode 和 iOS 模拟器运行时），设计系统只做编译检查 `./gradlew :core:designsystem:compileKotlinIosSimulatorArm64`，导航做编译检查加测试链接 `./gradlew :core:navigation:linkDebugTestIosSimulatorArm64`。
 
 Koin 由 `TrackrApp.onCreate` 启动，Robolectric 用例里每个用例都会重新启动一次。`TransferAutoSwitchManager`、`ArrivalAlertManager`、`LiveProgressNotificationHelper` 这三个旧 object 转发到 Koin 里的实例，只能在 Robolectric（带 `TrackrApp`）用例里调用；纯 JVM 用例里调用会因为 Koin 没启动而抛 `IllegalStateException`。`ReminderScheduler`、`AmapKeyStore` 转发到伴生对象，不受影响。
 
-`:androidApp` 的测试位于 `androidApp/src/test/java/com/trackr/`，下表按子目录列出全部测试类（辅助类 `FakeTransitRepository`、`FakeScheduledReminderRepository`、`MainDispatcherRule` 不含测试）。`:core:designsystem` 的测试位于 `core/designsystem/src/androidHostTest/kotlin/com/trackr/core/designsystem/`：`rail/RouteRailDrawUtilsTest`（走向条绘制工具常量与绘制不崩溃）、`theme/TrackrThemeTest`（v3 蓝浅 / 深两套且不用动态取色、`TrackrColors` 与旧名别名、`eta` / `item` 字号、圆角与尺寸、Compose 资源在 Android 上能读到），都是 Robolectric Compose UI。单跑：`./gradlew :core:designsystem:testAndroidHostTest`。
+`:androidApp` 的测试位于 `androidApp/src/test/java/com/trackr/`，下表按子目录列出全部测试类（辅助类 `FakeTransitRepository`、`FakeScheduledReminderRepository`、`MainDispatcherRule` 不含测试；`FakeTransitRepository` 由 `:core:testing` 里按接口拆开的 Fake 合成）。`:core:designsystem` 的测试位于 `core/designsystem/src/androidHostTest/kotlin/com/trackr/core/designsystem/`：`rail/RouteRailDrawUtilsTest`（走向条绘制工具常量与绘制不崩溃）、`theme/TrackrThemeTest`（v3 蓝浅 / 深两套且不用动态取色、`TrackrColors` 与旧名别名、`eta` / `item` 字号、圆角与尺寸、Compose 资源在 Android 上能读到），都是 Robolectric Compose UI。单跑：`./gradlew :core:designsystem:testAndroidHostTest`。
 
 `:core:domain` 的测试放 `core/domain/src/commonTest/kotlin/com/trackr/core/domain/`，用 `kotlin.test`，Android 主机和 iOS 模拟器各跑一遍：`arrival/ArrivalTextTest`、`math/CoordTransformTest`、`tracking/GroupLegTrackerTest`、`tracking/SingleLegTrackerTest`、`tracking/BoardingDetectionTest`（第 7 步从 `:androidApp` 原样搬来，覆盖范围见下表）。`src/androidHostTest` 里的 `JvmParityTest` 只在 JVM 上跑：逐个比对第 7 步换掉的 JVM API（`String.format(Locale.CHINA, "%.1f公里")`、`Math.toRadians`、`Math.round`、`"%02d:%02d".format`）和新写法结果一致。`:core:testing` 放平台能力接口的 Fake（`FakeClock`、`FakeTrackingController`、`FakeAnnouncer`、`FakeLocationSource`、`FakeReminderAlarms` 等），`FakesTest` 测这些 Fake 本身。单跑：`./gradlew :core:domain:testAndroidHostTest`。
 
 | 目录 | 测试类 | 覆盖范围 | 运行方式 |
 | :--- | :--- | :--- | :--- |
-| 根目录 | `TransitUnitTest` | 核心算法（`RouteProjectionMath` 坐标插值与站名纠错、`ChelaileCrypto` 签名/双密钥解密回退/信封括号截取、线路与城市模型） | 本地 JVM |
-| `data/provider` | `TransitProviderCoordinatorTest` | 引擎模式下搜索/站点详情的数据源路由与回退 | 本地 JVM |
-|  | `TransitProviderTest` | 车来了 Provider 多物理站台并发补全、附近站过滤与站点状态映射 | Robolectric (JVM) |
-|  | `TransitProviderCacheTest` | Provider 层省请求：车来了附近站补全短缓存、其他站台只在首次加载补全、空主查询下次跳过；掌上公交 cmd103 缓存只轮询 cmd104、搜索回退结果线路与站点共用、附近站短缓存、反向地理编码空结果短缓存 | Robolectric (JVM) |
-| `data/remote/amap` | `AmapLruCacheTest` | 高德结果 LRU 缓存满时淘汰最久未用的条目 | 本地 JVM |
-|  | `AmapSdkManagerTest` | 高德 Key 优先级、隐私合规与 Key 注入 | Robolectric (JVM) |
+| 根目录 | `TransitUnitTest` | 核心算法（`RouteProjectionMath` 坐标插值与站名纠错、线路与城市模型；车来了加解密第 8 步搬到 `:core:network` 的 `ChelaileCryptoTest`） | 本地 JVM |
+| `data/remote/amap` | `AmapSdkManagerTest` | 高德 Key 优先级、隐私合规与 Key 注入 | Robolectric (JVM) |
 |  | `AmapSdkTransitServiceTest` | 高德 SDK 公交路径转换为方案、无 Key 时的提示 | Robolectric (JVM) |
-|  | `AmapTransitApiClientTest` | 高德 Web API 换乘方案解析 | Robolectric (JVM) |
-| `data/remote/common` | `BaseTransitApiClientTest` | 地铁站名识别、距离计算、车牌清洗与 HTTP/JSON 执行封装 | Robolectric (JVM) |
-|  | `SingleFlightCacheTest` | 同 key 并发只加载一次、取消一个等待者不影响其他、全部取消后下次重新加载、失败不缓存、TTL 内复用与过期、TTL 为 0 只去重、条目数上限、手动失效 | 本地 JVM |
-| `data/remote/update` | `GithubUpdateCheckerTest` | 更新检查多源回退、强制更新判定、下载地址 https 与域名白名单校验 | Robolectric (JVM) |
-| `data/repository` | `CountyLevelCityMatchTest` | 县级市/县城匹配与省份校验 | 本地 JVM |
-|  | `RouteGroupRepositoryTest` | 路线分组与收藏分组增删改排序、并发写入不丢更新、JSON 损坏备份 | Robolectric (JVM) |
+| `data/remote/update` | `GithubUpdateCheckerTest` | 更新检查多源回退、强制更新判定、下载地址 https 与域名白名单校验、取消后不再试剩下的源（Ktor `MockEngine`） | Robolectric (JVM) |
+| `data/repository` | `RouteGroupRepositoryTest` | 路线分组与收藏分组增删改排序、并发写入不丢更新、JSON 损坏备份 | Robolectric (JVM) |
 |  | `ScheduledReminderRepositoryTest` | 定时提醒增删改与持久化、并发写入不丢更新、JSON 损坏备份、计划触发时间记录 | Robolectric (JVM) |
-|  | `TransitRepositoryLineDetailCacheTest` | 线路详情同 key 并发只请求一次上游、TTL 内复用与过期重拉、目标站顺序不同算不同 key、失败不缓存、取消的调用方不影响其他等待者 | Robolectric (JVM) |
 | `di` | `KoinGraphVerifyTest` | Koin 依赖图：每个模块 `verify()` 静态检查构造参数都有绑定；Robolectric 里把每个定义实际取一次（带参数的 ViewModel 用样例 key） | Robolectric (JVM) |
 | `receiver` | `ScheduledReminderReceiverTest` | 定时提醒触发、自动跟车需精确闹钟、前台服务启动失败降级 | Robolectric (JVM) |
 |  | `BootCompletedReceiverTest` | 开机禁用已错过的一次性提醒、时间变化重新调度、无关广播忽略 | Robolectric (JVM) |
@@ -92,7 +83,7 @@ Koin 由 `TrackrApp.onCreate` 启动，Robolectric 用例里每个用例都会�
 |  | `TransitCodeHelperTest` | 支付宝/云闪付乘车码跳转 Intent | Robolectric (JVM) |
 | `widget` | `FavoritesShortcutWidgetSyncTest` | 应用级收藏同步：启动时不刷新，收藏真变一次只刷新一次快捷方式与小组件，重复 `start()` 不开第二个收集 | Robolectric (JVM) |
 
-`:core:domain`、`:core:navigation` 和 `:core:testing` 的测试类（`:core:navigation` 单跑：`./gradlew :core:navigation:testAndroidHostTest`）：
+`:core:domain`、`:core:navigation`、`:core:network`、`:core:data` 和 `:core:testing` 的测试类（`:core:navigation` 单跑：`./gradlew :core:navigation:testAndroidHostTest`；网络测试一律用 Ktor `MockEngine`，不发真实 HTTP）：
 
 | 模块 / 目录 | 测试类 | 覆盖范围 | 运行方式 |
 | :--- | :--- | :--- | :--- |
@@ -105,6 +96,22 @@ Koin 由 `TrackrApp.onCreate` 启动，Robolectric 用例里每个用例都会�
 | `:core:navigation` | `NavigatorTest` | `Navigator` 纯逻辑：栈顶去重压栈、逐页返回、非首页页签根页返回回首页、首页根页返回交给系统；切页签保留各自的栈、再点当前页签回根并发 `reselect`；`openInTab`（通知 / 小组件跳详情）去重防重放；页签隐藏时清栈回首页；`isShowingRootOf`（首页轮询条件）；`stacksShown`（叠放起始页签 / 只显示当前页签） | commonTest（JVM + iOS 模拟器） |
 |  | `NavigationKeyTest` | `ScreenKey` 用 JSON 序列化与反序列化（第 16 步从 `:androidApp` 搬来） | commonTest（JVM + iOS 模拟器） |
 |  | `NavigationStateRestorationTest` | `StateRestorationTester` 模拟进程重建后 4 条栈和当前页签、页内 `rememberSaveable` 都恢复；切页签不丢另一条栈的页内状态和 ViewModel、弹出页面只清它自己的 ViewModel；`TrackrSavedStateConfiguration` 登记了全部 `ScreenKey`，默认配置存不了 | Robolectric Compose UI（只 JVM） |
+| `:core:network` `json` | `JsonCompatTest` | 和 org.json 同规则的只读 JSON：optString / optInt / optDouble / optBoolean / opt 的取值与默认值 | commonTest（JVM + iOS 模拟器） |
+|  | `JsonCompatParityTest` | 同一段 JSON 每个字段分别用兼容层和真正的 org.json 取值，结果逐个相同 | androidHostTest（只 JVM） |
+| `:core:network` `remote/common` | `BaseTransitApiClientTest` | 地铁站名识别、距离计算、车牌清洗；HTTP/JSON 执行封装、异常信息不带 query、协程取消时底层请求一起取消、20 秒总超时（换成小值验证）且超时消息不带 key | commonTest（JVM + iOS 模拟器） |
+|  | `SingleFlightCacheTest` | 同 key 并发只加载一次、取消一个等待者不影响其他、全部取消后下次重新加载、失败不缓存、TTL 内复用与过期、TTL 为 0 只去重、条目数上限、手动失效 | commonTest（JVM + iOS 模拟器） |
+| `:core:network` `remote/amap` | `AmapLruCacheTest` | 高德结果 LRU 缓存满时淘汰最久未用的条目 | commonTest（JVM + iOS 模拟器） |
+|  | `AmapTransitApiClientTest` | 高德 Web API 换乘方案解析、6 位小数坐标与 URL 编码、`cityd` / `nightflag`、发出去的地址和拼好的串一字不差、输入提示解析 | commonTest（JVM + iOS 模拟器） |
+|  | `AmapFormatJvmTest` | 换德语 Locale 后坐标仍用 `.`；定点格式化逐个对比 `String.format(Locale.ROOT, "%.6f")`、表单编码逐个对比 `URLEncoder` | androidHostTest（只 JVM） |
+| `:core:network` `remote/chelaile` | `ChelaileCryptoTest` | 签名官方测试向量、信封截取（含字符串里的括号）、固定密文解密、H5 备用密钥回退、非 JSON 明文报错、带换行的 Base64 | commonTest（JVM + iOS 模拟器） |
+|  | `ChelaileCryptoJvmTest` | javax.crypto 加密 → common 解密 200 组往返；签名对比 `MessageDigest` | androidHostTest（只 JVM） |
+| `:core:network` `provider` | `TransitProviderTest` | 车来了 Provider 多物理站台并发补全、附近站过滤与站点状态映射；掌上公交站点详情、搜索、附近站、城市列表 | commonTest（JVM + iOS 模拟器） |
+|  | `TransitProviderCacheTest` | Provider 层省请求：车来了附近站补全短缓存、其他站台只在首次加载补全、空主查询下次跳过；掌上公交 cmd103 缓存只轮询 cmd104、搜索回退结果线路与站点共用、附近站短缓存、反向地理编码空结果短缓存 | commonTest（JVM + iOS 模拟器） |
+|  | `RecordedResponsesTest` | 录好的真实响应（`RecordedResponses`，车来了 5 个接口、掌上公交 4 个 CMD）走一遍客户端和解析，并核对发出去的请求头和表单 | commonTest（JVM + iOS 模拟器） |
+| `:core:data` `provider` | `TransitProviderCoordinatorTest` | 引擎模式下搜索/站点详情的数据源路由与回退 | commonTest（JVM + iOS 模拟器） |
+| `:core:data` `repository` | `RealtimeRepositoryLineDetailCacheTest` | 线路详情同 key 并发只请求一次上游、TTL 内复用与过期重拉、目标站顺序不同算不同 key、失败不缓存、取消的调用方不影响其他等待者 | commonTest（JVM + iOS 模拟器） |
+|  | `LocationRepositoryTest` | 首页取定位：够新够准直接用、强制刷新 10 秒 / 平时 60 秒、4.5 秒窗口取最准且 ≤100 m 提前结束、超过 10 分钟的旧定位不用、无权限不定位；规划页 lastKnown 取 10 分钟内最准的 | commonTest（JVM + iOS 模拟器） |
+|  | `CountyLevelCityMatchTest` | 县级市/县城匹配与省份校验 | commonTest（JVM + iOS 模拟器） |
 | `:core:testing` | `FakesTest` | `FakeClock` 墙钟和单调时钟一起走、改墙钟不动单调时钟；`FakeReminderAlarms`、`FakeTransitCodeLauncher`、`FakeLocationSource` 的行为 | commonTest（JVM + iOS 模拟器） |
 
 ---

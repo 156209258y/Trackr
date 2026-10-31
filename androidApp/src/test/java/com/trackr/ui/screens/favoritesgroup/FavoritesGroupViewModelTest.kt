@@ -2,6 +2,9 @@ package com.trackr.ui.screens.favoritesgroup
 
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
+import com.trackr.core.data.repository.AmapRouteGateway
+import com.trackr.core.model.AmapTipItem
+import com.trackr.core.model.AmapTransitSchemeResult
 import com.trackr.core.model.BusLineDetail
 import com.trackr.core.model.BusLineDirection
 import com.trackr.core.model.CandidateLine
@@ -11,8 +14,6 @@ import com.trackr.core.model.LiveBus
 import com.trackr.core.model.TransitCity
 import com.trackr.core.model.TransitGroup
 import com.trackr.core.model.TransitLeg
-import com.trackr.data.remote.amap.AmapTipItem
-import com.trackr.data.remote.amap.AmapTransitSchemeResult
 import com.trackr.data.repository.FakeTransitRepository
 import com.trackr.data.repository.RouteGroupRepository
 import com.trackr.service.TransferAutoSwitchManager

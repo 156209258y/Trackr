@@ -11,7 +11,6 @@ import com.trackr.core.model.LiveBus
 import com.trackr.core.model.NearbyStop
 import com.trackr.core.model.isPureSubwayStation
 import com.trackr.core.model.sanitizePlateOrFleetNo
-import com.trackr.data.remote.chelaile.ChelaileCrypto
 import com.trackr.ui.components.formatBusChipShortText
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -236,74 +235,7 @@ class TransitUnitTest {
         assertEquals("末班已过", LineOperatingState.ENDED.defaultLabel)
     }
 
-    @Test
-    fun testChelaileCryptoSign_matchesOfficialTestVector() {
-        val sign = ChelaileCrypto.cryptoSign(mapOf("lineId" to "775200849296"))
-        assertEquals("3f2031d13050245b1d39d5e90a824eca", sign)
-    }
-
-    @Test
-    fun testChelaileEnvelopeStripping_plainData() {
-        val raw = """**YGKJ{"jsonr":{"status":"00","errmsg":"","data":{"maxInterval":30}}}YGKJ##"""
-        val json = ChelaileCrypto.extractEnvelopeDataJson(raw)
-        assertEquals(30, json.getInt("maxInterval"))
-    }
-
-    @Test
-    fun testChelaileAesEcbDecryption_roundTrip() {
-        val plainJson = """{"targetOrder":12,"buses":[{"licence":"417","order":7}]}"""
-        val cipher = javax.crypto.Cipher.getInstance("AES/ECB/PKCS5Padding")
-        val keySpec = javax.crypto.spec.SecretKeySpec(ChelaileCrypto.AES_KEY_WX.toByteArray(Charsets.UTF_8), "AES")
-        cipher.init(javax.crypto.Cipher.ENCRYPT_MODE, keySpec)
-        val encryptedBase64 = java.util.Base64.getEncoder().encodeToString(cipher.doFinal(plainJson.toByteArray(Charsets.UTF_8)))
-
-        val rawEnvelope = """**YGKJ{"jsonr":{"status":"00","errmsg":"","data":{"encryptResult":"$encryptedBase64"}}}YGKJ##"""
-        val extracted = ChelaileCrypto.extractEnvelopeDataJson(rawEnvelope)
-        assertEquals(12, extracted.getInt("targetOrder"))
-        assertEquals("417", extracted.getJSONArray("buses").getJSONObject(0).getString("licence"))
-    }
-
-    private fun encryptForTest(plain: String, key: String): String {
-        val cipher = javax.crypto.Cipher.getInstance("AES/ECB/PKCS5Padding")
-        val keySpec = javax.crypto.spec.SecretKeySpec(key.toByteArray(Charsets.UTF_8), "AES")
-        cipher.init(javax.crypto.Cipher.ENCRYPT_MODE, keySpec)
-        return java.util.Base64.getEncoder().encodeToString(cipher.doFinal(plain.toByteArray(Charsets.UTF_8)))
-    }
-
-    @Test
-    fun testChelaileDecrypt_fallsBackToH5Key() {
-        // 用 H5 备用密钥加密：默认 WX 密钥解密失败或得到非 JSON 乱码时，必须回退到 H5 密钥
-        val plainJson = """{"targetOrder":8,"buses":[]}"""
-        val encryptedBase64 = encryptForTest(plainJson, ChelaileCrypto.AES_KEY_H5)
-
-        val decrypted = ChelaileCrypto.decryptResult(encryptedBase64)
-        assertEquals(plainJson, decrypted)
-
-        val rawEnvelope = """**YGKJ{"jsonr":{"status":"00","errmsg":"","data":{"encryptResult":"$encryptedBase64"}}}YGKJ##"""
-        val extracted = ChelaileCrypto.extractEnvelopeDataJson(rawEnvelope)
-        assertEquals(8, extracted.getInt("targetOrder"))
-    }
-
-    @Test
-    fun testChelaileDecrypt_nonJsonPlainTextWithAllKeys_throws() {
-        // 两把密钥都只能得到非 JSON 明文时应抛异常，而不是返回乱码
-        val encryptedBase64 = encryptForTest("not a json payload", ChelaileCrypto.AES_KEY_WX)
-        var thrown = false
-        try {
-            ChelaileCrypto.decryptResult(encryptedBase64)
-        } catch (_: Exception) {
-            thrown = true
-        }
-        assertTrue(thrown)
-    }
-
-    @Test
-    fun testChelaileEnvelopeStripping_braceInsideStringLiteral() {
-        // errmsg 中含有 '}' 与转义引号，括号计数必须跳过字符串字面量
-        val raw = """**YGKJ{"jsonr":{"status":"00","errmsg":"a}b\"}{","data":{"maxInterval":45}}}YGKJ##"""
-        val json = ChelaileCrypto.extractEnvelopeDataJson(raw)
-        assertEquals(45, json.getInt("maxInterval"))
-    }
+    // 车来了签名、信封截取、AES 解密的 6 条用例第 8 步搬到 :core:network 的 ChelaileCryptoTest（commonTest，固定密文）
 
     @Test
     fun testCalculateDistanceMeters_knownLocations() {
@@ -332,11 +264,11 @@ class TransitUnitTest {
 
     @Test
     fun testMygolbsNormalizeCityName() {
-        assertEquals("北京市", com.trackr.data.remote.mygolbs.MygolbsApiClient.normalizeCityName("北京"))
-        assertEquals("福州市", com.trackr.data.remote.mygolbs.MygolbsApiClient.normalizeCityName("福州"))
-        assertEquals("玉林市", com.trackr.data.remote.mygolbs.MygolbsApiClient.normalizeCityName("玉林"))
-        assertEquals("玉林市", com.trackr.data.remote.mygolbs.MygolbsApiClient.normalizeCityName("玉林市"))
-        assertEquals("长宁县", com.trackr.data.remote.mygolbs.MygolbsApiClient.normalizeCityName("长宁县"))
+        assertEquals("北京市", com.trackr.core.network.remote.mygolbs.MygolbsApiClient.normalizeCityName("北京"))
+        assertEquals("福州市", com.trackr.core.network.remote.mygolbs.MygolbsApiClient.normalizeCityName("福州"))
+        assertEquals("玉林市", com.trackr.core.network.remote.mygolbs.MygolbsApiClient.normalizeCityName("玉林"))
+        assertEquals("玉林市", com.trackr.core.network.remote.mygolbs.MygolbsApiClient.normalizeCityName("玉林市"))
+        assertEquals("长宁县", com.trackr.core.network.remote.mygolbs.MygolbsApiClient.normalizeCityName("长宁县"))
     }
 
     @Test

@@ -15,6 +15,7 @@ import com.trackr.core.model.UpdateCheckResult
 import com.trackr.core.model.UserFix
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.emptyFlow
 
 /*
@@ -89,6 +90,32 @@ class FakeLocationSource(
     override fun lastKnown(): UserFix? = lastKnownFix
 
     override fun hasPrecisePermission(): Boolean = precisePermission
+
+    /** 有任一定位权限；默认跟着 [precisePermission] */
+    var anyPermission: Boolean? = null
+
+    override fun hasAnyPermission(): Boolean = anyPermission ?: precisePermission
+
+    /** 各来源缓存的定位；为 null 时退回 [lastKnownFix] */
+    var lastKnownFixList: List<UserFix>? = null
+
+    override fun lastKnownFixes(): List<UserFix> = lastKnownFixList ?: listOfNotNull(lastKnownFix)
+
+    /**
+     * [currentFixes] 的行为：为 null 时返回 [live]（测试用 [emit] 推定位，永不结束）；
+     * 设成一个列表时依次发出这些定位后结束（模拟窗口内收到的定位）。
+     */
+    var currentFixScript: List<UserFix>? = null
+
+    /** 被调了几次 [currentFixes]（断言是否开了窗口） */
+    var currentFixesCount: Int = 0
+        private set
+
+    override fun currentFixes(): Flow<UserFix> {
+        currentFixesCount++
+        val script = currentFixScript ?: return live
+        return script.asFlow()
+    }
 }
 
 /** 语音输入 Fake：依次返回 [answers] 里的结果，用完后返回 null */

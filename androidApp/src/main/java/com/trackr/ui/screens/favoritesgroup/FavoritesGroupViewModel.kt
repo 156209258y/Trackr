@@ -4,10 +4,16 @@ import android.content.Context
 import android.content.SharedPreferences
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.trackr.core.data.provider.TransitProviderCoordinator
+import com.trackr.core.data.repository.AmapRouteGateway
+import com.trackr.core.data.repository.DefaultLocationRepository
+import com.trackr.core.data.repository.LocationRepository
 import com.trackr.core.domain.arrival.ArrivalState
 import com.trackr.core.domain.arrival.ArrivalText
 import com.trackr.core.domain.math.CoordTransform
 import com.trackr.core.domain.math.RouteProjectionMath
+import com.trackr.core.model.AmapTipItem
+import com.trackr.core.model.AmapTransitSchemeResult
 import com.trackr.core.model.BusLineDetail
 import com.trackr.core.model.BusLineDirection
 import com.trackr.core.model.BusStop
@@ -23,19 +29,14 @@ import com.trackr.core.model.NearbyStop
 import com.trackr.core.model.TransitCity
 import com.trackr.core.model.TransitGroup
 import com.trackr.core.model.TransitLeg
-import com.trackr.data.location.AndroidDeviceLocationProvider
-import com.trackr.data.location.DeviceLocationProvider
-import com.trackr.data.provider.TransitProviderCoordinator
-import com.trackr.data.provider.model.LineDetailRequest
-import com.trackr.data.provider.model.StopDetailRequest
+import com.trackr.core.network.provider.model.LineDetailRequest
+import com.trackr.core.network.provider.model.StopDetailRequest
+import com.trackr.core.network.remote.amap.AmapLruCache
+import com.trackr.core.network.remote.amap.AmapTransitApiClient
 import com.trackr.data.remote.amap.AmapKeyStore
-import com.trackr.data.remote.amap.AmapLruCache
 import com.trackr.data.remote.amap.AmapSdkKeyApplier
 import com.trackr.data.remote.amap.AmapSdkManager
 import com.trackr.data.remote.amap.AmapSdkTransitService
-import com.trackr.data.remote.amap.AmapTipItem
-import com.trackr.data.remote.amap.AmapTransitApiClient
-import com.trackr.data.remote.amap.AmapTransitSchemeResult
 import com.trackr.data.repository.IRouteGroupRepository
 import com.trackr.data.repository.ITransitRepository
 import com.trackr.service.TransferAutoSwitchManager
@@ -63,33 +64,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
-import okhttp3.OkHttpClient
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
-
-/**
- * 高德输入提示 / 公交算路通道。
- *
- * 默认实现（[FavoritesGroupViewModel] 内部）：SDK 优先，**只有 SDK 调用失败**才回落 Web 服务；
- * SDK 成功但结果为空时不再重复请求 Web。单元测试可注入替身，避免发起真实请求。
- */
-interface AmapRouteGateway {
-    /** 是否至少配置了一条可用通道（Android Key 或 Web 服务 Key） */
-    fun isConfigured(): Boolean
-
-    /** @param location 当前位置 "lng,lat"（GCJ-02），可为空 */
-    suspend fun searchTips(keyword: String, cityName: String, location: String?): Result<List<AmapTipItem>>
-
-    /** @param cityd 跨城时的终点城市 adcode，同城传 null */
-    suspend fun planTransit(
-        originLngLat: String,
-        destinationLngLat: String,
-        originName: String,
-        destName: String,
-        cityName: String,
-        cityd: String?
-    ): Result<List<AmapTransitSchemeResult>>
-}
 
 /**
  * 路线组与换乘追踪 ViewModel
@@ -99,8 +75,8 @@ class FavoritesGroupViewModel(
     private val groupRepository: IRouteGroupRepository,
     private val transitRepository: ITransitRepository,
     private val coordinator: TransitProviderCoordinator? = null,
-    private val okHttpClient: OkHttpClient? = null,
-    private val amapApiClient: AmapTransitApiClient = AmapTransitApiClient(okHttpClient ?: OkHttpClient()),
+    /** 高德 Web 服务客户端；为 null 时 Web 通道不可用（测试一般注入 [AmapRouteGateway] 替身） */
+    private val amapApiClient: AmapTransitApiClient? = null,
     private val amapSdkService: AmapSdkTransitService? = null,
     /** `trackr_prefs`，只用来记一次性数据迁移的版本号；为 null 时每次都跑迁移 */
     private val prefs: SharedPreferences? = null,
@@ -116,7 +92,7 @@ class FavoritesGroupViewModel(
     /** 把 Android Key 注入高德 SDK；测试默认不注入 */
     private val amapSdkKeyApplier: AmapSdkKeyApplier = AmapSdkKeyApplier { },
     /** 「我的位置」兜底用的系统 lastKnown 定位；为 null 时没有兜底 */
-    private val locationProvider: DeviceLocationProvider? = null
+    private val locationRepository: LocationRepository? = null
 ) : ViewModel() {
 
     companion object {
@@ -158,7 +134,7 @@ class FavoritesGroupViewModel(
         private const val ALIGN_CONCURRENCY = 4
 
         /** 系统 lastKnown 定位兜底的最大年龄 */
-        const val MAX_LAST_KNOWN_AGE_MS = AndroidDeviceLocationProvider.MAX_LAST_KNOWN_AGE_MS
+        const val MAX_LAST_KNOWN_AGE_MS = DefaultLocationRepository.MAX_LAST_KNOWN_AGE_MS
 
         /** 输入提示是否值得发请求：至少 2 个字符，或包含 1 个汉字 */
         fun isTipsKeywordEligible(keyword: String): Boolean {
@@ -549,8 +525,9 @@ class FavoritesGroupViewModel(
                 sdkFailure = result.exceptionOrNull()
             }
             val webKey = effectiveWebServiceKey()
-            if (webKey.isNotEmpty()) {
-                return amapApiClient.searchPoiTips(keyword, cityName, webKey, location)
+            val web = amapApiClient
+            if (webKey.isNotEmpty() && web != null) {
+                return web.searchPoiTips(keyword, cityName, webKey, location)
             }
             return Result.failure(sdkFailure ?: IllegalStateException("未配置高德 Key"))
         }
@@ -580,8 +557,9 @@ class FavoritesGroupViewModel(
                 sdkFailure = result.exceptionOrNull()
             }
             val webKey = effectiveWebServiceKey()
-            if (webKey.isNotEmpty()) {
-                return amapApiClient.planTransit(
+            val web = amapApiClient
+            if (webKey.isNotEmpty() && web != null) {
+                return web.planTransit(
                     originLngLat = originLngLat,
                     destinationLngLat = destinationLngLat,
                     originName = originName,
@@ -750,7 +728,9 @@ class FavoritesGroupViewModel(
      * 优先用首页定位链路写入的坐标，其次是系统 lastKnown（需有权限且不超过 10 分钟）。
      */
     private suspend fun resolveMyLocationTip(city: TransitCity): AmapTipItem? {
-        val (lat, lng) = transitRepository.userLocation.value ?: locationProvider?.lastKnownWgsLocation() ?: return null
+        val (lat, lng) = transitRepository.userLocation.value
+            ?: locationRepository?.lastKnown(MAX_LAST_KNOWN_AGE_MS)?.let { it.lat to it.lng }
+            ?: return null
         val nearby = runCatching {
             transitRepository.getNearbyStops(city, lat, lng, 1).getOrNull()?.firstOrNull()
         }.getOrNull()

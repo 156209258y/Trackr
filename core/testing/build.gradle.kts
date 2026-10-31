@@ -1,5 +1,5 @@
 // 测试辅助：KMP（Android + iosArm64 + iosSimulatorArm64），给各模块的测试用。
-// 第 7 步放平台能力接口的 Fake 和 FakeClock；Fake 仓库在第 8 步按接口拆进来。
+// 平台能力接口的 Fake 和 FakeClock（第 7 步）；:core:data 仓库接口的 Fake（第 8 步，由原 FakeTransitRepository 按接口拆出）。
 plugins {
     alias(libs.plugins.trackr.kmp.library)
 }
@@ -8,6 +8,7 @@ kotlin {
     sourceSets {
         commonMain.dependencies {
             api(project(":core:domain"))
+            api(project(":core:data"))
             api(libs.kotlinx.coroutines.core)
         }
         commonTest.dependencies {

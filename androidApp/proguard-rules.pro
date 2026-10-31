@@ -34,9 +34,9 @@
 # ScreenKey 第 16 步搬到 :core:navigation（返回栈按序列化名存进 SavedState）
 -keep class com.trackr.core.navigation.ScreenKey { *; }
 -keep class com.trackr.core.navigation.ScreenKey$** { *; }
--keep class com.trackr.data.provider.model.** { *; }
+-keep class com.trackr.core.network.provider.model.** { *; }
 
-# --- OkHttp & Okio ---
+# --- OkHttp & Okio（Ktor 的 Android 引擎）---
 -dontwarn okhttp3.**
 -dontwarn okio.**
 -dontwarn javax.annotation.**

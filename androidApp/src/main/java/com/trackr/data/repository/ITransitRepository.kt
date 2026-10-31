@@ -1,99 +1,31 @@
 package com.trackr.data.repository
 
-import com.trackr.core.model.AggregatedSourcePriority
-import com.trackr.core.model.BusLineDetail
-import com.trackr.core.model.BusLineDirection
-import com.trackr.core.model.DataSourceType
-import com.trackr.core.model.EngineMode
-import com.trackr.core.model.FavoriteStationLine
-import com.trackr.core.model.LineTimetable
-import com.trackr.core.model.NearbyStop
+import com.trackr.core.data.repository.FavoritesRepository
+import com.trackr.core.data.repository.RealtimeRepository
+import com.trackr.core.data.repository.SearchHistoryRepository
+import com.trackr.core.data.repository.SettingsRepository
 import com.trackr.core.model.TrackingSessionState
-import com.trackr.core.model.TransitCity
-import com.trackr.core.model.TransitCodeProvider
-import com.trackr.core.model.TransitSearchResult
 import kotlinx.coroutines.flow.StateFlow
 
 /**
- * 统一实时公交数据仓库契约（融合车来了 + 掌上公交双引擎）
+ * 统一实时公交数据仓库契约（过渡用）。
+ *
+ * 第 8 步把原来的上帝接口拆成 `:core:data` 里的 [SettingsRepository]、[FavoritesRepository]、
+ * [RealtimeRepository]、[SearchHistoryRepository]（定位另有 `LocationRepository`），这里只是把它们合在一起，
+ * 让现有 ViewModel 先不用改；第 17 步 ViewModel 搬进各 feature 时改成只拿要用的接口，这个接口随之删掉。
  */
-interface ITransitRepository {
-    val selectedCity: StateFlow<TransitCity>
-    /** 用户是否曾经选过/存过城市（首次安装为 false，此时才允许定位自动切换城市） */
-    val hasSavedCity: Boolean
-    val engineMode: StateFlow<EngineMode>
-    val aggregatedPriority: StateFlow<AggregatedSourcePriority>
-    val favorites: StateFlow<List<FavoriteStationLine>>
+interface ITransitRepository : SettingsRepository, FavoritesRepository, RealtimeRepository, SearchHistoryRepository {
+
+    /** 追踪会话（第 12 步换成 `TrackingRepository`） */
     val activeTrackingSession: StateFlow<TrackingSessionState>
+
+    /**
+     * 首页定位写入的最近坐标（WGS-84），站点详情 / 搜索 / 规划页「我的位置」没传坐标时用。
+     * 第 17 步 ViewModel 改读 `LocationRepository.latest` 后删掉。
+     */
     val userLocation: StateFlow<Pair<Double, Double>?>
-    val searchHistory: StateFlow<List<String>>
-    val preferredTransitCodeProvider: StateFlow<TransitCodeProvider>
-    val nearbyStopsCount: StateFlow<Int>
-    val isLiveNotificationEnabled: StateFlow<Boolean>
 
-    fun setEngineMode(mode: EngineMode)
-    fun setAggregatedPriority(priority: AggregatedSourcePriority)
-    fun setNearbyStopsCount(count: Int)
-    fun setLiveNotificationEnabled(enabled: Boolean)
     fun updateUserLocation(lat: Double, lng: Double)
-    suspend fun selectCity(city: TransitCity)
-    suspend fun getSupportedCities(forceRefresh: Boolean = false): Result<List<TransitCity>>
-    suspend fun resolveCityByLocation(wgsLat: Double, wgsLng: Double): Result<TransitCity?>
-
-    suspend fun getNearbyStops(
-        city: TransitCity,
-        wgsLat: Double,
-        wgsLng: Double,
-        limit: Int = 4
-    ): Result<List<NearbyStop>>
-
-    suspend fun getStopDetail(
-        city: TransitCity,
-        stopId: String? = null,
-        stopName: String? = null,
-        physicalStId: String? = null,
-        namesakeStId: String? = null,
-        stationLat: Double? = null,
-        stationLng: Double? = null,
-        userLat: Double? = null,
-        userLng: Double? = null
-    ): Result<List<NearbyStop>>
-
-    suspend fun search(
-        city: TransitCity,
-        keyword: String,
-        userLat: Double? = null,
-        userLng: Double? = null
-    ): Result<TransitSearchResult>
-
-    suspend fun getLineDetail(
-        city: TransitCity,
-        lineId: String,
-        targetOrder: Int? = null,
-        stationId: String? = null,
-        wgsLat: Double? = null,
-        wgsLng: Double? = null,
-        source: DataSourceType = if (lineId.startsWith("mg:")) DataSourceType.MYGOLBS else DataSourceType.CHELAILE,
-        lineNameHint: String = "",
-        directionHint: Int = 0
-    ): Result<BusLineDetail>
-
-    suspend fun getTimetable(
-        city: TransitCity,
-        line: BusLineDirection,
-        atTimeHHMM: String? = null
-    ): Result<LineTimetable>
-
-    suspend fun refreshFavoritesRealtime(): Result<Map<String, NearbyStop>>
-
-    suspend fun toggleFavorite(item: FavoriteStationLine): Boolean
-    suspend fun removeFavorite(id: String)
-
-    suspend fun addSearchHistory(query: String)
-    suspend fun removeSearchHistory(query: String)
-    suspend fun clearSearchHistory()
-
-    suspend fun setPreferredTransitCodeProvider(provider: TransitCodeProvider)
 
     fun updateTrackingSession(state: TrackingSessionState)
 }

@@ -3,6 +3,8 @@ package com.trackr.ui.screens.home
 import android.os.SystemClock
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.trackr.core.data.repository.DefaultLocationRepository
+import com.trackr.core.data.repository.LocationRepository
 import com.trackr.core.domain.platform.TrackingController
 import com.trackr.core.model.AggregatedSourcePriority
 import com.trackr.core.model.EngineMode
@@ -12,9 +14,6 @@ import com.trackr.core.model.ProvinceCityCatalog
 import com.trackr.core.model.TrackingSessionState
 import com.trackr.core.model.TransitCity
 import com.trackr.core.model.TransitSearchResult
-import com.trackr.core.model.UserFix
-import com.trackr.data.location.AndroidDeviceLocationProvider
-import com.trackr.data.location.DeviceLocationProvider
 import com.trackr.data.repository.ITransitRepository
 import com.trackr.ui.util.FixedDelayPollingStrategy
 import com.trackr.ui.util.PollingCoordinator
@@ -70,7 +69,7 @@ data class HomeUiState(
 class HomeViewModel(
     private val repository: ITransitRepository,
     /** 设备定位（首页刷新时取一次当前位置） */
-    private val locationProvider: DeviceLocationProvider,
+    private val locationRepository: LocationRepository,
     /** 追踪服务控制（「结束追踪」、把定位喂给换乘引擎） */
     private val trackingController: TrackingController,
     private val enableAutoPolling: Boolean = true,
@@ -305,22 +304,15 @@ class HomeViewModel(
                 _uiState.update { it.copy(favoritesRealtime = favResult.getOrNull().orEmpty()) }
             }
 
-            val gpsLocation = locationProvider.fetchCurrentLocation(forceFresh = true)
+            val gpsLocation = locationRepository.bestFix(forceFresh = true)
 
             val nearbyJob = launch {
                 val (lat, lng, targetCity) = if (gpsLocation != null) {
-                    val lat = gpsLocation.latitude
-                    val lng = gpsLocation.longitude
+                    val lat = gpsLocation.lat
+                    val lng = gpsLocation.lng
                     repository.updateUserLocation(lat, lng)
                     // 带精度与定位时刻喂给换乘引擎，过期 / 不准的定位不参与下车站判定
-                    trackingController.updateUserFix(
-                        UserFix(
-                            lat = lat,
-                            lng = lng,
-                            accuracyMeters = if (gpsLocation.hasAccuracy()) gpsLocation.accuracy else null,
-                            elapsedMillis = gpsLocation.elapsedRealtimeNanos / 1_000_000L
-                        )
-                    )
+                    trackingController.updateUserFix(gpsLocation)
 
                     // 尝试反向根据坐标解析匹配城市
                     val resolvedCity = try {
@@ -590,13 +582,13 @@ class HomeViewModel(
         const val NEARBY_STOPS_LIMIT = 4
         const val POLLING_INTERVAL_MS = 15_000L
 
-        /** 主动定位的收集窗口（定位代码已移到 [AndroidDeviceLocationProvider]） */
-        const val LOCATION_WINDOW_MS = AndroidDeviceLocationProvider.LOCATION_WINDOW_MS
+        /** 主动定位的收集窗口（定位算法已移到 [DefaultLocationRepository]） */
+        const val LOCATION_WINDOW_MS = DefaultLocationRepository.LOCATION_WINDOW_MS
 
         /** 精度达到该值即可提前结束定位收集 */
-        const val GOOD_ACCURACY_METERS = AndroidDeviceLocationProvider.GOOD_ACCURACY_METERS
+        const val GOOD_ACCURACY_METERS = DefaultLocationRepository.GOOD_ACCURACY_METERS
 
         /** 兜底使用的旧定位最大年龄 */
-        const val MAX_STALE_LOCATION_AGE_MS = AndroidDeviceLocationProvider.MAX_STALE_LOCATION_AGE_MS
+        const val MAX_STALE_LOCATION_AGE_MS = DefaultLocationRepository.MAX_STALE_LOCATION_AGE_MS
     }
 }

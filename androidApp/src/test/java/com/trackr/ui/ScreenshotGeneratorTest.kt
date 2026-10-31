@@ -10,6 +10,7 @@ import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onRoot
 import androidx.test.core.app.ApplicationProvider
+import com.trackr.core.data.repository.DefaultLocationRepository
 import com.trackr.core.designsystem.theme.TrackrTheme
 import com.trackr.core.model.BusLineDetail
 import com.trackr.core.model.BusLineDirection
@@ -23,7 +24,8 @@ import com.trackr.core.model.ScheduledReminder
 import com.trackr.core.model.TrackingSessionState
 import com.trackr.core.model.TransitCity
 import com.trackr.core.model.TransitSearchResult
-import com.trackr.data.location.AndroidDeviceLocationProvider
+import com.trackr.data.location.AndroidLocationSource
+import com.trackr.data.location.AndroidMonotonicClock
 import com.trackr.data.repository.FakeScheduledReminderRepository
 import com.trackr.data.repository.FakeTransitRepository
 import com.trackr.service.AndroidTrackingController
@@ -547,7 +549,7 @@ class ScreenshotGeneratorTest {
         fakeRepo.favoritesRealtimeResult = Result.success(favRealtime)
 
         val vm = HomeViewModel(
-            locationProvider = AndroidDeviceLocationProvider(app),
+            locationRepository = DefaultLocationRepository(AndroidLocationSource(app), AndroidMonotonicClock),
             trackingController = AndroidTrackingController(app),
             repository = fakeRepo,
             enableAutoPolling = false
@@ -722,7 +724,7 @@ class ScreenshotGeneratorTest {
         )
 
         val vm = HomeViewModel(
-            locationProvider = AndroidDeviceLocationProvider(app),
+            locationRepository = DefaultLocationRepository(AndroidLocationSource(app), AndroidMonotonicClock),
             trackingController = AndroidTrackingController(app),
             repository = fakeRepo,
             enableAutoPolling = false

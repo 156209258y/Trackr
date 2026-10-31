@@ -38,6 +38,8 @@ ktor = "3.6.1"
 room = "2.8.5"
 sqlite = "2.7.1"
 kotlinxDatetime = "0.8.0"
+# commonMain 里的非挂起锁（SingleFlightCache / LRU）；Ktor、coroutines 也依赖它
+atomicfu = "0.33.0"
 
 [libraries]
 amap-search = { group = "com.amap.api", name = "3dmap-location-search", version.ref = "amap3dBundle" }
@@ -96,7 +98,7 @@ koin-android = { group = "io.insert-koin", name = "koin-android" }
 koin-compose = { group = "io.insert-koin", name = "koin-compose" }
 koin-compose-viewmodel = { group = "io.insert-koin", name = "koin-compose-viewmodel" }
 koin-test = { group = "io.insert-koin", name = "koin-test" }
-# Ktor（第 8 步）
+# Ktor（第 8 步起应用）
 ktor-client-core = { group = "io.ktor", name = "ktor-client-core", version.ref = "ktor" }
 ktor-client-okhttp = { group = "io.ktor", name = "ktor-client-okhttp", version.ref = "ktor" }
 ktor-client-darwin = { group = "io.ktor", name = "ktor-client-darwin", version.ref = "ktor" }
@@ -111,6 +113,8 @@ androidx-sqlite-bundled = { group = "androidx.sqlite", name = "sqlite-bundled", 
 androidx-datastore-preferences-core = { group = "androidx.datastore", name = "datastore-preferences-core", version.ref = "datastore" }
 # kotlinx-datetime（第 6、7 步）
 kotlinx-datetime = { group = "org.jetbrains.kotlinx", name = "kotlinx-datetime", version.ref = "kotlinxDatetime" }
+# atomicfu（第 8 步）
+atomicfu = { group = "org.jetbrains.kotlinx", name = "atomicfu", version.ref = "atomicfu" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

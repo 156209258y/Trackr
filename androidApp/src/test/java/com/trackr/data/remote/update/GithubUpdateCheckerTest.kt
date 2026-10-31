@@ -1,12 +1,21 @@
 package com.trackr.data.remote.update
 
 import com.trackr.core.model.UpdateCheckResult
+import io.ktor.client.HttpClient
+import io.ktor.client.engine.mock.MockEngine
+import io.ktor.client.engine.mock.MockRequestHandleScope
+import io.ktor.client.engine.mock.respond
+import io.ktor.http.HttpHeaders
+import io.ktor.http.HttpStatusCode
+import io.ktor.http.headersOf
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
-import okhttp3.MediaType.Companion.toMediaType
-import okhttp3.OkHttpClient
-import okhttp3.Protocol
-import okhttp3.Response
-import okhttp3.ResponseBody.Companion.toResponseBody
+import kotlinx.coroutines.withTimeout
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -32,17 +41,7 @@ class GithubUpdateCheckerTest {
             }
         """.trimIndent()
 
-        val client = OkHttpClient.Builder()
-            .addInterceptor { chain ->
-                Response.Builder()
-                    .request(chain.request())
-                    .protocol(Protocol.HTTP_1_1)
-                    .code(200)
-                    .message("OK")
-                    .body(jsonPayload.toResponseBody("application/json".toMediaType()))
-                    .build()
-            }
-            .build()
+        val client = clientReturning(jsonPayload)
 
         val checker = GithubUpdateChecker(httpClient = client, endpointUrls = listOf("https://example.com/update.json"))
         val result = checker.checkForUpdates(currentVersionCode = 2, currentVersionName = "0.0.2")
@@ -70,17 +69,7 @@ class GithubUpdateCheckerTest {
             }
         """.trimIndent()
 
-        val client = OkHttpClient.Builder()
-            .addInterceptor { chain ->
-                Response.Builder()
-                    .request(chain.request())
-                    .protocol(Protocol.HTTP_1_1)
-                    .code(200)
-                    .message("OK")
-                    .body(jsonPayload.toResponseBody("application/json".toMediaType()))
-                    .build()
-            }
-            .build()
+        val client = clientReturning(jsonPayload)
 
         val checker = GithubUpdateChecker(httpClient = client, endpointUrls = listOf("https://example.com/update.json"))
         val result = checker.checkForUpdates(currentVersionCode = 2, currentVersionName = "0.0.2")
@@ -102,17 +91,7 @@ class GithubUpdateCheckerTest {
             }
         """.trimIndent()
 
-        val client = OkHttpClient.Builder()
-            .addInterceptor { chain ->
-                Response.Builder()
-                    .request(chain.request())
-                    .protocol(Protocol.HTTP_1_1)
-                    .code(200)
-                    .message("OK")
-                    .body(jsonPayload.toResponseBody("application/json".toMediaType()))
-                    .build()
-            }
-            .build()
+        val client = clientReturning(jsonPayload)
 
         val checker = GithubUpdateChecker(httpClient = client, endpointUrls = listOf("https://example.com/update.json"))
         val result = checker.checkForUpdates(currentVersionCode = 2, currentVersionName = "0.0.2")
@@ -132,22 +111,13 @@ class GithubUpdateCheckerTest {
             }
         """.trimIndent()
 
-        val client = OkHttpClient.Builder()
-            .addInterceptor { chain ->
-                val requestUrl = chain.request().url.toString()
-                if (requestUrl.contains("primary.com")) {
-                    throw IOException("Network timeout on primary")
-                } else {
-                    Response.Builder()
-                        .request(chain.request())
-                        .protocol(Protocol.HTTP_1_1)
-                        .code(200)
-                        .message("OK")
-                        .body(jsonPayload.toResponseBody("application/json".toMediaType()))
-                        .build()
-                }
+        val client = HttpClient(MockEngine { request ->
+            if (request.url.toString().contains("primary.com")) {
+                throw IOException("Network timeout on primary")
+            } else {
+                respondJson(jsonPayload)
             }
-            .build()
+        })
 
         val checker = GithubUpdateChecker(
             httpClient = client,
@@ -161,11 +131,7 @@ class GithubUpdateCheckerTest {
 
     @Test
     fun checkForUpdates_whenAllEndpointsFail_returnsError() = runTest {
-        val client = OkHttpClient.Builder()
-            .addInterceptor {
-                throw IOException("Unable to resolve host")
-            }
-            .build()
+        val client = HttpClient(MockEngine { _ -> throw IOException("Unable to resolve host") })
 
         val checker = GithubUpdateChecker(
             httpClient = client,
@@ -177,17 +143,11 @@ class GithubUpdateCheckerTest {
         assertEquals("Unable to resolve host", (result as UpdateCheckResult.Error).message)
     }
 
-    private fun clientReturning(jsonPayload: String): OkHttpClient = OkHttpClient.Builder()
-        .addInterceptor { chain ->
-            Response.Builder()
-                .request(chain.request())
-                .protocol(Protocol.HTTP_1_1)
-                .code(200)
-                .message("OK")
-                .body(jsonPayload.toResponseBody("application/json".toMediaType()))
-                .build()
-        }
-        .build()
+    private fun MockRequestHandleScope.respondJson(jsonPayload: String) =
+        respond(jsonPayload, HttpStatusCode.OK, headersOf(HttpHeaders.ContentType, "application/json"))
+
+    private fun clientReturning(jsonPayload: String): HttpClient =
+        HttpClient(MockEngine { _ -> respondJson(jsonPayload) })
 
     private fun payloadWithDownloadUrl(downloadUrl: String) = """
         {
@@ -216,6 +176,28 @@ class GithubUpdateCheckerTest {
         )
         val result = checker.checkForUpdates(currentVersionCode = 2, currentVersionName = "0.0.2")
         assertTrue(result is UpdateCheckResult.Error)
+    }
+
+    @Test
+    fun checkForUpdates_whenCancelled_doesNotTryRemainingEndpoints() = runBlocking {
+        val requested = java.util.concurrent.atomic.AtomicInteger(0)
+        val entered = CompletableDeferred<Unit>()
+        val client = HttpClient(MockEngine { _ ->
+            requested.incrementAndGet()
+            entered.complete(Unit)
+            awaitCancellation()
+        })
+        val checker = GithubUpdateChecker(
+            httpClient = client,
+            endpointUrls = listOf("https://a.example.com/u.json", "https://b.example.com/u.json")
+        )
+
+        val job = launch(Dispatchers.Default) { checker.checkForUpdates(currentVersionCode = 2, currentVersionName = "0.0.2") }
+        withTimeout(2_000L) { entered.await() }
+        job.cancelAndJoin()
+
+        assertTrue(job.isCancelled)
+        assertEquals(1, requested.get())
     }
 
     @Test

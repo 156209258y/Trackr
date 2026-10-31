@@ -4,11 +4,12 @@ import android.app.Application
 import android.content.Context
 import com.trackr.core.model.DataSourceType
 import com.trackr.core.navigation.ScreenKey
-import com.trackr.data.provider.ITransitProvider
+import com.trackr.core.network.provider.ITransitProvider
 import com.trackr.ui.screens.linedetail.LineDetailViewModel
 import com.trackr.ui.screens.stopdetail.StopDetailViewModel
 import com.trackr.util.MainDispatcherRule
-import okhttp3.OkHttpClient
+import io.ktor.client.HttpClientConfig
+import io.ktor.client.engine.HttpClientEngine
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
@@ -41,7 +42,9 @@ class KoinGraphVerifyTest {
     private val extraTypes: List<KClass<*>> = listOf(
         Context::class,
         Application::class,
-        OkHttpClient.Builder::class,
+        // HttpClient 的构造参数（Koin 里用 createTrackrHttpClient() 现建）
+        HttpClientEngine::class,
+        HttpClientConfig::class,
         // verify 会检查所有公开构造函数：TransitProviderCoordinator 主构造函数收 Map，次构造函数收两个 ITransitProvider；
         // Koin 里用次构造函数，传的是具体的 ChelaileTransitProvider / MygolbsTransitProvider
         Map::class,

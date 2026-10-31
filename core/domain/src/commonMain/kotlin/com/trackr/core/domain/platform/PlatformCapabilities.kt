@@ -6,6 +6,7 @@ import com.trackr.core.model.TransitCodeProvider
 import com.trackr.core.model.UpdateCheckResult
 import com.trackr.core.model.UserFix
 import kotlinx.coroutines.flow.Flow
+import kotlin.time.TimeSource
 
 /*
  * 平台能力接口（重构计划 §2.1、§2.8）。
@@ -24,6 +25,15 @@ import kotlinx.coroutines.flow.Flow
  */
 fun interface MonotonicClock {
     fun elapsedMillis(): Long
+}
+
+/**
+ * 进程内的单调时钟，起点是第一次读它的时刻（标准库 `TimeSource.Monotonic`）。
+ * 只用来算差值，比如缓存过期；[UserFix] 的定位时刻要和平台定位同一时基，不能用它。
+ */
+val ProcessMonotonicClock: MonotonicClock = object : MonotonicClock {
+    private val start = TimeSource.Monotonic.markNow()
+    override fun elapsedMillis(): Long = start.elapsedNow().inWholeMilliseconds
 }
 
 /** 追踪服务的控制入口（Android：前台服务；iOS：App 在前台时轮询） */
@@ -70,6 +80,18 @@ interface LocationSource {
 
     /** 是否有精确定位权限 */
     fun hasPrecisePermission(): Boolean
+
+    /** 是否有任一定位权限（精确或模糊）；首页取城市、附近站用模糊定位也行 */
+    fun hasAnyPermission(): Boolean = hasPrecisePermission()
+
+    /** 各定位来源（Android：fused / network / gps / passive）缓存的最近定位，各一个；默认只有 [lastKnown] */
+    fun lastKnownFixes(): List<UserFix> = listOfNotNull(lastKnown())
+
+    /**
+     * 立即在所有可用来源上以最高频率监听（首页取一次定位的窗口用），收集结束即停止。
+     * 没有可用来源时直接结束，不出数据。
+     */
+    fun currentFixes(): Flow<UserFix>
 }
 
 /** 语音输入（长辈版搜索用）。Android：RecognizerIntent；iOS：SFSpeechRecognizer */

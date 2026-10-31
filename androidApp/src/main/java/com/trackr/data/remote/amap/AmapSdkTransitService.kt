@@ -9,12 +9,15 @@ import com.amap.api.services.route.BusPath
 import com.amap.api.services.route.BusRouteResult
 import com.amap.api.services.route.RouteBusWalkItem
 import com.amap.api.services.route.RouteSearch
+import com.trackr.core.model.AmapTipItem
+import com.trackr.core.model.AmapTransitSchemeResult
 import com.trackr.core.model.CandidateLine
 import com.trackr.core.model.DataSourceType
 import com.trackr.core.model.GeoPoint
 import com.trackr.core.model.GroupCategory
 import com.trackr.core.model.TransitGroup
 import com.trackr.core.model.TransitLeg
+import com.trackr.core.network.remote.amap.AmapTransitApiClient
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.util.Locale
