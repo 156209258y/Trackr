@@ -6,9 +6,9 @@ import android.content.pm.PackageManager
 import android.os.Build
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.trackr.data.remote.update.IUpdateChecker
-import com.trackr.domain.model.AppUpdateInfo
-import com.trackr.domain.model.UpdateCheckResult
+import com.trackr.core.domain.platform.UpdateChecker
+import com.trackr.core.model.AppUpdateInfo
+import com.trackr.core.model.UpdateCheckResult
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -27,7 +27,7 @@ sealed interface AboutUpdateUiState {
 
 class AboutViewModel(
     application: Application,
-    private val updateChecker: IUpdateChecker,
+    private val updateChecker: UpdateChecker,
     private val versionProvider: () -> Pair<Int, String> = {
         getDefaultAppVersion(application)
     }

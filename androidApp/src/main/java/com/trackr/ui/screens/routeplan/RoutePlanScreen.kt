@@ -9,26 +9,6 @@ import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.pager.HorizontalPager
-import androidx.compose.foundation.pager.PagerState
-import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.material.icons.filled.BookmarkBorder
-import androidx.compose.material.icons.filled.Stop
-import androidx.compose.material3.FilledTonalButton
-import androidx.compose.runtime.snapshotFlow
-import com.trackr.domain.model.CandidateLine
-import com.trackr.domain.model.GroupTrackingSessionState
-import com.trackr.domain.model.LegPhase
-import com.trackr.ui.screens.favoritesgroup.boardStopOrderForDetail
-import com.trackr.ui.screens.favoritesgroup.components.etaMinutesOf
-import com.trackr.ui.screens.favoritesgroup.components.formatClock
-import com.trackr.ui.screens.favoritesgroup.components.legLineColor
-import com.trackr.ui.screens.favoritesgroup.components.reliableRideStops
-import com.trackr.ui.screens.favoritesgroup.components.trackingPhaseLabel
-import java.time.ZoneId
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -37,11 +17,14 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -53,6 +36,9 @@ import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.PagerState
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -61,6 +47,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.AltRoute
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.ContentCopy
@@ -70,6 +57,7 @@ import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.SwapVert
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
@@ -78,6 +66,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.FloatingActionButton
@@ -101,6 +90,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -144,19 +134,29 @@ import com.amap.api.maps.model.LatLngBounds
 import com.amap.api.maps.model.MarkerOptions
 import com.amap.api.maps.model.PolylineOptions
 import com.trackr.BuildConfig
+import com.trackr.core.designsystem.theme.extendedColors
+import com.trackr.core.domain.math.CoordTransform
+import com.trackr.core.model.CandidateLine
+import com.trackr.core.model.DataSourceType
+import com.trackr.core.model.GroupCategory
+import com.trackr.core.model.GroupTrackingSessionState
+import com.trackr.core.model.LegPhase
+import com.trackr.core.model.ProvinceCityCatalog
+import com.trackr.core.model.TransitGroup
 import com.trackr.data.remote.amap.AmapSdkManager
 import com.trackr.data.remote.amap.AmapTipItem
 import com.trackr.data.remote.amap.AmapTransitSchemeResult
-import com.trackr.domain.model.DataSourceType
-import com.trackr.domain.model.GroupCategory
-import com.trackr.domain.model.ProvinceCityCatalog
-import com.trackr.domain.model.TransitGroup
 import com.trackr.ui.screens.favoritesgroup.FavoritesGroupViewModel
-import com.trackr.core.designsystem.theme.extendedColors
-import com.trackr.util.CoordTransform
+import com.trackr.ui.screens.favoritesgroup.boardStopOrderForDetail
+import com.trackr.ui.screens.favoritesgroup.components.etaMinutesOf
+import com.trackr.ui.screens.favoritesgroup.components.formatClock
+import com.trackr.ui.screens.favoritesgroup.components.legLineColor
+import com.trackr.ui.screens.favoritesgroup.components.reliableRideStops
+import com.trackr.ui.screens.favoritesgroup.components.trackingPhaseLabel
 import com.trackr.util.SignatureUtils
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import java.time.ZoneId
 
 /**
  * 是否运行在 Robolectric/无高德 SDK 的测试环境，用于决定地图是否走矢量降级实现
@@ -1197,7 +1197,7 @@ private fun DrawScope.drawTransferBadge(
 @Composable
 fun SaveFavoriteGroupDialog(
     scheme: AmapTransitSchemeResult,
-    favoriteGroups: List<com.trackr.domain.model.FavoriteGroup>,
+    favoriteGroups: List<com.trackr.core.model.FavoriteGroup>,
     onDismiss: () -> Unit,
     onConfirmSave: (customGroupId: String?, customName: String) -> Unit,
     onCreateNewGroup: (String) -> Unit

@@ -43,11 +43,11 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.trackr.domain.model.DataSourceType
-import com.trackr.domain.model.ProvinceCityCatalog
-import com.trackr.domain.model.TransitCity
-import com.trackr.ui.components.common.DataSourceBadge
 import com.trackr.core.designsystem.component.TrackrBottomSheet
+import com.trackr.core.model.DataSourceType
+import com.trackr.core.model.ProvinceCityCatalog
+import com.trackr.core.model.TransitCity
+import com.trackr.ui.components.common.DataSourceBadge
 
 /**
  * 城市项条目卡片 (统一用于搜索过滤列表与省份展开列表，消除近 100 行重复渲染逻辑)

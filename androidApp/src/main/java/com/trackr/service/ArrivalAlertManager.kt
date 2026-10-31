@@ -15,8 +15,8 @@ import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import com.trackr.R
-import com.trackr.domain.math.RouteProjectionMath
-import com.trackr.domain.model.TrackingSessionState
+import com.trackr.core.domain.math.RouteProjectionMath
+import com.trackr.core.model.TrackingSessionState
 import com.trackr.service.vendor.LiveUpdatePromotion
 import com.trackr.service.vendor.XiaomiFocusAdapter
 import org.koin.mp.KoinPlatform

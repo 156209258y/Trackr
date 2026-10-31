@@ -1,7 +1,7 @@
 package com.trackr.ui.navigation
 
 import androidx.navigation3.runtime.NavKey
-import com.trackr.domain.model.DataSourceType
+import com.trackr.core.model.DataSourceType
 import kotlinx.serialization.Serializable
 
 @Serializable

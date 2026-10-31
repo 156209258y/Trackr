@@ -2,8 +2,8 @@ package com.trackr.widget
 
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
+import com.trackr.core.model.FavoriteStationLine
 import com.trackr.data.repository.FakeTransitRepository
-import com.trackr.domain.model.FavoriteStationLine
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope

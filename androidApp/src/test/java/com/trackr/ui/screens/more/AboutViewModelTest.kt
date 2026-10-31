@@ -2,9 +2,9 @@ package com.trackr.ui.screens.more
 
 import android.app.Application
 import androidx.test.core.app.ApplicationProvider
-import com.trackr.data.remote.update.IUpdateChecker
-import com.trackr.domain.model.AppUpdateInfo
-import com.trackr.domain.model.UpdateCheckResult
+import com.trackr.core.domain.platform.UpdateChecker
+import com.trackr.core.model.AppUpdateInfo
+import com.trackr.core.model.UpdateCheckResult
 import com.trackr.util.MainDispatcherRule
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -33,7 +33,7 @@ class AboutViewModelTest {
 
     private class FakeUpdateChecker(
         var result: UpdateCheckResult
-    ) : IUpdateChecker {
+    ) : UpdateChecker {
         var callCount = 0
         override suspend fun checkForUpdates(
             currentVersionCode: Int,

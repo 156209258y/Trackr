@@ -1,6 +1,9 @@
 package com.trackr.di
 
 import android.content.Context
+import com.trackr.core.domain.platform.ReminderAlarms
+import com.trackr.core.domain.platform.TrackingController
+import com.trackr.core.domain.platform.UpdateChecker
 import com.trackr.data.location.AndroidDeviceLocationProvider
 import com.trackr.data.location.DeviceLocationProvider
 import com.trackr.data.provider.TransitProviderCoordinator
@@ -13,7 +16,6 @@ import com.trackr.data.remote.amap.AndroidAmapSdkKeyApplier
 import com.trackr.data.remote.chelaile.ChelaileApiClient
 import com.trackr.data.remote.mygolbs.MygolbsApiClient
 import com.trackr.data.remote.update.GithubUpdateChecker
-import com.trackr.data.remote.update.IUpdateChecker
 import com.trackr.data.repository.IRouteGroupRepository
 import com.trackr.data.repository.IScheduledReminderRepository
 import com.trackr.data.repository.ITransitRepository
@@ -23,7 +25,6 @@ import com.trackr.data.repository.TransitRepository
 import com.trackr.service.AndroidTrackingController
 import com.trackr.service.ArrivalAlertNotifier
 import com.trackr.service.LiveProgressNotifier
-import com.trackr.service.TrackingController
 import com.trackr.service.TransferAutoSwitcher
 import com.trackr.ui.navigation.ScreenKey
 import com.trackr.ui.screens.favoritesgroup.FavoritesGroupViewModel
@@ -102,7 +103,7 @@ val appModule: Module = module {
     }
     single { ArrivalAlertNotifier(get()) }
     single { TransferAutoSwitcher(get()) }
-    single { ReminderAlarmScheduler(androidContext()) }
+    single<ReminderAlarms> { ReminderAlarmScheduler(androidContext()) }
     single { AmapKeyStorage(androidContext()) }
 
     // 平台能力：ViewModel 不再直接拿 Context
@@ -111,7 +112,7 @@ val appModule: Module = module {
     single<AmapSdkKeyApplier> { AndroidAmapSdkKeyApplier(androidContext()) }
 
     // 原来每个 AboutViewModel 都新建一个检查器，这里保持 factory
-    factory<IUpdateChecker> { GithubUpdateChecker(get()) }
+    factory<UpdateChecker> { GithubUpdateChecker(get()) }
 }
 
 /** 6 个 ViewModel。带参数的页面用 `parametersOf(key)` 传入导航 key */

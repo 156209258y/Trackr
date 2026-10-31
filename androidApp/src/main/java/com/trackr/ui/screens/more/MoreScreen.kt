@@ -26,8 +26,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Alarm
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.NotificationsActive
@@ -64,18 +64,18 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.compose.LifecycleResumeEffect
-import org.koin.compose.viewmodel.koinViewModel
-import com.trackr.domain.model.AggregatedSourcePriority
-import com.trackr.domain.model.DataSourceType
-import com.trackr.domain.model.EngineMode
-import com.trackr.domain.model.TransitCodeProvider
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.trackr.core.model.AggregatedSourcePriority
+import com.trackr.core.model.DataSourceType
+import com.trackr.core.model.EngineMode
+import com.trackr.core.model.TransitCodeProvider
 import com.trackr.service.vendor.LiveUpdatePromotion
 import com.trackr.service.vendor.OppoFluidCloudAdapter
 import com.trackr.service.vendor.XiaomiFocusAdapter
 import com.trackr.ui.components.ScheduledRemindersBottomSheet
 import com.trackr.util.TransitCodeHelper
+import org.koin.compose.viewmodel.koinViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

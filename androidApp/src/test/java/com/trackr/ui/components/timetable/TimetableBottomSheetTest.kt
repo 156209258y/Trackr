@@ -4,11 +4,11 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
-import com.trackr.domain.model.BusLineDirection
-import com.trackr.domain.model.DataSourceType
-import com.trackr.domain.model.LineTimetable
-import com.trackr.domain.model.TimetableSegment
 import com.trackr.core.designsystem.theme.TrackrTheme
+import com.trackr.core.model.BusLineDirection
+import com.trackr.core.model.DataSourceType
+import com.trackr.core.model.LineTimetable
+import com.trackr.core.model.TimetableSegment
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test

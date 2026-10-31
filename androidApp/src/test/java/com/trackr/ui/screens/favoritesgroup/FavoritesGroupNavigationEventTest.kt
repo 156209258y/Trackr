@@ -8,8 +8,8 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.trackr.core.model.TransitCity
 import com.trackr.data.repository.FakeTransitRepository
-import com.trackr.domain.model.TransitCity
 import com.trackr.ui.screens.favoritesgroup.components.GroupEditDialog
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue

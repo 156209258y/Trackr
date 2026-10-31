@@ -1,16 +1,16 @@
 package com.trackr.ui.screens.linedetail
 
+import com.trackr.core.model.BusLineDetail
+import com.trackr.core.model.BusLineDirection
+import com.trackr.core.model.BusStop
+import com.trackr.core.model.DataSourceType
+import com.trackr.core.model.LineTimetable
+import com.trackr.core.model.LiveBus
+import com.trackr.core.model.TransitCity
+import com.trackr.core.model.TransitCodeProvider
 import com.trackr.data.repository.FakeScheduledReminderRepository
 import com.trackr.data.repository.FakeTransitRepository
 import com.trackr.data.repository.ITransitRepository
-import com.trackr.domain.model.BusLineDetail
-import com.trackr.domain.model.BusLineDirection
-import com.trackr.domain.model.BusStop
-import com.trackr.domain.model.DataSourceType
-import com.trackr.domain.model.LineTimetable
-import com.trackr.domain.model.LiveBus
-import com.trackr.domain.model.TransitCity
-import com.trackr.domain.model.TransitCodeProvider
 import com.trackr.ui.components.RouteRailLayoutMode
 import com.trackr.util.MainDispatcherRule
 import kotlinx.coroutines.CompletableDeferred

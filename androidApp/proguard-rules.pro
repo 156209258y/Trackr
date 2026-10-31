@@ -29,7 +29,7 @@
 }
 
 # Keep Domain Models and Navigation Keys for JSON and Navigation3 Serialization
--keep class com.trackr.domain.model.** { *; }
+-keep class com.trackr.core.model.** { *; }
 -keep class com.trackr.ui.navigation.** { *; }
 -keep class com.trackr.data.provider.model.** { *; }
 

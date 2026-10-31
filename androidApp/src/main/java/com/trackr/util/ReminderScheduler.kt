@@ -8,31 +8,32 @@ import android.content.SharedPreferences
 import android.os.Build
 import android.util.Log
 import androidx.core.app.AlarmManagerCompat
-import com.trackr.domain.model.ScheduledReminder
+import com.trackr.core.domain.platform.ReminderAlarms
+import com.trackr.core.model.ScheduledReminder
 import com.trackr.receiver.ScheduledReminderReceiver
 import java.util.Calendar
 
 /**
  * 定时提醒硬件闹钟调度器 (AlarmManager)
  *
- * 第 4 步从 object 改成类，由 Koin 提供单例，接收器注入它；第 7 步再让它实现 `ReminderAlarms`。
+ * 第 4 步从 object 改成类，由 Koin 提供单例，接收器注入它；第 7 步起实现 `:core:domain` 的 [ReminderAlarms]。
  * 状态都在系统闹钟和 `trackr_reminder_schedule_state` 文件里，实现仍是伴生对象里的原函数，实例只绑定应用 Context。
  * 旧的 [ReminderScheduler] 暂时转发到伴生对象（第 12 步删）。
  */
-class ReminderAlarmScheduler(context: Context) {
+class ReminderAlarmScheduler(context: Context) : ReminderAlarms {
 
     private val appContext: Context = context.applicationContext ?: context
 
-    fun canScheduleExact(): Boolean = canScheduleExact(appContext)
+    override fun canScheduleExact(): Boolean = canScheduleExact(appContext)
 
-    fun getLastScheduledTriggerMillis(reminderId: String): Long? =
+    override fun lastScheduledTriggerMillis(reminderId: String): Long? =
         getLastScheduledTriggerMillis(appContext, reminderId)
 
-    fun scheduleReminder(reminder: ScheduledReminder) = scheduleReminder(appContext, reminder)
+    override fun schedule(reminder: ScheduledReminder) = scheduleReminder(appContext, reminder)
 
-    fun cancelReminder(reminderId: String) = cancelReminder(appContext, reminderId)
+    override fun cancel(reminderId: String) = cancelReminder(appContext, reminderId)
 
-    fun rescheduleAll(reminders: List<ScheduledReminder>) = rescheduleAll(appContext, reminders)
+    override fun rescheduleAll(reminders: List<ScheduledReminder>) = rescheduleAll(appContext, reminders)
 
     companion object {
 

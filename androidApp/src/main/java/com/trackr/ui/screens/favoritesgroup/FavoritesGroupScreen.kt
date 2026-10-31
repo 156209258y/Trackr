@@ -63,10 +63,10 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.trackr.domain.model.CandidateLine
-import com.trackr.domain.model.DataSourceType
-import com.trackr.domain.model.GroupCategory
-import com.trackr.domain.model.TransitGroup
+import com.trackr.core.model.CandidateLine
+import com.trackr.core.model.DataSourceType
+import com.trackr.core.model.GroupCategory
+import com.trackr.core.model.TransitGroup
 import com.trackr.ui.screens.favoritesgroup.components.GroupEditDialog
 import com.trackr.ui.screens.favoritesgroup.components.ManageFavoriteGroupsBottomSheet
 import com.trackr.ui.screens.favoritesgroup.components.TransitGroupCard

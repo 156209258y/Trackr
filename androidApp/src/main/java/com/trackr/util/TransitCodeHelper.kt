@@ -5,7 +5,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.widget.Toast
-import com.trackr.domain.model.TransitCodeProvider
+import com.trackr.core.model.TransitCodeProvider
 
 /**
  * 乘车码唤醒与应用跳转工具类（支持支付宝乘车码与云闪付乘车码）

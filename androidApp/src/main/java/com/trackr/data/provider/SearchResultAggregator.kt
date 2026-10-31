@@ -1,13 +1,13 @@
 package com.trackr.data.provider
 
-import com.trackr.domain.math.RouteProjectionMath
-import com.trackr.domain.model.AggregatedSourcePriority
-import com.trackr.domain.model.BusLineSummary
-import com.trackr.domain.model.DataSourceType
-import com.trackr.domain.model.EngineMode
-import com.trackr.domain.model.NearbyStop
-import com.trackr.domain.model.TransitSearchResult
-import com.trackr.domain.model.isPureSubwayStation
+import com.trackr.core.domain.math.RouteProjectionMath
+import com.trackr.core.model.AggregatedSourcePriority
+import com.trackr.core.model.BusLineSummary
+import com.trackr.core.model.DataSourceType
+import com.trackr.core.model.EngineMode
+import com.trackr.core.model.NearbyStop
+import com.trackr.core.model.TransitSearchResult
+import com.trackr.core.model.isPureSubwayStation
 
 /**
  * 实时公交多源检索结果聚合器

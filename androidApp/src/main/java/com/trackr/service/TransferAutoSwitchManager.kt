@@ -4,15 +4,17 @@ import android.content.Context
 import android.os.SystemClock
 import android.util.Log
 import androidx.core.content.ContextCompat
-import com.trackr.domain.math.RouteProjectionMath
-import com.trackr.domain.model.CandidateLine
-import com.trackr.domain.model.GroupTrackingSessionState
-import com.trackr.domain.model.LegPhase
-import com.trackr.domain.model.LineOperatingState
-import com.trackr.domain.model.TrackingSessionState
-import com.trackr.domain.model.TransitGroup
-import com.trackr.domain.model.TransitLeg
-import com.trackr.util.CoordTransform
+import com.trackr.core.domain.arrival.ArrivalRules
+import com.trackr.core.domain.math.CoordTransform
+import com.trackr.core.domain.math.RouteProjectionMath
+import com.trackr.core.model.CandidateLine
+import com.trackr.core.model.GroupTrackingSessionState
+import com.trackr.core.model.LegPhase
+import com.trackr.core.model.LineOperatingState
+import com.trackr.core.model.TrackingSessionState
+import com.trackr.core.model.TransitGroup
+import com.trackr.core.model.TransitLeg
+import com.trackr.core.model.UserFix
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -59,8 +61,8 @@ class TransferAutoSwitcher(
     internal val currentUserFix: UserFix?
         get() = lastUserFix
 
-    /** 当前开机时长时钟，可在测试中替换 */
-    internal var elapsedRealtimeNanosProvider: () -> Long = { SystemClock.elapsedRealtimeNanos() }
+    /** 单调时钟（毫秒，和 [UserFix.elapsedMillis] 同一时基），可在测试中替换 */
+    internal var elapsedRealtimeMillisProvider: () -> Long = { SystemClock.elapsedRealtime() }
 
     /**
      * 服务存活时由 [BusTrackingService] 注册：在服务内部直接切换到新一程，
@@ -73,8 +75,8 @@ class TransferAutoSwitcher(
      * 更新手机用户当前定位（WGS-84，用于 ON_BOARD 阶段到达下车站的辅助测距）。
      * 只有 age <= 60s 且 accuracy <= 50m 的定位才参与判定。
      */
-    fun updateUserFix(lat: Double, lng: Double, accuracyMeters: Float?, elapsedRealtimeNanos: Long) {
-        lastUserFix = UserFix(lat, lng, accuracyMeters, elapsedRealtimeNanos)
+    fun updateUserFix(fix: UserFix) {
+        lastUserFix = fix
     }
 
     /**
@@ -92,12 +94,12 @@ class TransferAutoSwitcher(
     }
 
     /** 定位是否足够新且足够准，可用于下车站辅助判定 */
-    fun isUserFixUsable(fix: UserFix?, nowElapsedNanos: Long = elapsedRealtimeNanosProvider()): Boolean {
+    fun isUserFixUsable(fix: UserFix?, nowElapsedMillis: Long = elapsedRealtimeMillisProvider()): Boolean {
         if (fix == null) return false
         val accuracy = fix.accuracyMeters ?: return false
         if (accuracy <= 0f || accuracy > USER_FIX_MAX_ACCURACY_METERS) return false
-        val age = nowElapsedNanos - fix.elapsedRealtimeNanos
-        return age in 0..USER_FIX_MAX_AGE_NANOS
+        val age = nowElapsedMillis - fix.elapsedMillis
+        return age in 0..USER_FIX_MAX_AGE_MILLIS
     }
 
     /**
@@ -229,7 +231,7 @@ class TransferAutoSwitcher(
         session: TrackingSessionState,
         leg: TransitLeg?,
         userFix: UserFix? = lastUserFix,
-        nowElapsedNanos: Long = elapsedRealtimeNanosProvider()
+        nowElapsedMillis: Long = elapsedRealtimeMillisProvider()
     ): Boolean {
         // WAITING_BOARD（或 SINGLE）阶段绝不在此触发下车站到达
         if (session.legPhase == LegPhase.WAITING_BOARD) return false
@@ -238,7 +240,7 @@ class TransferAutoSwitcher(
         val busCondition = ArrivalRules.isSessionArrived(session)
 
         // 2. 空间测距辅助判定，仅在 ON_BOARD 阶段生效；leg 坐标为 GCJ-02，用户坐标为 WGS-84，需转换对齐
-        val locationCondition = if (session.legPhase == LegPhase.ON_BOARD && isUserFixUsable(userFix, nowElapsedNanos)) {
+        val locationCondition = if (session.legPhase == LegPhase.ON_BOARD && isUserFixUsable(userFix, nowElapsedMillis)) {
             val fix = requireNotNull(userFix)
             val targetLat = leg?.toStopLat ?: 0.0
             val targetLng = leg?.toStopLng ?: 0.0
@@ -388,7 +390,7 @@ class TransferAutoSwitcher(
         private const val TAG = "TransferAutoSwitch"
 
         /** 下车站定位辅助判定：定位最长有效期 */
-        const val USER_FIX_MAX_AGE_NANOS = 60_000_000_000L
+        const val USER_FIX_MAX_AGE_MILLIS = 60_000L
 
         /** 下车站定位辅助判定：定位精度上限（米） */
         const val USER_FIX_MAX_ACCURACY_METERS = 50f
@@ -407,9 +409,6 @@ class TransferAutoSwitcher(
     }
 }
 
-/** 手机定位快照，第 7 步挪进 `:core:model`；这里保留旧名 `TransferAutoSwitchManager.UserFix` 的写法 */
-typealias UserFix = TransferAutoSwitchManager.UserFix
-
 /**
  * 旧入口：第 4 步起实现在 [TransferAutoSwitcher]（Koin 单例），这里只转发，第 12 步删。
  * 服务、通知动作接收器已改为注入 [TransferAutoSwitcher]；ViewModel 等其余调用方暂时还走这里。
@@ -418,32 +417,20 @@ object TransferAutoSwitchManager {
 
     private val impl: TransferAutoSwitcher get() = KoinPlatform.getKoin().get()
 
-    const val USER_FIX_MAX_AGE_NANOS = TransferAutoSwitcher.USER_FIX_MAX_AGE_NANOS
+    const val USER_FIX_MAX_AGE_MILLIS = TransferAutoSwitcher.USER_FIX_MAX_AGE_MILLIS
     const val USER_FIX_MAX_ACCURACY_METERS = TransferAutoSwitcher.USER_FIX_MAX_ACCURACY_METERS
     const val MAX_FAILURE_BACKOFF_MS = TransferAutoSwitcher.MAX_FAILURE_BACKOFF_MS
     const val NOT_RUNNING_POLL_INTERVAL_MS = TransferAutoSwitcher.NOT_RUNNING_POLL_INTERVAL_MS
     const val SIGNAL_LOST_MIN_INTERVAL_MS = TransferAutoSwitcher.SIGNAL_LOST_MIN_INTERVAL_MS
 
-    /**
-     * 手机定位快照（WGS-84）。
-     * @param accuracyMeters 水平精度（米），未知为 null（未知时不参与判定）
-     * @param elapsedRealtimeNanos 定位时刻（[SystemClock.elapsedRealtimeNanos] 时基，对应 Location.elapsedRealtimeNanos）
-     */
-    data class UserFix(
-        val lat: Double,
-        val lng: Double,
-        val accuracyMeters: Float?,
-        val elapsedRealtimeNanos: Long
-    )
-
     val activeGroupSession: StateFlow<GroupTrackingSessionState?> get() = impl.activeGroupSession
 
     val activeGroupState: StateFlow<TransitGroup?> get() = impl.activeGroupState
 
-    internal var elapsedRealtimeNanosProvider: () -> Long
-        get() = impl.elapsedRealtimeNanosProvider
+    internal var elapsedRealtimeMillisProvider: () -> Long
+        get() = impl.elapsedRealtimeMillisProvider
         set(value) {
-            impl.elapsedRealtimeNanosProvider = value
+            impl.elapsedRealtimeMillisProvider = value
         }
 
     internal var legSwitcher: ((TrackingStartParams) -> Boolean)?
@@ -452,15 +439,14 @@ object TransferAutoSwitchManager {
             impl.legSwitcher = value
         }
 
-    fun updateUserFix(lat: Double, lng: Double, accuracyMeters: Float?, elapsedRealtimeNanos: Long) =
-        impl.updateUserFix(lat, lng, accuracyMeters, elapsedRealtimeNanos)
+    fun updateUserFix(fix: UserFix) = impl.updateUserFix(fix)
 
     fun updateUserLocation(lat: Double, lng: Double) = impl.updateUserLocation(lat, lng)
 
     fun clearUserFix() = impl.clearUserFix()
 
-    fun isUserFixUsable(fix: UserFix?, nowElapsedNanos: Long = impl.elapsedRealtimeNanosProvider()): Boolean =
-        impl.isUserFixUsable(fix, nowElapsedNanos)
+    fun isUserFixUsable(fix: UserFix?, nowElapsedMillis: Long = impl.elapsedRealtimeMillisProvider()): Boolean =
+        impl.isUserFixUsable(fix, nowElapsedMillis)
 
     fun startGroupTracking(
         context: Context,
@@ -479,8 +465,8 @@ object TransferAutoSwitchManager {
         session: TrackingSessionState,
         leg: TransitLeg?,
         userFix: UserFix? = impl.currentUserFix,
-        nowElapsedNanos: Long = impl.elapsedRealtimeNanosProvider()
-    ): Boolean = impl.isArrivalSatisfied(session, leg, userFix, nowElapsedNanos)
+        nowElapsedMillis: Long = impl.elapsedRealtimeMillisProvider()
+    ): Boolean = impl.isArrivalSatisfied(session, leg, userFix, nowElapsedMillis)
 
     fun onLegProgressUpdated(context: Context, session: TrackingSessionState): GroupTrackingSessionState? =
         impl.onLegProgressUpdated(context, session)

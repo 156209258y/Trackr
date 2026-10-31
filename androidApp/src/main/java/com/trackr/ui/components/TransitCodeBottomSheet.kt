@@ -35,7 +35,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.trackr.R
-import com.trackr.domain.model.TransitCodeProvider
+import com.trackr.core.model.TransitCodeProvider
 
 /**
  * 乘车码快捷唤醒 BottomSheet 选择弹窗（支持支付宝与云闪付）

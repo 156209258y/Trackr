@@ -1,6 +1,6 @@
 package com.trackr.data.repository
 
-import com.trackr.domain.model.ScheduledReminder
+import com.trackr.core.model.ScheduledReminder
 import kotlinx.coroutines.flow.StateFlow
 
 /**

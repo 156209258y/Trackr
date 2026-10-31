@@ -1,17 +1,17 @@
 package com.trackr.data.remote.mygolbs
 
+import com.trackr.core.domain.math.RouteProjectionMath
+import com.trackr.core.model.BusLineDetail
+import com.trackr.core.model.BusLineDirection
+import com.trackr.core.model.BusLineSummary
+import com.trackr.core.model.BusStop
+import com.trackr.core.model.DataSourceType
+import com.trackr.core.model.LineOperatingState
+import com.trackr.core.model.LiveBus
+import com.trackr.core.model.NearbyStop
+import com.trackr.core.model.NearbyStopLineStatus
 import com.trackr.data.remote.common.BaseTransitApiClient
 import com.trackr.data.remote.common.SingleFlightCache
-import com.trackr.domain.math.RouteProjectionMath
-import com.trackr.domain.model.BusLineDetail
-import com.trackr.domain.model.BusLineDirection
-import com.trackr.domain.model.BusLineSummary
-import com.trackr.domain.model.BusStop
-import com.trackr.domain.model.DataSourceType
-import com.trackr.domain.model.LineOperatingState
-import com.trackr.domain.model.LiveBus
-import com.trackr.domain.model.NearbyStop
-import com.trackr.domain.model.NearbyStopLineStatus
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async

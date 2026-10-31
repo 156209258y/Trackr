@@ -9,9 +9,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.trackr.core.designsystem.component.DataSourceBadgeStyle
 import com.trackr.core.designsystem.component.DataSourceBadge as CoreDataSourceBadge
-import com.trackr.domain.model.DataSourceType
+import com.trackr.core.designsystem.component.DataSourceBadgeStyle
+import com.trackr.core.model.DataSourceType
 
 /**
  * 统一的数据源（车来了 / 掌上公交）徽标组件适配器

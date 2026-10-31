@@ -12,16 +12,16 @@ import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import com.trackr.MainActivity
+import com.trackr.core.domain.platform.ReminderAlarms
+import com.trackr.core.model.BusLineDirection
+import com.trackr.core.model.BusStop
+import com.trackr.core.model.LineOperatingState
+import com.trackr.core.model.ScheduledReminder
+import com.trackr.core.model.TransitCity
 import com.trackr.data.repository.IScheduledReminderRepository
 import com.trackr.data.repository.ITransitRepository
 import com.trackr.di.AppScopeQualifier
-import com.trackr.domain.model.BusLineDirection
-import com.trackr.domain.model.BusStop
-import com.trackr.domain.model.LineOperatingState
-import com.trackr.domain.model.ScheduledReminder
-import com.trackr.domain.model.TransitCity
 import com.trackr.service.BusTrackingService
-import com.trackr.util.ReminderAlarmScheduler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -37,7 +37,7 @@ class ScheduledReminderReceiver : BroadcastReceiver(), KoinComponent {
 
     private val repository: ITransitRepository by inject()
     private val reminderRepository: IScheduledReminderRepository by inject()
-    private val reminderScheduler: ReminderAlarmScheduler by inject()
+    private val reminderScheduler: ReminderAlarms by inject()
     private val appScope: CoroutineScope by inject(AppScopeQualifier)
 
     override fun onReceive(context: Context, intent: Intent) {
@@ -77,7 +77,7 @@ class ScheduledReminderReceiver : BroadcastReceiver(), KoinComponent {
             reminderRepository.toggleReminder(reminder.id, false)
         } else {
             // 周期性提醒重新安排下一个周期
-            reminderScheduler.scheduleReminder(reminder)
+            reminderScheduler.schedule(reminder)
         }
 
         // 2. 如果配置了自动开启跟车，仅在精确闹钟（享有后台启动前台服务豁免）触发时直接拉起前台服务；

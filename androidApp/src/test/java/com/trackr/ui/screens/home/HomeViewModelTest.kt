@@ -1,17 +1,17 @@
 package com.trackr.ui.screens.home
 
-import com.trackr.service.AndroidTrackingController
-import com.trackr.data.location.AndroidDeviceLocationProvider
 import android.app.Application
 import androidx.test.core.app.ApplicationProvider
+import com.trackr.core.model.BusLineDirection
+import com.trackr.core.model.BusLineSummary
+import com.trackr.core.model.DataSourceType
+import com.trackr.core.model.FavoriteStationLine
+import com.trackr.core.model.NearbyStop
+import com.trackr.core.model.TransitCity
+import com.trackr.core.model.TransitSearchResult
+import com.trackr.data.location.AndroidDeviceLocationProvider
 import com.trackr.data.repository.FakeTransitRepository
-import com.trackr.domain.model.BusLineDirection
-import com.trackr.domain.model.BusLineSummary
-import com.trackr.domain.model.DataSourceType
-import com.trackr.domain.model.FavoriteStationLine
-import com.trackr.domain.model.NearbyStop
-import com.trackr.domain.model.TransitCity
-import com.trackr.domain.model.TransitSearchResult
+import com.trackr.service.AndroidTrackingController
 import com.trackr.util.MainDispatcherRule
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runTest
@@ -165,19 +165,19 @@ class HomeViewModelTest {
         val viewModel = createViewModel()
         testScheduler.runCurrent()
 
-        assertEquals(com.trackr.domain.model.EngineMode.CHELAILE, viewModel.uiState.value.engineMode)
+        assertEquals(com.trackr.core.model.EngineMode.CHELAILE, viewModel.uiState.value.engineMode)
 
         viewModel.toggleEngineMode()
         testScheduler.runCurrent()
-        assertEquals(com.trackr.domain.model.EngineMode.MYGOLBS, viewModel.uiState.value.engineMode)
+        assertEquals(com.trackr.core.model.EngineMode.MYGOLBS, viewModel.uiState.value.engineMode)
 
         viewModel.toggleEngineMode()
         testScheduler.runCurrent()
-        assertEquals(com.trackr.domain.model.EngineMode.CHELAILE, viewModel.uiState.value.engineMode)
+        assertEquals(com.trackr.core.model.EngineMode.CHELAILE, viewModel.uiState.value.engineMode)
 
-        viewModel.setEngineMode(com.trackr.domain.model.EngineMode.MYGOLBS)
+        viewModel.setEngineMode(com.trackr.core.model.EngineMode.MYGOLBS)
         testScheduler.runCurrent()
-        assertEquals(com.trackr.domain.model.EngineMode.MYGOLBS, viewModel.uiState.value.engineMode)
+        assertEquals(com.trackr.core.model.EngineMode.MYGOLBS, viewModel.uiState.value.engineMode)
     }
 
     @Test
@@ -192,7 +192,7 @@ class HomeViewModelTest {
 
         // 切换引擎模式前更新 mock 数据，模拟切换后数据源的数据
         fakeRepository.nearbyStopsResult = Result.success(listOf(stopB))
-        viewModel.setEngineMode(com.trackr.domain.model.EngineMode.MYGOLBS)
+        viewModel.setEngineMode(com.trackr.core.model.EngineMode.MYGOLBS)
         testScheduler.runCurrent()
 
         // 验证无需重启，周边站点即刻被重新拉取并更新为站点B
@@ -208,14 +208,14 @@ class HomeViewModelTest {
         val viewModel = createViewModel()
         testScheduler.runCurrent()
         assertEquals("车来了站点", viewModel.uiState.value.nearbyStops.firstOrNull()?.name)
-        assertEquals(com.trackr.domain.model.AggregatedSourcePriority.CHELAILE_FIRST, viewModel.uiState.value.aggregatedPriority)
+        assertEquals(com.trackr.core.model.AggregatedSourcePriority.CHELAILE_FIRST, viewModel.uiState.value.aggregatedPriority)
 
         // 切换聚合优先级前更新 mock 数据，模拟优先源变更后的数据
         fakeRepository.nearbyStopsResult = Result.success(listOf(stopMG))
-        viewModel.setAggregatedPriority(com.trackr.domain.model.AggregatedSourcePriority.MYGOLBS_FIRST)
+        viewModel.setAggregatedPriority(com.trackr.core.model.AggregatedSourcePriority.MYGOLBS_FIRST)
         testScheduler.runCurrent()
 
-        assertEquals(com.trackr.domain.model.AggregatedSourcePriority.MYGOLBS_FIRST, viewModel.uiState.value.aggregatedPriority)
+        assertEquals(com.trackr.core.model.AggregatedSourcePriority.MYGOLBS_FIRST, viewModel.uiState.value.aggregatedPriority)
         assertEquals("掌上公交站点", viewModel.uiState.value.nearbyStops.firstOrNull()?.name)
     }
 
@@ -247,12 +247,12 @@ class HomeViewModelTest {
         testScheduler.runCurrent()
 
         // 1. CHELAILE 模式包含车来了城市 (clCity, bothCity)
-        viewModel.setEngineMode(com.trackr.domain.model.EngineMode.CHELAILE)
+        viewModel.setEngineMode(com.trackr.core.model.EngineMode.CHELAILE)
         testScheduler.runCurrent()
         assertEquals(2, viewModel.uiState.value.filteredCities.size)
 
         // 2. MYGOLBS 模式只包含有 mygolbsCityCode 的城市 (mgCity, bothCity)
-        viewModel.setEngineMode(com.trackr.domain.model.EngineMode.MYGOLBS)
+        viewModel.setEngineMode(com.trackr.core.model.EngineMode.MYGOLBS)
         testScheduler.runCurrent()
         val mgList = viewModel.uiState.value.filteredCities
         assertEquals(2, mgList.size)
@@ -260,7 +260,7 @@ class HomeViewModelTest {
         assertTrue(mgList.any { it.cityName == "深圳" })
 
         // 3. CHELAILE 模式只包含有 cityId 的城市 (clCity, bothCity)
-        viewModel.setEngineMode(com.trackr.domain.model.EngineMode.CHELAILE)
+        viewModel.setEngineMode(com.trackr.core.model.EngineMode.CHELAILE)
         testScheduler.runCurrent()
         val clList = viewModel.uiState.value.filteredCities
         assertEquals(2, clList.size)
@@ -359,7 +359,7 @@ class HomeViewModelTest {
         }
         shadowLm.setLastKnownLocation(android.location.LocationManager.GPS_PROVIDER, testLocation)
 
-        val dummyStop = com.trackr.domain.model.NearbyStop(
+        val dummyStop = com.trackr.core.model.NearbyStop(
             stopId = "stop_hz_1",
             name = "武林广场",
             distanceMeters = 100,
@@ -384,7 +384,7 @@ class HomeViewModelTest {
 
     @Test
     fun testRefreshLocationAndNearby_delegatesToRefresh() = runTest {
-        val dummyStop = com.trackr.domain.model.NearbyStop(
+        val dummyStop = com.trackr.core.model.NearbyStop(
             stopId = "stop_sh_1",
             name = "人民广场",
             distanceMeters = 50,
@@ -519,7 +519,7 @@ class HomeViewModelTest {
         // 人在杭州，已选上海：GPS 坐标查不到上海站点，改用上海中心点再查
         grantFreshGpsLocation(30.2741, 120.1551)
         fakeRepository.resolveCityResult = Result.success(hangzhou)
-        val center = com.trackr.domain.model.ProvinceCityCatalog.findCityCenterCoordinates("上海")!!
+        val center = com.trackr.core.model.ProvinceCityCatalog.findCityCenterCoordinates("上海")!!
         val centerStop = NearbyStop(stopId = "sh_center", name = "人民广场", distanceMeters = 0, lines = emptyList())
         fakeRepository.nearbyStopsResultProvider = { _, lat, lng ->
             if (lat == center.first && lng == center.second) Result.success(listOf(centerStop))

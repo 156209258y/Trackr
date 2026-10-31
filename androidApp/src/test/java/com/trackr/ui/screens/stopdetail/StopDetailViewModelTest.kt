@@ -1,12 +1,12 @@
 package com.trackr.ui.screens.stopdetail
 
+import com.trackr.core.model.BusLineDirection
+import com.trackr.core.model.DataSourceType
+import com.trackr.core.model.NearbyStop
+import com.trackr.core.model.NearbyStopLineStatus
+import com.trackr.core.model.TransitCity
 import com.trackr.data.repository.FakeTransitRepository
 import com.trackr.data.repository.ITransitRepository
-import com.trackr.domain.model.BusLineDirection
-import com.trackr.domain.model.DataSourceType
-import com.trackr.domain.model.NearbyStop
-import com.trackr.domain.model.NearbyStopLineStatus
-import com.trackr.domain.model.TransitCity
 import com.trackr.util.MainDispatcherRule
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi

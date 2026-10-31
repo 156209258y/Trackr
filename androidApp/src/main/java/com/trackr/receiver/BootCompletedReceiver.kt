@@ -4,6 +4,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.util.Log
+import com.trackr.core.domain.platform.ReminderAlarms
 import com.trackr.data.repository.IScheduledReminderRepository
 import com.trackr.di.AppScopeQualifier
 import com.trackr.util.ReminderAlarmScheduler
@@ -20,7 +21,7 @@ import org.koin.core.component.inject
 class BootCompletedReceiver : BroadcastReceiver(), KoinComponent {
 
     private val reminderRepository: IScheduledReminderRepository by inject()
-    private val reminderScheduler: ReminderAlarmScheduler by inject()
+    private val reminderScheduler: ReminderAlarms by inject()
     private val appScope: CoroutineScope by inject(AppScopeQualifier)
 
     override fun onReceive(context: Context, intent: Intent) {
@@ -37,7 +38,7 @@ class BootCompletedReceiver : BroadcastReceiver(), KoinComponent {
             ReminderAlarmScheduler.findExpiredOneTimeReminderIds(
                 reminders = reminders,
                 nowMillis = System.currentTimeMillis()
-            ) { id -> reminderScheduler.getLastScheduledTriggerMillis(id) }
+            ) { id -> reminderScheduler.lastScheduledTriggerMillis(id) }
         } else {
             emptySet()
         }

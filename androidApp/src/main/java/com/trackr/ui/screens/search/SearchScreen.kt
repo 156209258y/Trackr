@@ -77,14 +77,14 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import org.koin.compose.viewmodel.koinViewModel
-import com.trackr.domain.math.RouteProjectionMath
-import com.trackr.domain.model.BusLineDirection
-import com.trackr.domain.model.BusLineSummary
-import com.trackr.domain.model.DataSourceType
-import com.trackr.domain.model.NearbyStop
+import com.trackr.core.domain.math.RouteProjectionMath
+import com.trackr.core.model.BusLineDirection
+import com.trackr.core.model.BusLineSummary
+import com.trackr.core.model.DataSourceType
+import com.trackr.core.model.NearbyStop
 import com.trackr.ui.components.common.DataSourceBadge
 import com.trackr.ui.screens.home.HomeViewModel
+import org.koin.compose.viewmodel.koinViewModel
 
 private val SEARCH_SUGGESTIONS = listOf("1路", "2路", "10路", "快速公交", "火车站", "人民广场", "地铁接驳线", "机场大巴")
 
@@ -489,7 +489,7 @@ private fun SearchLineItemCard(
 private fun SearchStopItemCard(
     stop: NearbyStop,
     onCardClick: () -> Unit,
-    onLineClick: (com.trackr.domain.model.NearbyStopLineStatus) -> Unit
+    onLineClick: (com.trackr.core.model.NearbyStopLineStatus) -> Unit
 ) {
     ElevatedCard(
         onClick = onCardClick,

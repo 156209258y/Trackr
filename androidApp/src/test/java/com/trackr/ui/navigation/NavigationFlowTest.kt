@@ -1,7 +1,7 @@
 package com.trackr.ui.navigation
 
 import androidx.navigation3.runtime.NavBackStack
-import com.trackr.domain.model.DataSourceType
+import com.trackr.core.model.DataSourceType
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue

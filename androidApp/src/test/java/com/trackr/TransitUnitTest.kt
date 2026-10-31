@@ -1,17 +1,17 @@
 package com.trackr
 
+import com.trackr.core.domain.math.RouteProjectionMath
+import com.trackr.core.model.BusLineDirection
+import com.trackr.core.model.BusLineSummary
+import com.trackr.core.model.BusStop
+import com.trackr.core.model.DataSourceType
+import com.trackr.core.model.FavoriteStationLine
+import com.trackr.core.model.LineOperatingState
+import com.trackr.core.model.LiveBus
+import com.trackr.core.model.NearbyStop
+import com.trackr.core.model.isPureSubwayStation
+import com.trackr.core.model.sanitizePlateOrFleetNo
 import com.trackr.data.remote.chelaile.ChelaileCrypto
-import com.trackr.domain.math.RouteProjectionMath
-import com.trackr.domain.model.BusLineDirection
-import com.trackr.domain.model.BusLineSummary
-import com.trackr.domain.model.BusStop
-import com.trackr.domain.model.DataSourceType
-import com.trackr.domain.model.FavoriteStationLine
-import com.trackr.domain.model.LineOperatingState
-import com.trackr.domain.model.LiveBus
-import com.trackr.domain.model.NearbyStop
-import com.trackr.domain.model.isPureSubwayStation
-import com.trackr.domain.model.sanitizePlateOrFleetNo
 import com.trackr.ui.components.formatBusChipShortText
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -326,8 +326,8 @@ class TransitUnitTest {
 
     @Test
     fun testEngineMode_propertiesAndCycles() {
-        assertEquals("掌上公交", com.trackr.domain.model.EngineMode.MYGOLBS.shortLabel)
-        assertEquals("车来了", com.trackr.domain.model.EngineMode.CHELAILE.shortLabel)
+        assertEquals("掌上公交", com.trackr.core.model.EngineMode.MYGOLBS.shortLabel)
+        assertEquals("车来了", com.trackr.core.model.EngineMode.CHELAILE.shortLabel)
     }
 
     @Test
@@ -414,10 +414,10 @@ class TransitUnitTest {
 
     @Test
     fun testTransitCity_uniqueKeyAndMatchesCity() {
-        val shanghai = com.trackr.domain.model.TransitCity(cityId = "034", cityName = "上海", mygolbsCityCode = "310000")
-        val yulin = com.trackr.domain.model.TransitCity(cityId = "", cityName = "玉林", mygolbsCityCode = "450900")
-        val ruijin = com.trackr.domain.model.TransitCity(cityId = "", cityName = "瑞金", mygolbsCityCode = "360781")
-        val customOther = com.trackr.domain.model.TransitCity(cityId = "", cityName = "未知县", mygolbsCityCode = null)
+        val shanghai = com.trackr.core.model.TransitCity(cityId = "034", cityName = "上海", mygolbsCityCode = "310000")
+        val yulin = com.trackr.core.model.TransitCity(cityId = "", cityName = "玉林", mygolbsCityCode = "450900")
+        val ruijin = com.trackr.core.model.TransitCity(cityId = "", cityName = "瑞金", mygolbsCityCode = "360781")
+        val customOther = com.trackr.core.model.TransitCity(cityId = "", cityName = "未知县", mygolbsCityCode = null)
 
         // 验证即使 cityId 均为空，每个城市的 uniqueKey 也保持唯一且非空，避免 LazyColumn key 重复崩溃
         val keys = listOf(shanghai, yulin, ruijin, customOther).map { it.uniqueKey }
@@ -425,21 +425,21 @@ class TransitUnitTest {
         assertTrue(keys.none { it.isBlank() })
 
         // 验证城市匹配逻辑
-        val yulinWithCityId = com.trackr.domain.model.TransitCity(cityId = "999", cityName = "玉林", mygolbsCityCode = "450900")
+        val yulinWithCityId = com.trackr.core.model.TransitCity(cityId = "999", cityName = "玉林", mygolbsCityCode = "450900")
         assertTrue(yulin.matchesCity(yulinWithCityId))
         org.junit.Assert.assertFalse(yulin.matchesCity(ruijin))
         org.junit.Assert.assertFalse(yulin.matchesCity(shanghai))
 
         // 验证掌上公交返回相同 code="0" 时，绝不误判为同一城市（防止长宁县、威远县等被误判为定位城市）
-        val putian = com.trackr.domain.model.TransitCity(cityId = "0594", cityName = "莆田", province = "福建", mygolbsCityCode = "0")
-        val changning = com.trackr.domain.model.TransitCity(cityId = "", cityName = "长宁县", province = "四川", mygolbsCityCode = "0")
-        val weiyuan = com.trackr.domain.model.TransitCity(cityId = "", cityName = "威远县", province = "四川", mygolbsCityCode = "0")
+        val putian = com.trackr.core.model.TransitCity(cityId = "0594", cityName = "莆田", province = "福建", mygolbsCityCode = "0")
+        val changning = com.trackr.core.model.TransitCity(cityId = "", cityName = "长宁县", province = "四川", mygolbsCityCode = "0")
+        val weiyuan = com.trackr.core.model.TransitCity(cityId = "", cityName = "威远县", province = "四川", mygolbsCityCode = "0")
         org.junit.Assert.assertFalse(changning.matchesCity(putian))
         org.junit.Assert.assertFalse(weiyuan.matchesCity(putian))
         org.junit.Assert.assertFalse(changning.matchesCity(weiyuan))
 
         // 归一化城市名匹配（如“莆田市”与“莆田”）
-        val putianCity = com.trackr.domain.model.TransitCity(cityId = "", cityName = "莆田市", province = "福建", mygolbsCityCode = "0")
+        val putianCity = com.trackr.core.model.TransitCity(cityId = "", cityName = "莆田市", province = "福建", mygolbsCityCode = "0")
         assertTrue(putian.matchesCity(putianCity))
     }
 

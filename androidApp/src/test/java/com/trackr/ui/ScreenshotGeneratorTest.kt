@@ -1,7 +1,5 @@
 package com.trackr.ui
 
-import com.trackr.service.AndroidTrackingController
-import com.trackr.data.location.AndroidDeviceLocationProvider
 import android.app.Application
 import android.graphics.Bitmap
 import androidx.compose.foundation.layout.fillMaxSize
@@ -12,20 +10,23 @@ import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onRoot
 import androidx.test.core.app.ApplicationProvider
+import com.trackr.core.designsystem.theme.TrackrTheme
+import com.trackr.core.model.BusLineDetail
+import com.trackr.core.model.BusLineDirection
+import com.trackr.core.model.BusStop
+import com.trackr.core.model.DataSourceType
+import com.trackr.core.model.FavoriteStationLine
+import com.trackr.core.model.LiveBus
+import com.trackr.core.model.NearbyStop
+import com.trackr.core.model.NearbyStopLineStatus
+import com.trackr.core.model.ScheduledReminder
+import com.trackr.core.model.TrackingSessionState
+import com.trackr.core.model.TransitCity
+import com.trackr.core.model.TransitSearchResult
+import com.trackr.data.location.AndroidDeviceLocationProvider
 import com.trackr.data.repository.FakeScheduledReminderRepository
 import com.trackr.data.repository.FakeTransitRepository
-import com.trackr.domain.model.BusLineDetail
-import com.trackr.domain.model.BusLineDirection
-import com.trackr.domain.model.BusStop
-import com.trackr.domain.model.DataSourceType
-import com.trackr.domain.model.FavoriteStationLine
-import com.trackr.domain.model.LiveBus
-import com.trackr.domain.model.NearbyStop
-import com.trackr.domain.model.NearbyStopLineStatus
-import com.trackr.domain.model.ScheduledReminder
-import com.trackr.domain.model.TrackingSessionState
-import com.trackr.domain.model.TransitCity
-import com.trackr.domain.model.TransitSearchResult
+import com.trackr.service.AndroidTrackingController
 import com.trackr.ui.components.RouteRailLayoutMode
 import com.trackr.ui.screens.home.HomeScreen
 import com.trackr.ui.screens.home.HomeViewModel
@@ -37,7 +38,6 @@ import com.trackr.ui.screens.more.MoreViewModel
 import com.trackr.ui.screens.search.SearchScreen
 import com.trackr.ui.screens.stopdetail.StopDetailScreen
 import com.trackr.ui.screens.stopdetail.StopDetailViewModel
-import com.trackr.core.designsystem.theme.TrackrTheme
 import com.trackr.util.MainDispatcherRule
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import org.junit.Before
@@ -679,14 +679,14 @@ class ScreenshotGeneratorTest {
             TransitSearchResult(
                 keyword = "71",
                 lines = listOf(
-                    com.trackr.domain.model.BusLineSummary(
+                    com.trackr.core.model.BusLineSummary(
                         name = "71路中运量",
                         lineNo = "71",
                         isSubway = false,
                         directions = listOf(line71, line71Rev),
                         source = DataSourceType.CHELAILE
                     ),
-                    com.trackr.domain.model.BusLineSummary(
+                    com.trackr.core.model.BusLineSummary(
                         name = "71路区间",
                         lineNo = "71区间",
                         isSubway = false,

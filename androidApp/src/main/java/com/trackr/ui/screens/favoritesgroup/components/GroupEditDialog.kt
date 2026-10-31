@@ -24,12 +24,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.trackr.domain.model.CandidateLine
-import com.trackr.domain.model.FavoriteGroup
-import com.trackr.domain.model.GroupCategory
-import com.trackr.domain.model.TransitCity
-import com.trackr.domain.model.TransitGroup
-import com.trackr.domain.model.TransitLeg
+import com.trackr.core.model.CandidateLine
+import com.trackr.core.model.FavoriteGroup
+import com.trackr.core.model.GroupCategory
+import com.trackr.core.model.TransitCity
+import com.trackr.core.model.TransitGroup
+import com.trackr.core.model.TransitLeg
 import java.util.UUID
 
 /**

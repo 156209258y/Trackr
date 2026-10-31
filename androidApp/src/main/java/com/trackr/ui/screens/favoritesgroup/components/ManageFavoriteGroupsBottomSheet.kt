@@ -39,7 +39,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.trackr.domain.model.FavoriteGroup
+import com.trackr.core.model.FavoriteGroup
 
 /**
  * 收藏中心分组管理弹窗 / 抽屉

@@ -2,7 +2,7 @@ package com.trackr.data.repository
 
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
-import com.trackr.domain.model.ScheduledReminder
+import com.trackr.core.model.ScheduledReminder
 import com.trackr.util.ReminderScheduler
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async

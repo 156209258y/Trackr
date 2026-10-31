@@ -14,10 +14,10 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.trackr.domain.arrival.ArrivalText
-import com.trackr.domain.arrival.ArrivalTone
-import com.trackr.domain.model.LiveBus
 import com.trackr.core.designsystem.theme.extendedColors
+import com.trackr.core.domain.arrival.ArrivalText
+import com.trackr.core.domain.arrival.ArrivalTone
+import com.trackr.core.model.LiveBus
 
 /**
  * 临近车辆类型别名（兼容性定义）

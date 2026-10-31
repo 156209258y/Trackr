@@ -10,15 +10,20 @@ import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleService
 import androidx.lifecycle.lifecycleScope
-import com.trackr.domain.model.BusLineDetail
-import com.trackr.domain.model.BusLineDirection
-import com.trackr.domain.model.BusStop
-import com.trackr.domain.model.DataSourceType
-import com.trackr.domain.model.LegPhase
-import com.trackr.domain.model.LineOperatingState
-import com.trackr.domain.model.LiveBus
-import com.trackr.domain.model.TrackingSessionState
-import com.trackr.domain.model.TransitCity
+import com.trackr.core.domain.tracking.BoardingDetector
+import com.trackr.core.domain.tracking.GroupLegTracker
+import com.trackr.core.domain.tracking.LocationCadence
+import com.trackr.core.domain.tracking.SingleLegTracker
+import com.trackr.core.model.BusLineDetail
+import com.trackr.core.model.BusLineDirection
+import com.trackr.core.model.BusStop
+import com.trackr.core.model.DataSourceType
+import com.trackr.core.model.LegPhase
+import com.trackr.core.model.LineOperatingState
+import com.trackr.core.model.LiveBus
+import com.trackr.core.model.TrackingSessionState
+import com.trackr.core.model.TransitCity
+import com.trackr.core.model.UserFix
 import com.trackr.data.repository.ITransitRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -94,10 +99,12 @@ class BusTrackingService : LifecycleService() {
         ServiceLocationSource(this).also { source ->
             source.onFix = { fix ->
                 transferSwitcher.updateUserFix(
-                    lat = fix.latitude,
-                    lng = fix.longitude,
-                    accuracyMeters = if (fix.hasAccuracy()) fix.accuracy else null,
-                    elapsedRealtimeNanos = fix.elapsedRealtimeNanos
+                    UserFix(
+                        lat = fix.latitude,
+                        lng = fix.longitude,
+                        accuracyMeters = if (fix.hasAccuracy()) fix.accuracy else null,
+                        elapsedMillis = fix.elapsedRealtimeNanos / 1_000_000L
+                    )
                 )
             }
         }
@@ -326,7 +333,8 @@ class BusTrackingService : LifecycleService() {
             session = currentSession,
             buses = detail.buses,
             operatingState = detail.operatingState,
-            statusDescription = detail.statusDescription
+            statusDescription = detail.statusDescription,
+            nowMillis = System.currentTimeMillis()
         )
         val alertState = update.alertState
         if (alertState != null) {
@@ -350,7 +358,12 @@ class BusTrackingService : LifecycleService() {
      */
     private fun handleGroupPollSuccess(detail: BusLineDetail) {
         val previous = currentSession
-        val update = GroupLegTracker.processPoll(previous, detail.buses, buildBoardingInput(previous, detail))
+        val update = GroupLegTracker.processPoll(
+            previous,
+            detail.buses,
+            buildBoardingInput(previous, detail),
+            nowMillis = System.currentTimeMillis()
+        )
         if (update.missedBoarding) Log.i(TAG, "Boarding missed for bus ${previous.boardingCandidateBusId}")
         if (update.relocked) Log.i(TAG, "Relocked boarded bus to ${update.state.lockedBusId}")
         // 提醒编排按“轮询前”的阶段判断：先发上车站到站提醒，再重置标志进入 ON_BOARD
@@ -413,7 +426,7 @@ class BusTrackingService : LifecycleService() {
      */
     private fun handleConfirmBoarded() {
         if (currentSession.legPhase != LegPhase.WAITING_BOARD) return
-        publishState(GroupLegTracker.confirmBoarded(currentSession, lastBuses))
+        publishState(GroupLegTracker.confirmBoarded(currentSession, lastBuses, nowMillis = System.currentTimeMillis()))
     }
 
     private fun handleCycleThreshold() {

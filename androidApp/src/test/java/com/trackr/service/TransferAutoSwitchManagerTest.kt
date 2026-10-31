@@ -2,15 +2,16 @@ package com.trackr.service
 
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
-import com.trackr.domain.model.LegPhase
-import com.trackr.domain.model.LineOperatingState
-import com.trackr.domain.model.TrackingSessionState
-import com.trackr.domain.model.TransitLeg
-import com.trackr.util.CoordTransform
+import com.trackr.core.domain.math.CoordTransform
+import com.trackr.core.model.LegPhase
+import com.trackr.core.model.LineOperatingState
+import com.trackr.core.model.TrackingSessionState
+import com.trackr.core.model.TransitLeg
+import com.trackr.core.model.UserFix
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
-import org.junit.After
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -30,13 +31,13 @@ class TransferAutoSwitchManagerTest {
     @After
     fun tearDown() {
         TransferAutoSwitchManager.clearUserFix()
-        TransferAutoSwitchManager.elapsedRealtimeNanosProvider = { android.os.SystemClock.elapsedRealtimeNanos() }
+        TransferAutoSwitchManager.elapsedRealtimeMillisProvider = { android.os.SystemClock.elapsedRealtime() }
     }
 
-    private val now = 1_000_000_000_000L
+    private val now = 1_000_000_000L
 
     private fun fix(lat: Double, lng: Double, accuracy: Float? = 10f, ageSeconds: Long = 5) =
-        TransferAutoSwitchManager.UserFix(lat, lng, accuracy, now - ageSeconds * 1_000_000_000L)
+        UserFix(lat, lng, accuracy, now - ageSeconds * 1_000L)
 
     @Test
     fun testAdaptivePollingIntervalBackoff() {
@@ -76,7 +77,7 @@ class TransferAutoSwitchManagerTest {
                 session = waiting,
                 leg = leg,
                 userFix = fix(30.2740, 120.1550),
-                nowElapsedNanos = now
+                nowElapsedMillis = now
             )
         )
     }
@@ -117,7 +118,7 @@ class TransferAutoSwitchManagerTest {
                 session = onBoard,
                 leg = leg,
                 userFix = fix(userWgsLat, userWgsLng),
-                nowElapsedNanos = now
+                nowElapsedMillis = now
             )
         )
 
@@ -127,7 +128,7 @@ class TransferAutoSwitchManagerTest {
                 session = onBoard,
                 leg = leg,
                 userFix = fix(30.3900, 120.2700),
-                nowElapsedNanos = now
+                nowElapsedMillis = now
             )
         )
     }
@@ -175,14 +176,14 @@ class TransferAutoSwitchManagerTest {
     fun legacyUpdateUserLocation_noLongerParticipates_andFixIsClearedOnStop() {
         val (leg, user) = legAtUser()
         val onBoard = TrackingSessionState(legPhase = LegPhase.ON_BOARD, stopsRemaining = 2)
-        TransferAutoSwitchManager.elapsedRealtimeNanosProvider = { now }
+        TransferAutoSwitchManager.elapsedRealtimeMillisProvider = { now }
 
         // 旧接口只有经纬度：不参与判定
         TransferAutoSwitchManager.updateUserLocation(user.first, user.second)
         assertFalse(TransferAutoSwitchManager.isArrivalSatisfied(onBoard, leg))
 
         // 新接口带精度和时刻：参与判定
-        TransferAutoSwitchManager.updateUserFix(user.first, user.second, 10f, now - 1_000_000_000L)
+        TransferAutoSwitchManager.updateUserFix(UserFix(user.first, user.second, 10f, now - 1_000L))
         assertTrue(TransferAutoSwitchManager.isArrivalSatisfied(onBoard, leg))
 
         // 停止追踪后清空

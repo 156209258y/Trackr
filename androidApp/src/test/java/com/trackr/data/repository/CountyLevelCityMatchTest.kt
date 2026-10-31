@@ -1,6 +1,6 @@
 package com.trackr.data.repository
 
-import com.trackr.domain.model.TransitCity
+import com.trackr.core.model.TransitCity
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test

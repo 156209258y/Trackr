@@ -1,12 +1,11 @@
 package com.trackr.receiver
 
-import com.trackr.data.repository.IScheduledReminderRepository
-import org.koin.core.context.GlobalContext
 import android.content.Context
 import android.content.Intent
 import androidx.test.core.app.ApplicationProvider
 import com.trackr.TrackrApp
-import com.trackr.domain.model.ScheduledReminder
+import com.trackr.core.model.ScheduledReminder
+import com.trackr.data.repository.IScheduledReminderRepository
 import com.trackr.util.ReminderScheduler
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertFalse
@@ -14,6 +13,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.koin.core.context.GlobalContext
 import org.robolectric.RobolectricTestRunner
 
 @RunWith(RobolectricTestRunner::class)

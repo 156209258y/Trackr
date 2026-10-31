@@ -3,7 +3,7 @@ package com.trackr.data.repository
 import android.content.Context
 import android.content.SharedPreferences
 import android.util.Log
-import com.trackr.domain.model.ScheduledReminder
+import com.trackr.core.model.ScheduledReminder
 import com.trackr.util.ReminderScheduler
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers

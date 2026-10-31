@@ -1,12 +1,12 @@
 package com.trackr.data.remote.amap
 
+import com.trackr.core.model.CandidateLine
+import com.trackr.core.model.DataSourceType
+import com.trackr.core.model.GeoPoint
+import com.trackr.core.model.GroupCategory
+import com.trackr.core.model.TransitGroup
+import com.trackr.core.model.TransitLeg
 import com.trackr.data.remote.common.BaseTransitApiClient
-import com.trackr.domain.model.CandidateLine
-import com.trackr.domain.model.DataSourceType
-import com.trackr.domain.model.GeoPoint
-import com.trackr.domain.model.GroupCategory
-import com.trackr.domain.model.TransitGroup
-import com.trackr.domain.model.TransitLeg
 import okhttp3.HttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Request

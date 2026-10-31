@@ -7,10 +7,10 @@ import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import androidx.core.app.NotificationCompat
-import com.trackr.domain.math.RouteProjectionMath
-import com.trackr.domain.model.LegPhase
-import com.trackr.domain.model.TrackingSessionState
-import com.trackr.service.ArrivalRules
+import com.trackr.core.domain.arrival.ArrivalRules
+import com.trackr.core.domain.math.RouteProjectionMath
+import com.trackr.core.model.LegPhase
+import com.trackr.core.model.TrackingSessionState
 import com.trackr.service.LiveProgressNotificationHelper
 import org.json.JSONObject
 

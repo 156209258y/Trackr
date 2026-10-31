@@ -56,13 +56,13 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.trackr.domain.model.CandidateLine
-import com.trackr.domain.model.CandidateLineRealtimeInfo
-import com.trackr.domain.model.GroupTrackingSessionState
-import com.trackr.domain.model.LegPhase
-import com.trackr.domain.model.TrackingSessionState
-import com.trackr.domain.model.TransitGroup
 import com.trackr.core.designsystem.theme.extendedColors
+import com.trackr.core.model.CandidateLine
+import com.trackr.core.model.CandidateLineRealtimeInfo
+import com.trackr.core.model.GroupTrackingSessionState
+import com.trackr.core.model.LegPhase
+import com.trackr.core.model.TrackingSessionState
+import com.trackr.core.model.TransitGroup
 
 /**
  * 收藏页路线卡片（单程直达 / 多程换乘）。

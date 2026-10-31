@@ -3,8 +3,8 @@ package com.trackr.service.vendor
 import android.app.Application
 import androidx.core.app.NotificationCompat
 import androidx.test.core.app.ApplicationProvider
-import com.trackr.domain.model.LegPhase
-import com.trackr.domain.model.TrackingSessionState
+import com.trackr.core.model.LegPhase
+import com.trackr.core.model.TrackingSessionState
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull

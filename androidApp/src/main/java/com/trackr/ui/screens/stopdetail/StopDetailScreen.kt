@@ -63,10 +63,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.trackr.domain.math.RouteProjectionMath
-import com.trackr.domain.model.DataSourceType
-import com.trackr.domain.model.NearbyStop
-import com.trackr.domain.model.NearbyStopLineStatus
+import com.trackr.core.domain.math.RouteProjectionMath
+import com.trackr.core.model.DataSourceType
+import com.trackr.core.model.NearbyStop
+import com.trackr.core.model.NearbyStopLineStatus
 import com.trackr.ui.components.common.BusArrivalBadge
 import com.trackr.ui.components.common.computeArrivalStatus
 

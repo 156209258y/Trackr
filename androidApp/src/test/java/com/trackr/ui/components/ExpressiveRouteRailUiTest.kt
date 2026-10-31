@@ -4,9 +4,9 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
-import com.trackr.domain.model.BusStop
-import com.trackr.domain.model.LiveBus
 import com.trackr.core.designsystem.theme.TrackrTheme
+import com.trackr.core.model.BusStop
+import com.trackr.core.model.LiveBus
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Rule

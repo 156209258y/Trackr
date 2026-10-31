@@ -73,13 +73,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import kotlinx.coroutines.launch
-import com.trackr.TrackrApp
-import com.trackr.ui.components.citypicker.CityPickerBottomSheet
-import com.trackr.ui.components.ScheduledRemindersBottomSheet
-import com.trackr.ui.components.common.BusArrivalBadge
-import com.trackr.ui.components.common.DataSourceBadge
-import com.trackr.ui.components.common.computeArrivalStatus
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -92,16 +85,23 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import org.koin.compose.viewmodel.koinViewModel
-import com.trackr.domain.math.RouteProjectionMath
-import com.trackr.domain.model.DataSourceType
-import com.trackr.domain.model.EngineMode
-import com.trackr.domain.model.FavoriteStationLine
-import com.trackr.domain.model.NearbyStop
-import com.trackr.domain.model.NearbyStopLineStatus
-import com.trackr.domain.model.TrackingSessionState
-import com.trackr.domain.model.TransitCity
+import com.trackr.TrackrApp
+import com.trackr.core.domain.math.RouteProjectionMath
+import com.trackr.core.model.DataSourceType
+import com.trackr.core.model.EngineMode
+import com.trackr.core.model.FavoriteStationLine
+import com.trackr.core.model.NearbyStop
+import com.trackr.core.model.NearbyStopLineStatus
+import com.trackr.core.model.TrackingSessionState
+import com.trackr.core.model.TransitCity
+import com.trackr.ui.components.ScheduledRemindersBottomSheet
+import com.trackr.ui.components.citypicker.CityPickerBottomSheet
+import com.trackr.ui.components.common.BusArrivalBadge
+import com.trackr.ui.components.common.DataSourceBadge
+import com.trackr.ui.components.common.computeArrivalStatus
 import com.trackr.util.TransitCodeHelper
+import kotlinx.coroutines.launch
+import org.koin.compose.viewmodel.koinViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

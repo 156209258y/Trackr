@@ -1,18 +1,18 @@
 package com.trackr.data.repository
 
 import androidx.test.core.app.ApplicationProvider
+import com.trackr.core.model.BusLineDetail
+import com.trackr.core.model.BusLineDirection
+import com.trackr.core.model.BusStop
+import com.trackr.core.model.DataSourceType
+import com.trackr.core.model.LineTimetable
+import com.trackr.core.model.NearbyStop
+import com.trackr.core.model.TransitCity
+import com.trackr.core.model.TransitSearchResult
 import com.trackr.data.provider.ITransitProvider
 import com.trackr.data.provider.TransitProviderCoordinator
 import com.trackr.data.provider.model.LineDetailRequest
 import com.trackr.data.provider.model.StopDetailRequest
-import com.trackr.domain.model.BusLineDetail
-import com.trackr.domain.model.BusLineDirection
-import com.trackr.domain.model.BusStop
-import com.trackr.domain.model.DataSourceType
-import com.trackr.domain.model.LineTimetable
-import com.trackr.domain.model.NearbyStop
-import com.trackr.domain.model.TransitCity
-import com.trackr.domain.model.TransitSearchResult
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers

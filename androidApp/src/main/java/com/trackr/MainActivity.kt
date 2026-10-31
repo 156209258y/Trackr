@@ -1,10 +1,10 @@
 package com.trackr
 
 import android.Manifest
+import android.app.Activity
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
-import android.app.Activity
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -41,10 +41,10 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -67,8 +67,9 @@ import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
-import com.trackr.domain.model.DataSourceType
-import com.trackr.domain.model.TransitCodeProvider
+import com.trackr.core.designsystem.theme.TrackrTheme
+import com.trackr.core.model.DataSourceType
+import com.trackr.core.model.TransitCodeProvider
 import com.trackr.ui.navigation.PendingDeepLink
 import com.trackr.ui.navigation.ScreenKey
 import com.trackr.ui.navigation.dropUnlessResumed
@@ -86,7 +87,6 @@ import com.trackr.ui.screens.routeplan.RoutePlanScreen
 import com.trackr.ui.screens.search.SearchScreen
 import com.trackr.ui.screens.stopdetail.StopDetailScreen
 import com.trackr.ui.screens.stopdetail.StopDetailViewModel
-import com.trackr.core.designsystem.theme.TrackrTheme
 import com.trackr.util.TransitCodeHelper
 import org.koin.compose.viewmodel.koinViewModel
 import org.koin.core.parameter.parametersOf

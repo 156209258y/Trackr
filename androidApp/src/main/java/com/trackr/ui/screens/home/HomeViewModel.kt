@@ -3,18 +3,19 @@ package com.trackr.ui.screens.home
 import android.os.SystemClock
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.trackr.core.domain.platform.TrackingController
+import com.trackr.core.model.AggregatedSourcePriority
+import com.trackr.core.model.EngineMode
+import com.trackr.core.model.FavoriteStationLine
+import com.trackr.core.model.NearbyStop
+import com.trackr.core.model.ProvinceCityCatalog
+import com.trackr.core.model.TrackingSessionState
+import com.trackr.core.model.TransitCity
+import com.trackr.core.model.TransitSearchResult
+import com.trackr.core.model.UserFix
 import com.trackr.data.location.AndroidDeviceLocationProvider
 import com.trackr.data.location.DeviceLocationProvider
 import com.trackr.data.repository.ITransitRepository
-import com.trackr.domain.model.AggregatedSourcePriority
-import com.trackr.domain.model.EngineMode
-import com.trackr.domain.model.FavoriteStationLine
-import com.trackr.domain.model.NearbyStop
-import com.trackr.domain.model.ProvinceCityCatalog
-import com.trackr.domain.model.TrackingSessionState
-import com.trackr.domain.model.TransitCity
-import com.trackr.domain.model.TransitSearchResult
-import com.trackr.service.TrackingController
 import com.trackr.ui.util.FixedDelayPollingStrategy
 import com.trackr.ui.util.PollingCoordinator
 import kotlinx.coroutines.Job
@@ -313,10 +314,12 @@ class HomeViewModel(
                     repository.updateUserLocation(lat, lng)
                     // 带精度与定位时刻喂给换乘引擎，过期 / 不准的定位不参与下车站判定
                     trackingController.updateUserFix(
-                        lat = lat,
-                        lng = lng,
-                        accuracyMeters = if (gpsLocation.hasAccuracy()) gpsLocation.accuracy else null,
-                        elapsedRealtimeNanos = gpsLocation.elapsedRealtimeNanos
+                        UserFix(
+                            lat = lat,
+                            lng = lng,
+                            accuracyMeters = if (gpsLocation.hasAccuracy()) gpsLocation.accuracy else null,
+                            elapsedMillis = gpsLocation.elapsedRealtimeNanos / 1_000_000L
+                        )
                     )
 
                     // 尝试反向根据坐标解析匹配城市

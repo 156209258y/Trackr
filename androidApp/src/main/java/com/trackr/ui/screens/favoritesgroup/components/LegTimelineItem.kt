@@ -46,10 +46,10 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.trackr.domain.model.CandidateLine
-import com.trackr.domain.model.CandidateLineRealtimeInfo
-import com.trackr.domain.model.TransitLeg
 import com.trackr.core.designsystem.theme.extendedColors
+import com.trackr.core.model.CandidateLine
+import com.trackr.core.model.CandidateLineRealtimeInfo
+import com.trackr.core.model.TransitLeg
 
 /** 时间轴上一程的状态 */
 enum class LegTimelineState {

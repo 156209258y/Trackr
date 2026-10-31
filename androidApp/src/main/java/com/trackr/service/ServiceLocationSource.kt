@@ -13,6 +13,7 @@ import androidx.core.content.ContextCompat
 import androidx.core.location.LocationListenerCompat
 import androidx.core.location.LocationManagerCompat
 import androidx.core.location.LocationRequestCompat
+import com.trackr.core.domain.tracking.LocationCadence
 
 /**
  * 追踪服务内的定位来源（系统 LocationManager，返回 WGS-84）。

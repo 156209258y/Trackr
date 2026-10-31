@@ -1,17 +1,17 @@
 package com.trackr.ui.screens.favoritesgroup
 
-import com.trackr.domain.model.CandidateLine
-import com.trackr.domain.model.CandidateLineRealtimeInfo
-import com.trackr.domain.model.LegPhase
-import com.trackr.domain.model.TrackingSessionState
-import com.trackr.domain.model.TransitGroup
-import com.trackr.domain.model.TransitLeg
+import com.trackr.core.model.CandidateLine
+import com.trackr.core.model.CandidateLineRealtimeInfo
+import com.trackr.core.model.LegPhase
+import com.trackr.core.model.TrackingSessionState
+import com.trackr.core.model.TransitGroup
+import com.trackr.core.model.TransitLeg
 import com.trackr.ui.screens.favoritesgroup.components.CardHeadline
 import com.trackr.ui.screens.favoritesgroup.components.boardTimeText
-import com.trackr.ui.screens.favoritesgroup.components.cardHeadline
-import com.trackr.ui.screens.favoritesgroup.components.etaMinutesOf
 import com.trackr.ui.screens.favoritesgroup.components.boardTimeTextForLeg
+import com.trackr.ui.screens.favoritesgroup.components.cardHeadline
 import com.trackr.ui.screens.favoritesgroup.components.estimateBoardTimeMillis
+import com.trackr.ui.screens.favoritesgroup.components.etaMinutesOf
 import com.trackr.ui.screens.favoritesgroup.components.groupSummaryText
 import com.trackr.ui.screens.favoritesgroup.components.groupTitleText
 import com.trackr.ui.screens.favoritesgroup.components.isStopOrderUnaligned

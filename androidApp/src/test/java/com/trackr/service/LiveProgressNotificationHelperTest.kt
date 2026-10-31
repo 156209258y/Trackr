@@ -2,8 +2,8 @@ package com.trackr.service
 
 import android.app.Application
 import androidx.test.core.app.ApplicationProvider
-import com.trackr.domain.model.LegPhase
-import com.trackr.domain.model.TrackingSessionState
+import com.trackr.core.model.LegPhase
+import com.trackr.core.model.TrackingSessionState
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse

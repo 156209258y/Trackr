@@ -2,12 +2,12 @@ package com.trackr.ui.screens.more
 
 import android.app.Application
 import androidx.test.core.app.ApplicationProvider
+import com.trackr.core.model.AggregatedSourcePriority
+import com.trackr.core.model.EngineMode
+import com.trackr.core.model.ScheduledReminder
+import com.trackr.core.model.TransitCodeProvider
 import com.trackr.data.repository.FakeScheduledReminderRepository
 import com.trackr.data.repository.FakeTransitRepository
-import com.trackr.domain.model.AggregatedSourcePriority
-import com.trackr.domain.model.EngineMode
-import com.trackr.domain.model.ScheduledReminder
-import com.trackr.domain.model.TransitCodeProvider
 import com.trackr.util.MainDispatcherRule
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runTest

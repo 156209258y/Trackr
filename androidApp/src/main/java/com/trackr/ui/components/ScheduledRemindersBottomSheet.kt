@@ -35,7 +35,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.trackr.domain.model.ScheduledReminder
+import com.trackr.core.model.ScheduledReminder
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

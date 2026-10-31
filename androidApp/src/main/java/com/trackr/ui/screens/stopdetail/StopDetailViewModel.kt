@@ -2,13 +2,13 @@ package com.trackr.ui.screens.stopdetail
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.trackr.core.domain.math.RouteProjectionMath
+import com.trackr.core.model.DataSourceType
+import com.trackr.core.model.FavoriteStationLine
+import com.trackr.core.model.NearbyStop
+import com.trackr.core.model.NearbyStopLineStatus
+import com.trackr.core.model.TransitCity
 import com.trackr.data.repository.ITransitRepository
-import com.trackr.domain.math.RouteProjectionMath
-import com.trackr.domain.model.DataSourceType
-import com.trackr.domain.model.FavoriteStationLine
-import com.trackr.domain.model.NearbyStop
-import com.trackr.domain.model.NearbyStopLineStatus
-import com.trackr.domain.model.TransitCity
 import com.trackr.ui.util.CountdownPollingStrategy
 import com.trackr.ui.util.PollingCoordinator
 import kotlinx.coroutines.CancellationException
@@ -158,7 +158,7 @@ class StopDetailViewModel(
                 // 若站点缺少 distanceMeters，且用户位置已知，计算实际测地距离
                 val stopList = if (userLoc != null) {
                     rawStopList.map { s ->
-                        if (s.distanceMeters == null || s.distanceMeters <= 0) {
+                        if ((s.distanceMeters ?: 0) <= 0) {
                             val dist = RouteProjectionMath.calculateDistanceMeters(
                                 userLoc.first, userLoc.second, s.wgsLat, s.wgsLng
                             )

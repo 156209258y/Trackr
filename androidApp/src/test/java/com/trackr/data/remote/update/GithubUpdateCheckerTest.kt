@@ -1,6 +1,6 @@
 package com.trackr.data.remote.update
 
-import com.trackr.domain.model.UpdateCheckResult
+import com.trackr.core.model.UpdateCheckResult
 import kotlinx.coroutines.test.runTest
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient

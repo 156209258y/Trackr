@@ -2,11 +2,11 @@ package com.trackr.data.repository
 
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
-import com.trackr.domain.model.CandidateLine
-import com.trackr.domain.model.DataSourceType
-import com.trackr.domain.model.GroupCategory
-import com.trackr.domain.model.TransitGroup
-import com.trackr.domain.model.TransitLeg
+import com.trackr.core.model.CandidateLine
+import com.trackr.core.model.DataSourceType
+import com.trackr.core.model.GroupCategory
+import com.trackr.core.model.TransitGroup
+import com.trackr.core.model.TransitLeg
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll

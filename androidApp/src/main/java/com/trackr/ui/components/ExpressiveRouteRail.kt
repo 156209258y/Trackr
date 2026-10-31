@@ -52,13 +52,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithCache
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -67,9 +67,6 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.trackr.domain.model.BusStop
-import com.trackr.domain.model.LiveBus
-import com.trackr.domain.model.sanitizePlateOrFleetNo
 import com.trackr.core.designsystem.rail.RouteRailArrowArm
 import com.trackr.core.designsystem.rail.RouteRailArrowGap
 import com.trackr.core.designsystem.rail.RouteRailArrowSpread
@@ -81,6 +78,9 @@ import com.trackr.core.designsystem.theme.BusSemanticColors
 import com.trackr.core.designsystem.theme.busChipSpringSpec
 import com.trackr.core.designsystem.theme.busColors
 import com.trackr.core.designsystem.theme.expressiveSpringSpec
+import com.trackr.core.model.BusStop
+import com.trackr.core.model.LiveBus
+import com.trackr.core.model.sanitizePlateOrFleetNo
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
@@ -810,7 +810,7 @@ private fun VerticalTimelineRow(
                 ) {
                     if (!stop.statusNote.isNullOrEmpty()) {
                         Text(
-                            text = stop.statusNote,
+                            text = stop.statusNote.orEmpty(),
                             fontSize = 11.sp,
                             color = busColors.conditionStopBorder
                         )

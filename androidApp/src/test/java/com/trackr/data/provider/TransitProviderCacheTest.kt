@@ -1,12 +1,12 @@
 package com.trackr.data.provider
 
+import com.trackr.core.model.TransitCity
 import com.trackr.data.provider.chelaile.ChelaileTransitProvider
 import com.trackr.data.provider.model.LineDetailRequest
 import com.trackr.data.provider.model.StopDetailRequest
 import com.trackr.data.provider.mygolbs.MygolbsTransitProvider
 import com.trackr.data.remote.chelaile.ChelaileApiClient
 import com.trackr.data.remote.mygolbs.MygolbsApiClient
-import com.trackr.domain.model.TransitCity
 import kotlinx.coroutines.runBlocking
 import okhttp3.Interceptor
 import okhttp3.MediaType.Companion.toMediaType

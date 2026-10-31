@@ -1,11 +1,11 @@
 package com.trackr.data.remote.amap
 
-import com.trackr.domain.model.CandidateLine
-import com.trackr.domain.model.DataSourceType
-import com.trackr.domain.model.GeoPoint
-import com.trackr.domain.model.GroupCategory
-import com.trackr.domain.model.TransitGroup
-import com.trackr.domain.model.TransitLeg
+import com.trackr.core.model.CandidateLine
+import com.trackr.core.model.DataSourceType
+import com.trackr.core.model.GeoPoint
+import com.trackr.core.model.GroupCategory
+import com.trackr.core.model.TransitGroup
+import com.trackr.core.model.TransitLeg
 import kotlinx.serialization.Serializable
 import java.util.UUID
 

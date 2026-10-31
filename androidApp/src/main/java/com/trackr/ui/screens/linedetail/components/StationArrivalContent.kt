@@ -50,14 +50,14 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.trackr.domain.arrival.ArrivalDisplay
-import com.trackr.domain.arrival.ArrivalText
-import com.trackr.domain.model.BusLineDetail
-import com.trackr.domain.model.BusStop
-import com.trackr.domain.model.sanitizePlateOrFleetNo
-import com.trackr.ui.components.common.arrivalToneColor
 import com.trackr.core.designsystem.theme.busColors
 import com.trackr.core.designsystem.theme.extendedColors
+import com.trackr.core.domain.arrival.ArrivalDisplay
+import com.trackr.core.domain.arrival.ArrivalText
+import com.trackr.core.model.BusLineDetail
+import com.trackr.core.model.BusStop
+import com.trackr.core.model.sanitizePlateOrFleetNo
+import com.trackr.ui.components.common.arrivalToneColor
 import kotlinx.datetime.LocalTime
 
 private val ALERT_THRESHOLD_OPTIONS = listOf(1, 2, 3)
@@ -141,7 +141,7 @@ fun StationArrivalContent(
                         color = busColors.conditionStopBorder.copy(alpha = 0.15f)
                     ) {
                         Text(
-                            text = selectedStop.statusNote,
+                            text = selectedStop.statusNote.orEmpty(),
                             fontSize = 11.sp,
                             fontWeight = FontWeight.SemiBold,
                             color = busColors.conditionStopBorder,
@@ -384,7 +384,7 @@ private fun ArrivalHeadline(arrival: ArrivalDisplay, color: Color) {
             )
             if (arrival.unit != null) {
                 Text(
-                    text = arrival.unit,
+                    text = arrival.unit.orEmpty(),
                     fontSize = 17.sp,
                     fontWeight = FontWeight.Medium,
                     color = color,

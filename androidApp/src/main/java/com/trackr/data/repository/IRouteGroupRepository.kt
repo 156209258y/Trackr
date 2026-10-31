@@ -1,9 +1,9 @@
 package com.trackr.data.repository
 
-import com.trackr.domain.model.CandidateLine
-import com.trackr.domain.model.FavoriteGroup
-import com.trackr.domain.model.GroupCategory
-import com.trackr.domain.model.TransitGroup
+import com.trackr.core.model.CandidateLine
+import com.trackr.core.model.FavoriteGroup
+import com.trackr.core.model.GroupCategory
+import com.trackr.core.model.TransitGroup
 import kotlinx.coroutines.flow.StateFlow
 
 /**

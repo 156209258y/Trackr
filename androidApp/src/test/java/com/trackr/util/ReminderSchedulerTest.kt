@@ -1,6 +1,6 @@
 package com.trackr.util
 
-import com.trackr.domain.model.ScheduledReminder
+import com.trackr.core.model.ScheduledReminder
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test

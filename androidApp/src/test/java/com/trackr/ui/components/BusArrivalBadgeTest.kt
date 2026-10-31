@@ -1,6 +1,6 @@
 package com.trackr.ui.components
 
-import com.trackr.domain.model.LiveBus
+import com.trackr.core.model.LiveBus
 import com.trackr.ui.components.common.computeArrivalStatus
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse

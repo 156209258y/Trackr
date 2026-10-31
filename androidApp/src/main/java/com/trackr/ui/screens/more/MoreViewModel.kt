@@ -3,12 +3,12 @@ package com.trackr.ui.screens.more
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.trackr.core.model.AggregatedSourcePriority
+import com.trackr.core.model.EngineMode
+import com.trackr.core.model.ScheduledReminder
+import com.trackr.core.model.TransitCodeProvider
 import com.trackr.data.repository.IScheduledReminderRepository
 import com.trackr.data.repository.ITransitRepository
-import com.trackr.domain.model.AggregatedSourcePriority
-import com.trackr.domain.model.EngineMode
-import com.trackr.domain.model.ScheduledReminder
-import com.trackr.domain.model.TransitCodeProvider
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine

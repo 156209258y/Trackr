@@ -28,9 +28,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.trackr.domain.model.BusLineDirection
-import com.trackr.domain.model.LineTimetable
 import com.trackr.core.designsystem.component.TrackrBottomSheet
+import com.trackr.core.model.BusLineDirection
+import com.trackr.core.model.LineTimetable
 
 /**
  * 发车时刻表 BottomSheet 弹窗（基于 TrackrBottomSheet 统一规范封装）

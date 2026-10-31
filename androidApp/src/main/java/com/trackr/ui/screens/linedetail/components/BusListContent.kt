@@ -30,13 +30,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.trackr.domain.math.RouteProjectionMath
-import com.trackr.domain.model.BusLineDetail
-import com.trackr.domain.model.BusStop
-import com.trackr.domain.model.LiveBus
-import com.trackr.domain.model.sanitizePlateOrFleetNo
-import com.trackr.ui.components.common.BusArrivalBadge
 import com.trackr.core.designsystem.theme.busColors
+import com.trackr.core.domain.math.RouteProjectionMath
+import com.trackr.core.model.BusLineDetail
+import com.trackr.core.model.BusStop
+import com.trackr.core.model.LiveBus
+import com.trackr.core.model.sanitizePlateOrFleetNo
+import com.trackr.ui.components.common.BusArrivalBadge
 
 /**
  * 状态 2：车辆列表内容 (`BUS_LIST`)

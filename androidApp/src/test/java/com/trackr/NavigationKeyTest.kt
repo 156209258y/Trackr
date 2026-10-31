@@ -1,6 +1,6 @@
 package com.trackr
 
-import com.trackr.domain.model.DataSourceType
+import com.trackr.core.model.DataSourceType
 import com.trackr.ui.navigation.ScreenKey
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json

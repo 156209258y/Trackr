@@ -1,8 +1,8 @@
 package com.trackr.widget
 
 import android.content.Context
+import com.trackr.core.model.FavoriteStationLine
 import com.trackr.data.repository.ITransitRepository
-import com.trackr.domain.model.FavoriteStationLine
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers

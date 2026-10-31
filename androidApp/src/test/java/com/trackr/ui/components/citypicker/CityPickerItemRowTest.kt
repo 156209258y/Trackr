@@ -4,8 +4,8 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
-import com.trackr.domain.model.TransitCity
 import com.trackr.core.designsystem.theme.TrackrTheme
+import com.trackr.core.model.TransitCity
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test

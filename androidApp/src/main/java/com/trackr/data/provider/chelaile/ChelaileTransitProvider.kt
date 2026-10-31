@@ -1,20 +1,20 @@
 package com.trackr.data.provider.chelaile
 
+import com.trackr.core.domain.math.RouteProjectionMath
+import com.trackr.core.model.BusLineDetail
+import com.trackr.core.model.BusLineDirection
+import com.trackr.core.model.DataSourceType
+import com.trackr.core.model.LineTimetable
+import com.trackr.core.model.NearbyStop
+import com.trackr.core.model.ProvinceCityCatalog
+import com.trackr.core.model.TransitCity
+import com.trackr.core.model.TransitSearchResult
+import com.trackr.core.model.isPureSubwayStation
 import com.trackr.data.provider.ITransitProvider
 import com.trackr.data.provider.model.LineDetailRequest
 import com.trackr.data.provider.model.StopDetailRequest
 import com.trackr.data.remote.chelaile.ChelaileApiClient
 import com.trackr.data.remote.common.SingleFlightCache
-import com.trackr.domain.math.RouteProjectionMath
-import com.trackr.domain.model.BusLineDetail
-import com.trackr.domain.model.BusLineDirection
-import com.trackr.domain.model.DataSourceType
-import com.trackr.domain.model.LineTimetable
-import com.trackr.domain.model.NearbyStop
-import com.trackr.domain.model.ProvinceCityCatalog
-import com.trackr.domain.model.TransitCity
-import com.trackr.domain.model.TransitSearchResult
-import com.trackr.domain.model.isPureSubwayStation
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -197,7 +197,8 @@ class ChelaileTransitProvider(
                 rawStops.map { stop ->
                     async {
                         val needsFetch = stop.lines.isNotEmpty() && stop.lines.all { it.line.lineId.isBlank() }
-                        if (needsFetch && !stop.physicalStId.isNullOrBlank()) {
+                        val physicalStId = stop.physicalStId
+                        if (needsFetch && !physicalStId.isNullOrBlank()) {
                             // 其他物理站台的补全按站台缓存，10 秒轮询时不再每轮重复补全；
                             // 用户切到该站台后，页面会以它为主查询拿到最新实时数据
                             val cacheKey = "${city.cityId}|${stop.physicalStId}"
@@ -206,7 +207,7 @@ class ChelaileTransitProvider(
                                     completionSemaphore.withPermit {
                                         chelaileClient.getStopDetail(
                                             cityId = city.cityId,
-                                            physicalStId = stop.physicalStId,
+                                            physicalStId = physicalStId,
                                             namesakeStId = stop.namesakeStId ?: request.namesakeStId,
                                             stationId = stop.stopId.takeIf { it.isNotBlank() } ?: request.stopId,
                                             userLat = request.userLat,
@@ -260,7 +261,7 @@ class ChelaileTransitProvider(
             val userLng = request.userLng
             return if (userLat != null && userLng != null) {
                 matched.map { s ->
-                    if (s.distanceMeters == null || s.distanceMeters <= 0) {
+                    if ((s.distanceMeters ?: 0) <= 0) {
                         val d = RouteProjectionMath.calculateDistanceMeters(userLat, userLng, s.wgsLat, s.wgsLng)
                         s.copy(distanceMeters = d)
                     } else s

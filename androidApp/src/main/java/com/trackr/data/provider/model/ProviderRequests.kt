@@ -1,6 +1,6 @@
 package com.trackr.data.provider.model
 
-import com.trackr.domain.model.DataSourceType
+import com.trackr.core.model.DataSourceType
 
 /**
  * 站点详情标准化查询请求上下文

@@ -1,14 +1,14 @@
 package com.trackr.ui.screens.favoritesgroup.components
 
-import com.trackr.domain.arrival.ArrivalState
-import com.trackr.domain.arrival.ArrivalText
-import com.trackr.domain.arrival.ArrivalTone
-import com.trackr.domain.model.CandidateLine
-import com.trackr.domain.model.CandidateLineRealtimeInfo
-import com.trackr.domain.model.LegPhase
-import com.trackr.domain.model.TrackingSessionState
-import com.trackr.domain.model.TransitGroup
-import com.trackr.service.ArrivalRules
+import com.trackr.core.domain.arrival.ArrivalRules
+import com.trackr.core.domain.arrival.ArrivalState
+import com.trackr.core.domain.arrival.ArrivalText
+import com.trackr.core.domain.arrival.ArrivalTone
+import com.trackr.core.model.CandidateLine
+import com.trackr.core.model.CandidateLineRealtimeInfo
+import com.trackr.core.model.LegPhase
+import com.trackr.core.model.TrackingSessionState
+import com.trackr.core.model.TransitGroup
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter

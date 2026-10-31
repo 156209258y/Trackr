@@ -1,7 +1,7 @@
 package com.trackr.data.remote.common
 
-import com.trackr.domain.math.RouteProjectionMath
-import com.trackr.domain.model.sanitizePlateOrFleetNo
+import com.trackr.core.domain.math.RouteProjectionMath
+import com.trackr.core.model.sanitizePlateOrFleetNo
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext

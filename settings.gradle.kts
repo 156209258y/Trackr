@@ -24,3 +24,6 @@ dependencyResolutionManagement {
 rootProject.name = "Trackr"
 include(":androidApp")
 include(":core:designsystem")
+include(":core:model")
+include(":core:domain")
+include(":core:testing")

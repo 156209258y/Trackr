@@ -1,7 +1,8 @@
 package com.trackr.data.remote.update
 
-import com.trackr.domain.model.AppUpdateInfo
-import com.trackr.domain.model.UpdateCheckResult
+import com.trackr.core.domain.platform.UpdateChecker
+import com.trackr.core.model.AppUpdateInfo
+import com.trackr.core.model.UpdateCheckResult
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
@@ -21,7 +22,7 @@ class GithubUpdateChecker(
         coerceInputValues = true
         isLenient = true
     }
-) : IUpdateChecker {
+) : UpdateChecker {
 
     companion object {
         val DEFAULT_ENDPOINTS = listOf(
