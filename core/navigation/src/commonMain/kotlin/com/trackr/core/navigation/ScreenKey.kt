@@ -1,9 +1,16 @@
-package com.trackr.ui.navigation
+package com.trackr.core.navigation
 
 import androidx.navigation3.runtime.NavKey
 import com.trackr.core.model.DataSourceType
 import kotlinx.serialization.Serializable
 
+/**
+ * 所有页面的 Navigation 3 Key。第 16 步只从 `:androidApp` 原样搬来（字段、类名不变，旧返回栈仍能恢复）；
+ * 改名（Home→Bus、More→Me）、`LineRef` 与新增页面等第 17 步起按 §3.2 做。
+ *
+ * 新增子类时要同时登记到 [TrackrSavedStateConfiguration]，否则非 Android 平台恢复返回栈会失败
+ * （`NavigationStateRestorationTest` 会挡住漏登记）。
+ */
 @Serializable
 sealed interface ScreenKey : NavKey {
     @Serializable
@@ -45,13 +52,3 @@ sealed interface ScreenKey : NavKey {
     @Serializable
     data object About : ScreenKey
 }
-
-@Serializable
-data class PendingDeepLink(
-    val cityId: String,
-    val lineId: String,
-    val targetOrder: Int = 0,
-    val stopId: String = "",
-    val sourceName: String = "",
-    val lineName: String = ""
-)

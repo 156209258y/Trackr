@@ -24,6 +24,7 @@
    - 运行全量测试：`./gradlew test`
    - 运行单个测试类：`./gradlew :androidApp:testDebugUnitTest --tests "com.trackr.ui.screens.home.HomeViewModelTest"`
    - 领域层测试：`./gradlew :core:domain:testAndroidHostTest`（JVM）、`./gradlew :core:domain:iosSimulatorArm64Test`（需要 Xcode 和 iOS 模拟器运行时）
+   - 导航测试：`./gradlew :core:navigation:testAndroidHostTest`（JVM + Robolectric）
    - 打 release 包：`./gradlew :androidApp:assembleRelease`（产物在 `androidApp/build/outputs/apk/release/`）
    - 生成覆盖率报告：`./gradlew jacocoTestReport`
 
@@ -34,6 +35,7 @@
 - `:core:model`（目录 `core/model/`）：领域模型，KMP 纯 Kotlin，包名 `com.trackr.core.model`（`@Serializable` 数据类、枚举、`ProvinceCityCatalog`、`UserFix`）。不跑 Compose 编译器，页面直接用作参数的扁平模型要登记在根目录 `compose_stability.conf`。
 - `:core:domain`（目录 `core/domain/`）：领域层，KMP 纯 Kotlin，包名 `com.trackr.core.domain.*`：`arrival`（`ArrivalText`、`ArrivalRules`）、`tracking`（`SingleLegTracker`、`GroupLegTracker`、`BoardingDetector`、`LocationCadence`）、`math`（`RouteProjectionMath`、`CoordTransform`）、`platform`（平台能力接口 `TrackingController`、`ReminderAlarms`、`LocationSource`、`UpdateChecker` 等，墙钟用 `kotlin.time.Clock`、单调时钟用 `MonotonicClock`）。`commonMain` 不写 `java.*` / `android.*`，「现在」由调用方传入。测试在 `src/commonTest`（`kotlin.test`）。
 - `:core:testing`（目录 `core/testing/`）：测试辅助，平台能力接口的 Fake 和 `FakeClock`。
+- `:core:navigation`（目录 `core/navigation/`）：导航，KMP + CMP 版 Navigation 3，包名 `com.trackr.core.navigation`。`ScreenKey`（新增子类要同时登记进 `TrackrSavedStateConfiguration`）、`TopLevel`（页签）、`NavigationState`（每个页签一条返回栈 + 当前页签，`rememberNavigationState()`）、`Navigator`（所有导航动作：`open`、`back`、`selectTab` 等）、`TrackrTransitions`。页面不直接改返回栈，一律调 `Navigator`。测试：`commonTest` 的 `NavigatorTest`、`NavigationKeyTest`，`androidHostTest` 的 `NavigationStateRestorationTest`（Robolectric）。
 - `build-logic/convention`：约定插件，统一 SDK、JDK、单元测试与 Compose 编译器配置。
   - `trackr.android.application`：`:androidApp` 用。
-  - `trackr.kmp.library` + `trackr.kmp.compose`：KMP 模块用（Android + iosArm64 + iosSimulatorArm64），`:core:designsystem` 两个都用，`:core:model`、`:core:domain`、`:core:testing` 只用 `trackr.kmp.library`；`trackr.kmp.feature` 留给 `:feature:*`。
+  - `trackr.kmp.library` + `trackr.kmp.compose`：KMP 模块用（Android + iosArm64 + iosSimulatorArm64），`:core:designsystem`、`:core:navigation` 两个都用，`:core:model`、`:core:domain`、`:core:testing` 只用 `trackr.kmp.library`；`trackr.kmp.feature` 留给 `:feature:*`。

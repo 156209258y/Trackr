@@ -31,6 +31,9 @@
 # Keep Domain Models and Navigation Keys for JSON and Navigation3 Serialization
 -keep class com.trackr.core.model.** { *; }
 -keep class com.trackr.ui.navigation.** { *; }
+# ScreenKey 第 16 步搬到 :core:navigation（返回栈按序列化名存进 SavedState）
+-keep class com.trackr.core.navigation.ScreenKey { *; }
+-keep class com.trackr.core.navigation.ScreenKey$** { *; }
 -keep class com.trackr.data.provider.model.** { *; }
 
 # --- OkHttp & Okio ---

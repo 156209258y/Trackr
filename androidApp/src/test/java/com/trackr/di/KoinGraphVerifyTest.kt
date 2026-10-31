@@ -3,8 +3,8 @@ package com.trackr.di
 import android.app.Application
 import android.content.Context
 import com.trackr.core.model.DataSourceType
+import com.trackr.core.navigation.ScreenKey
 import com.trackr.data.provider.ITransitProvider
-import com.trackr.ui.navigation.ScreenKey
 import com.trackr.ui.screens.linedetail.LineDetailViewModel
 import com.trackr.ui.screens.stopdetail.StopDetailViewModel
 import com.trackr.util.MainDispatcherRule

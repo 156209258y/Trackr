@@ -819,8 +819,24 @@ composeCompiler {
 | --- | --- | --- | --- |
 | 线路详情、站点详情 | `LifecycleResumeEffect(viewModel)`：RESUMED 时 `onScreenResumed()`，离开 RESUMED 或移出组合时 `onScreenPaused()`；恢复时距上次刷新超过 10 秒才立即补刷（e683286） | effect 原样放在 `LineDetailRoute` / `StopDetailRoute` 里。Nav3 只组合栈顶 entry，被压到下面或切走页签时 entry 移出组合，`onPauseOrDispose` 照样触发 | `LineDetailViewModelTest`、`StopDetailViewModelTest` 的 `testScreenResume_*`、`testPolling_skipsWhenPreviousLoadStillInFlight` |
 | 公交首页 | `MainActivity` 算 `shouldPollHome` =「当前 tab 是首页 + 首页在栈顶 + Activity ≥ STARTED」再调 `setPollingActive`；恢复时超过一个周期（15 秒）补刷（301c124） | 改由 `BusHomeRoute` 里的 `LifecycleStartEffect` 调 `setPollingActive(true/false)`。「是首页 tab」「首页在栈顶」两个条件由「entry 在组合中」自动满足；STARTED 这一档沿用首页现有口径，不改成 RESUMED | `HomeViewModelTest.testSetPollingActive_*`；新增 `TrackrAppNavigationTest` 用例：进线路页、切到「我的」后首页轮询停 |
-| 预测返回露出上一页 | — | 手势中上一页会被临时组合，可能触发一次 `onScreenResumed()`。第 16 步核实 CMP 版 Nav3 是否给每个 entry 单独的 `LifecycleOwner`（只在栈顶且转场结束时 RESUMED）；没有就接受：恢复补刷本来就有「超过一个周期」的门槛，最多多一次请求 | 第 16 步记录结论 |
+| 预测返回露出上一页 | — | **第 16 步已核实：有单独的 `LifecycleOwner`**（见表下说明）。手势中露出的上一页最多到 STARTED，详情页的 `LifecycleResumeEffect` 不会提前调 `onScreenResumed()`；首页按 STARTED 口径会在手势中开始轮询，取消手势又停，恢复补刷有 15 秒门槛，最多多一次请求，接受 | 第 16 步：读源码核实，`NavigationStateRestorationTest` 覆盖每栈 decorator |
 | 追踪服务 | 不跟页面走，按 §2.6 的节奏轮询 | 不变 | — |
+
+**Nav3 的 entry 生命周期（第 16 步核实，2026-11-01）**：看的是 `navigation3-ui` 1.2.0 的源码。JetBrains 的 CMP 版 `org.jetbrains.androidx.navigation3:navigation3-ui:1.2.0` 在 Android 上直接解析成 `androidx.navigation3:navigation3-ui:1.2.0`。它 commonMain 里的 `NavDisplay.kt`、`SceneState.kt`、`BackStackAwareLifecycleNavEntryDecorator.kt` 和 androidx 版逐字相同，所以 iOS 上行为一样。
+
+| 层 | 谁给的 | 上限 |
+| --- | --- | --- |
+| 每个 entry | `rememberSceneState` 自动套的 `BackStackAwareLifecycleNavEntryDecorator`（`rememberLifecycleOwner`，不用自己加） | 还在返回栈里：RESUMED；已弹出（退场动画中）：CREATED |
+| 每个 Scene（套在 entry 外面） | `NavDisplay` 的 `AnimatedContent` 里 | 转场进行中（含预测返回手势全程）或上面有弹层 Scene：STARTED；转场结束：RESUMED |
+| 弹层 Scene | 同上 | 最上面那个 RESUMED，其余 STARTED |
+
+结论：
+
+1. 页面拿到的 `LocalLifecycleOwner` 是 entry 自己的，只在「在栈顶、转场结束、没有弹层」时 RESUMED。
+2. 被压下去、切走页签的 entry 移出组合，effect 照样走 `onPauseOrDispose` / `onStopOrDispose`。
+3. 弹出的 entry 在退场动画一开始就降到 CREATED，详情页轮询不会拖到动画结束才停。
+
+另外，`navigation3-runtime` 1.2.0 已内置 `androidx.navigation3.runtime.result.ResultEventBus` / `ResultEffect` / `ResultEventBusNavEntryDecorator`，第 18 步不用再从 recipe 拷（§3.5）。
 
 ### 4.5 动画
 

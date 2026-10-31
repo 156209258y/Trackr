@@ -29,6 +29,10 @@ amap3dBundle = "11.3.100_loc11.3.101_sea9.8.1"
 composeMultiplatform = "1.12.2"
 # CMP 1.12.2 配套的 Material3（基于 Jetpack Material3 1.5.0-alpha22，含 MaterialExpressiveTheme）。
 composeMultiplatformMaterial3 = "1.12.0-alpha03"
+# CMP 版 Navigation 3 与 lifecycle-viewmodel-navigation3（第 16 步 :core:navigation 用）；
+# Android 上分别解析成 androidx navigation3-ui 1.2.0（= nav3）、lifecycle-viewmodel-navigation3 2.11.0（= lifecycle）。
+navigation3Multiplatform = "1.2.0"
+lifecycleMultiplatform = "2.11.0"
 koin = "4.2.2"
 ktor = "3.6.1"
 room = "2.8.5"
@@ -79,6 +83,10 @@ compose-mp-ui = { group = "org.jetbrains.compose.ui", name = "ui", version.ref =
 compose-mp-ui-tooling-preview = { group = "org.jetbrains.compose.ui", name = "ui-tooling-preview", version.ref = "composeMultiplatform" }
 compose-mp-material3 = { group = "org.jetbrains.compose.material3", name = "material3", version.ref = "composeMultiplatformMaterial3" }
 compose-mp-components-resources = { group = "org.jetbrains.compose.components", name = "components-resources", version.ref = "composeMultiplatform" }
+compose-mp-runtime-saveable = { group = "org.jetbrains.compose.runtime", name = "runtime-saveable", version.ref = "composeMultiplatform" }
+compose-mp-animation = { group = "org.jetbrains.compose.animation", name = "animation", version.ref = "composeMultiplatform" }
+jetbrains-navigation3-ui = { group = "org.jetbrains.androidx.navigation3", name = "navigation3-ui", version.ref = "navigation3Multiplatform" }
+jetbrains-lifecycle-viewmodel-navigation3 = { group = "org.jetbrains.androidx.lifecycle", name = "lifecycle-viewmodel-navigation3", version.ref = "lifecycleMultiplatform" }
 
 # ---- 预留：重构计划后续步骤使用，暂不应用 ----
 # Koin（第 3 步起）

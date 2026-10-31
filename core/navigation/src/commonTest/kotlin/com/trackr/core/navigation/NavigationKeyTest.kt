@@ -1,12 +1,11 @@
-package com.trackr
+package com.trackr.core.navigation
 
 import com.trackr.core.model.DataSourceType
-import com.trackr.ui.navigation.ScreenKey
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
-import org.junit.Test
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 class NavigationKeyTest {
 

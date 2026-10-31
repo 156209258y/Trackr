@@ -18,11 +18,8 @@ import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideOutVertically
-import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -62,16 +59,18 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.currentStateAsState
 import androidx.lifecycle.compose.dropUnlessResumed
-import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.navigation3.runtime.entryProvider
-import androidx.navigation3.runtime.rememberNavBackStack
-import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
 import com.trackr.core.designsystem.theme.TrackrTheme
 import com.trackr.core.model.DataSourceType
 import com.trackr.core.model.TransitCodeProvider
+import com.trackr.core.navigation.Navigator
+import com.trackr.core.navigation.ScreenKey
+import com.trackr.core.navigation.TopLevel
+import com.trackr.core.navigation.TrackrTransitions
+import com.trackr.core.navigation.rememberNavigationState
 import com.trackr.ui.navigation.PendingDeepLink
-import com.trackr.ui.navigation.ScreenKey
 import com.trackr.ui.navigation.dropUnlessResumed
 import com.trackr.ui.screens.favoritesgroup.FavoritesGroupScreen
 import com.trackr.ui.screens.favoritesgroup.FavoritesGroupViewModel
@@ -164,6 +163,19 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+/** 底栏页签（顺序同 [TopLevel.tabs]）。 */
+private data class BottomTab(val key: ScreenKey, val label: String, val icon: ImageVector)
+
+private val bottomTabs: List<BottomTab> = TopLevel.tabs.map { key ->
+    when (key) {
+        ScreenKey.Home -> BottomTab(key, "首页", Icons.Default.DirectionsBus)
+        ScreenKey.RoutePlan -> BottomTab(key, "路线规划", Icons.AutoMirrored.Filled.AltRoute)
+        ScreenKey.FavoritesGroup -> BottomTab(key, "收藏", Icons.Default.Star)
+        ScreenKey.More -> BottomTab(key, "更多", Icons.Default.MoreHoriz)
+        else -> error("$key 不是顶层页签")
+    }
+}
+
 @Composable
 fun TrackrNavApp(
     pendingDeepLink: PendingDeepLink? = null,
@@ -194,25 +206,22 @@ fun TrackrNavApp(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
-    val homeBackStack = rememberNavBackStack(ScreenKey.Home)
-    val routePlanBackStack = rememberNavBackStack(ScreenKey.RoutePlan)
-    val groupBackStack = rememberNavBackStack(ScreenKey.FavoritesGroup)
-    val moreBackStack = rememberNavBackStack(ScreenKey.More)
-    var selectedTab by rememberSaveable { mutableStateOf("home") }
-
-    val activeBackStack = when (selectedTab) {
-        "home" -> homeBackStack
-        "route" -> routePlanBackStack
-        "group" -> groupBackStack
-        else -> moreBackStack
+    // 4 个页签各一条返回栈 + 当前页签，跨进程重建恢复（:core:navigation，重构计划 §3.3）
+    val navigationState = rememberNavigationState()
+    val navigator = remember(navigationState) { Navigator(navigationState) }
+    // 子页左上角返回：只在当前栈里退一页，不切页签
+    val popChildPage: () -> Unit = {
+        if (navigationState.currentStack.size > 1) {
+            navigator.back()
+        }
     }
+
     val homeViewModel: HomeViewModel = koinViewModel()
     val favoritesGroupViewModel: FavoritesGroupViewModel = koinViewModel()
 
     // 首页轮询只在 App 前台、当前 tab 是首页且首页在回退栈顶时进行；切 tab / 进详情 / 回桌面即暂停
     val lifecycleState by lifecycleOwner.lifecycle.currentStateAsState()
-    val shouldPollHome = selectedTab == "home" &&
-        homeBackStack.lastOrNull() is ScreenKey.Home &&
+    val shouldPollHome = navigationState.isShowingRootOf(ScreenKey.Home) &&
         lifecycleState.isAtLeast(Lifecycle.State.STARTED)
     LaunchedEffect(shouldPollHome) {
         homeViewModel.setPollingActive(shouldPollHome)
@@ -318,24 +327,17 @@ fun TrackrNavApp(
             source = source,
             lineName = deepLink.lineName
         )
-        selectedTab = "home"
-        if (homeBackStack.lastOrNull() != lineDetailKey) {
-            homeBackStack.add(lineDetailKey)
-        }
+        navigator.openInTab(ScreenKey.Home, lineDetailKey)
         onDeepLinkConsumed()
     }
 
-    val currentKey = activeBackStack.lastOrNull()
-    val isTopLevel = (selectedTab == "home" && currentKey is ScreenKey.Home) ||
-        (selectedTab == "route" && currentKey is ScreenKey.RoutePlan) ||
-        (selectedTab == "group" && currentKey is ScreenKey.FavoritesGroup) ||
-        (selectedTab == "more" && currentKey is ScreenKey.More)
+    val isTopLevel = navigationState.isAtTabRoot
 
     // 控制滑动时底部导航栏平滑收起与展开
     var isNavigationBarVisible by rememberSaveable { mutableStateOf(true) }
 
     // 切换 Tab 或从子页面返回根页面时，确保导航栏重置为显示状态
-    LaunchedEffect(isTopLevel, selectedTab) {
+    LaunchedEffect(isTopLevel, navigationState.topLevel) {
         if (isTopLevel) {
             isNavigationBarVisible = true
         }
@@ -372,12 +374,6 @@ fun TrackrNavApp(
         label = "navBarTranslationY"
     )
 
-    val saveableDecorator = rememberSaveableStateHolderNavEntryDecorator<androidx.navigation3.runtime.NavKey>()
-    val viewModelStoreDecorator = rememberViewModelStoreNavEntryDecorator<androidx.navigation3.runtime.NavKey>()
-    val entryDecorators = remember(saveableDecorator, viewModelStoreDecorator) {
-        listOf(saveableDecorator, viewModelStoreDecorator)
-    }
-
     Scaffold(
         modifier = Modifier.nestedScroll(nestedScrollConnection),
         contentWindowInsets = WindowInsets(0.dp),
@@ -398,124 +394,27 @@ fun TrackrNavApp(
                         translationY = navBarTranslationY * size.height
                     }
                 ) {
-                    NavigationBarItem(
-                        selected = selectedTab == "home",
-                        onClick = dropUnlessResumed {
-                            if (selectedTab == "home") {
-                                // 点击当前已处于活跃状态的 Tab 时，平滑返回该 Tab 的根目录
-                                while (homeBackStack.size > 1) {
-                                    homeBackStack.removeLastOrNull()
-                                }
-                            } else {
-                                selectedTab = "home"
-                            }
-                        },
-                        icon = {
-                            Icon(
-                                imageVector = Icons.Default.DirectionsBus,
-                                contentDescription = "首页"
-                            )
-                        },
-                        label = { Text("首页") }
-                    )
-                    NavigationBarItem(
-                        selected = selectedTab == "route",
-                        onClick = dropUnlessResumed {
-                            if (selectedTab == "route") {
-                                while (routePlanBackStack.size > 1) {
-                                    routePlanBackStack.removeLastOrNull()
-                                }
-                            } else {
-                                selectedTab = "route"
-                            }
-                        },
-                        icon = {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.AltRoute,
-                                contentDescription = "路线规划"
-                            )
-                        },
-                        label = { Text("路线规划") }
-                    )
-                    NavigationBarItem(
-                        selected = selectedTab == "group",
-                        onClick = dropUnlessResumed {
-                            if (selectedTab == "group") {
-                                while (groupBackStack.size > 1) {
-                                    groupBackStack.removeLastOrNull()
-                                }
-                            } else {
-                                selectedTab = "group"
-                            }
-                        },
-                        icon = {
-                            Icon(
-                                imageVector = Icons.Default.Star,
-                                contentDescription = "收藏"
-                            )
-                        },
-                        label = { Text("收藏") }
-                    )
-                    NavigationBarItem(
-                        selected = selectedTab == "more",
-                        onClick = dropUnlessResumed {
-                            if (selectedTab == "more") {
-                                // 点击当前已处于活跃状态的 Tab 时，平滑返回该 Tab 的根目录
-                                while (moreBackStack.size > 1) {
-                                    moreBackStack.removeLastOrNull()
-                                }
-                            } else {
-                                selectedTab = "more"
-                            }
-                        },
-                        icon = {
-                            Icon(
-                                imageVector = Icons.Default.MoreHoriz,
-                                contentDescription = "更多"
-                            )
-                        },
-                        label = { Text("更多") }
-                    )
+                    bottomTabs.forEach { tab ->
+                        NavigationBarItem(
+                            selected = navigationState.topLevel == tab.key,
+                            // 点当前页签回到它的根页；点别的页签切过去，各自的返回栈保留
+                            onClick = dropUnlessResumed { navigator.selectTab(tab.key) },
+                            icon = {
+                                Icon(
+                                    imageVector = tab.icon,
+                                    contentDescription = tab.label
+                                )
+                            },
+                            label = { Text(tab.label) }
+                        )
+                    }
                 }
             }
         }
     ) { _ ->
         NavDisplay(
-            backStack = activeBackStack,
-            onBack = {
-                if (activeBackStack.size > 1) {
-                    activeBackStack.removeLastOrNull()
-                } else if (selectedTab != "home") {
-                    selectedTab = "home"
-                }
-            },
-            entryDecorators = entryDecorators,
-            modifier = Modifier.fillMaxSize(),
-            transitionSpec = {
-                val isTopLevelSwitch = (initialState.key is ScreenKey.Home || initialState.key is ScreenKey.RoutePlan || initialState.key is ScreenKey.FavoritesGroup || initialState.key is ScreenKey.More) &&
-                    (targetState.key is ScreenKey.Home || targetState.key is ScreenKey.RoutePlan || targetState.key is ScreenKey.FavoritesGroup || targetState.key is ScreenKey.More)
-                if (isTopLevelSwitch) {
-                    fadeIn(animationSpec = tween(220)) togetherWith fadeOut(animationSpec = tween(220))
-                } else {
-                    (slideInHorizontally(initialOffsetX = { it }, animationSpec = tween(300)) + fadeIn(animationSpec = tween(300))) togetherWith
-                        (slideOutHorizontally(targetOffsetX = { -it / 3 }, animationSpec = tween(300)) + fadeOut(animationSpec = tween(300)))
-                }
-            },
-            popTransitionSpec = {
-                val isTopLevelSwitch = (initialState.key is ScreenKey.Home || initialState.key is ScreenKey.RoutePlan || initialState.key is ScreenKey.FavoritesGroup || initialState.key is ScreenKey.More) &&
-                    (targetState.key is ScreenKey.Home || targetState.key is ScreenKey.RoutePlan || targetState.key is ScreenKey.FavoritesGroup || targetState.key is ScreenKey.More)
-                if (isTopLevelSwitch) {
-                    fadeIn(animationSpec = tween(220)) togetherWith fadeOut(animationSpec = tween(220))
-                } else {
-                    (slideInHorizontally(initialOffsetX = { -it / 3 }, animationSpec = tween(300)) + fadeIn(animationSpec = tween(300))) togetherWith
-                        (slideOutHorizontally(targetOffsetX = { it }, animationSpec = tween(300)) + fadeOut(animationSpec = tween(300)))
-                }
-            },
-            predictivePopTransitionSpec = { _ ->
-                (slideInHorizontally(initialOffsetX = { -it / 3 }, animationSpec = tween(300)) + fadeIn(animationSpec = tween(300))) togetherWith
-                    (slideOutHorizontally(targetOffsetX = { it }, animationSpec = tween(300)) + fadeOut(animationSpec = tween(300)))
-            },
-            entryProvider = entryProvider {
+            // 只显示当前页签的栈（和第 16 步之前一样）：非首页页签根页按返回交给系统，切页签走横向滑动
+            entries = navigationState.toDecoratedEntries(startUnderneath = false, entryProvider = entryProvider {
                 entry<ScreenKey.Home> {
                     HomeScreen(
                         viewModel = homeViewModel,
@@ -528,9 +427,7 @@ fun TrackrNavApp(
                                 source = source,
                                 lineName = lineName
                             )
-                            if (activeBackStack.lastOrNull() != key) {
-                                activeBackStack.add(key)
-                            }
+                            navigator.open(key)
                         },
                         onNavigateToStopDetail = dropUnlessResumed { cityId, stopId, stopName, physicalStId, namesakeStId, lat, lng ->
                             val key = ScreenKey.StopDetail(
@@ -542,17 +439,13 @@ fun TrackrNavApp(
                                 lat = lat,
                                 lng = lng
                             )
-                            if (activeBackStack.lastOrNull() != key) {
-                                activeBackStack.add(key)
-                            }
+                            navigator.open(key)
                         },
                         onNavigateToSearch = dropUnlessResumed {
-                            if (activeBackStack.lastOrNull() != ScreenKey.Search) {
-                                activeBackStack.add(ScreenKey.Search)
-                            }
+                            navigator.open(ScreenKey.Search)
                         },
                         onNavigateToFavoritesGroup = dropUnlessResumed {
-                            selectedTab = "group"
+                            navigator.selectTab(ScreenKey.FavoritesGroup)
                         }
                     )
                 }
@@ -562,7 +455,7 @@ fun TrackrNavApp(
                         viewModel = favoritesGroupViewModel,
                         mapSession = mapSession,
                         onNavigateToFavorites = dropUnlessResumed {
-                            selectedTab = "group"
+                            navigator.selectTab(ScreenKey.FavoritesGroup)
                         },
                         onNavigateToLineDetail = dropUnlessResumed { cityId, lineId, targetOrder, stopId, source, lineName ->
                             val key = ScreenKey.LineDetail(
@@ -573,9 +466,7 @@ fun TrackrNavApp(
                                 source = source,
                                 lineName = lineName
                             )
-                            if (activeBackStack.lastOrNull() != key) {
-                                activeBackStack.add(key)
-                            }
+                            navigator.open(key)
                         }
                     )
                 }
@@ -584,12 +475,10 @@ fun TrackrNavApp(
                     FavoritesGroupScreen(
                         viewModel = favoritesGroupViewModel,
                         onNavigateToRoutePlan = dropUnlessResumed {
-                            selectedTab = "route"
+                            navigator.selectTab(ScreenKey.RoutePlan)
                         },
-                        onNavigateBack = if (activeBackStack.size > 1) {
-                            dropUnlessResumed {
-                                activeBackStack.removeLastOrNull()
-                            }
+                        onNavigateBack = if (navigationState.currentStack.size > 1) {
+                            dropUnlessResumed { popChildPage() }
                         } else null,
                         onNavigateToLineDetail = dropUnlessResumed { cityId, lineId, targetOrder, stopId, source, lineName ->
                             val key = ScreenKey.LineDetail(
@@ -600,9 +489,7 @@ fun TrackrNavApp(
                                 source = source,
                                 lineName = lineName
                             )
-                            if (activeBackStack.lastOrNull() != key) {
-                                activeBackStack.add(key)
-                            }
+                            navigator.open(key)
                         }
                     )
                 }
@@ -611,9 +498,7 @@ fun TrackrNavApp(
                     SearchScreen(
                         viewModel = homeViewModel,
                         onNavigateBack = dropUnlessResumed {
-                            if (activeBackStack.size > 1) {
-                                activeBackStack.removeLastOrNull()
-                            }
+                            popChildPage()
                         },
                         onNavigateToLineDetail = dropUnlessResumed { cityId, lineId, targetOrder, stopId, source, lineName ->
                             val key = ScreenKey.LineDetail(
@@ -624,9 +509,7 @@ fun TrackrNavApp(
                                 source = source,
                                 lineName = lineName
                             )
-                            if (activeBackStack.lastOrNull() != key) {
-                                activeBackStack.add(key)
-                            }
+                            navigator.open(key)
                         },
                         onNavigateToStopDetail = dropUnlessResumed { cityId, stopId, stopName, physicalStId, namesakeStId, lat, lng ->
                             val key = ScreenKey.StopDetail(
@@ -638,9 +521,7 @@ fun TrackrNavApp(
                                 lat = lat,
                                 lng = lng
                             )
-                            if (activeBackStack.lastOrNull() != key) {
-                                activeBackStack.add(key)
-                            }
+                            navigator.open(key)
                         }
                     )
                 }
@@ -653,9 +534,7 @@ fun TrackrNavApp(
                     LineDetailScreen(
                         viewModel = detailViewModel,
                         onNavigateBack = dropUnlessResumed {
-                            if (activeBackStack.size > 1) {
-                                activeBackStack.removeLastOrNull()
-                            }
+                            popChildPage()
                         }
                     )
                 }
@@ -668,9 +547,7 @@ fun TrackrNavApp(
                     StopDetailScreen(
                         viewModel = stopDetailViewModel,
                         onNavigateBack = dropUnlessResumed {
-                            if (activeBackStack.size > 1) {
-                                activeBackStack.removeLastOrNull()
-                            }
+                            popChildPage()
                         },
                         onNavigateToLineDetail = dropUnlessResumed { cityId, lineId, targetOrder, stopId, source, lineName ->
                             val lineDetailKey = ScreenKey.LineDetail(
@@ -681,9 +558,7 @@ fun TrackrNavApp(
                                 source = source,
                                 lineName = lineName
                             )
-                            if (activeBackStack.lastOrNull() != lineDetailKey) {
-                                activeBackStack.add(lineDetailKey)
-                            }
+                            navigator.open(lineDetailKey)
                         }
                     )
                 }
@@ -693,9 +568,7 @@ fun TrackrNavApp(
                     MoreScreen(
                         viewModel = moreViewModel,
                         onNavigateToAbout = dropUnlessResumed {
-                            if (activeBackStack.lastOrNull() != ScreenKey.About) {
-                                activeBackStack.add(ScreenKey.About)
-                            }
+                            navigator.open(ScreenKey.About)
                         },
                         onNavigateToLineDetail = dropUnlessResumed { cityId, lineId, targetOrder, stopId, source, lineName ->
                             val lineDetailKey = ScreenKey.LineDetail(
@@ -706,9 +579,7 @@ fun TrackrNavApp(
                                 source = source,
                                 lineName = lineName
                             )
-                            if (activeBackStack.lastOrNull() != lineDetailKey) {
-                                activeBackStack.add(lineDetailKey)
-                            }
+                            navigator.open(lineDetailKey)
                         }
                     )
                 }
@@ -716,13 +587,16 @@ fun TrackrNavApp(
                 entry<ScreenKey.About> {
                     AboutScreen(
                         onNavigateBack = dropUnlessResumed {
-                            if (activeBackStack.size > 1) {
-                                activeBackStack.removeLastOrNull()
-                            }
+                            popChildPage()
                         }
                     )
                 }
-            }
+            }),
+            onBack = { navigator.back() },
+            modifier = Modifier.fillMaxSize(),
+            transitionSpec = TrackrTransitions.push,
+            popTransitionSpec = TrackrTransitions.pop,
+            predictivePopTransitionSpec = TrackrTransitions.predictivePop
         )
     }
 }

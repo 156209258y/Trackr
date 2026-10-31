@@ -4,6 +4,7 @@ import android.content.Context
 import com.trackr.core.domain.platform.ReminderAlarms
 import com.trackr.core.domain.platform.TrackingController
 import com.trackr.core.domain.platform.UpdateChecker
+import com.trackr.core.navigation.ScreenKey
 import com.trackr.data.location.AndroidDeviceLocationProvider
 import com.trackr.data.location.DeviceLocationProvider
 import com.trackr.data.provider.TransitProviderCoordinator
@@ -26,7 +27,6 @@ import com.trackr.service.AndroidTrackingController
 import com.trackr.service.ArrivalAlertNotifier
 import com.trackr.service.LiveProgressNotifier
 import com.trackr.service.TransferAutoSwitcher
-import com.trackr.ui.navigation.ScreenKey
 import com.trackr.ui.screens.favoritesgroup.FavoritesGroupViewModel
 import com.trackr.ui.screens.home.HomeViewModel
 import com.trackr.ui.screens.linedetail.LineDetailViewModel
