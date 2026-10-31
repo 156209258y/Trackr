@@ -10,15 +10,16 @@ import android.os.Build
 import android.util.Log
 import androidx.annotation.VisibleForTesting
 import androidx.core.app.NotificationCompat
-import com.trackr.MainActivity
 import com.trackr.core.domain.platform.ReminderAlarms
 import com.trackr.core.domain.platform.TrackingController
 import com.trackr.core.model.LineOperatingState
 import com.trackr.core.model.ScheduledReminder
 import com.trackr.core.model.TrackingTarget
 import com.trackr.core.model.TransitCity
+import com.trackr.core.navigation.deeplink.DeepLinkUris
 import com.trackr.data.repository.IScheduledReminderRepository
 import com.trackr.data.repository.ITransitRepository
+import com.trackr.deeplink.DeepLinkIntents
 import com.trackr.di.AppScopeQualifier
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -178,15 +179,19 @@ class ScheduledReminderReceiver : BroadcastReceiver(), KoinComponent {
 
         ensureNotificationChannel(context, notificationManager)
 
-        // 点击通知跳转线路详情
-        val openAppIntent = Intent(context, MainActivity::class.java).apply {
+        // 点击通知跳转线路详情（trackr://line，§3.6）
+        val openAppIntent = DeepLinkIntents.activityIntent(
+            context,
+            DeepLinkUris.line(
+                cityId = reminder.cityId,
+                lineId = reminder.lineId,
+                source = reminder.dataSourceType,
+                stopId = reminder.targetStopId,
+                targetOrder = reminder.targetOrder,
+                lineName = reminder.lineName
+            )
+        ).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-            putExtra("extra_city_id", reminder.cityId)
-            putExtra("extra_line_id", reminder.lineId)
-            putExtra("extra_target_order", reminder.targetOrder)
-            putExtra("extra_stop_id", reminder.targetStopId)
-            putExtra("extra_source", reminder.dataSourceType.name)
-            putExtra("extra_line_name", reminder.lineName)
         }
         val contentPendingIntent = PendingIntent.getActivity(
             context,

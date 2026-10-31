@@ -258,6 +258,40 @@ class ScheduledReminderReceiverTest {
     }
 
     @Test
+    fun testReminderNotification_tapOpensLineDetailViaTrackrLink() = runBlocking {
+        // 第 18 步：点提醒通知发 trackr://line 链接（原来是 6 个 extra），解析出来还是那条线路详情
+        ShadowAlarmManager.setCanScheduleExactAlarms(false)
+        installFakes(startResult = true)
+        val reminder = autoStartReminder("tap-link")
+        reminderRepository.saveReminder(reminder)
+
+        ScheduledReminderReceiver().handleReminderTrigger(app, reminder.id)
+
+        val notification = requireNotNull(postedReminderNotification(reminder.id))
+        val intent = shadowOf(notification.contentIntent).savedIntent
+        assertEquals(Intent.ACTION_VIEW, intent.action)
+        assertEquals("com.trackr.MainActivity", intent.component?.className)
+        assertNull("不再带旧 extra", intent.getStringExtra("extra_city_id"))
+        val link = com.trackr.deeplink.DeepLinkIntents.parse(intent)
+        assertEquals(
+            com.trackr.core.navigation.deeplink.DeepLink.Stack(
+                com.trackr.core.navigation.ScreenKey.Home,
+                listOf(
+                    com.trackr.core.navigation.ScreenKey.LineDetail(
+                        cityId = "034",
+                        lineId = "line-101",
+                        targetOrder = 5,
+                        stopId = "stop-5",
+                        lineName = "70路"
+                    )
+                )
+            ),
+            link
+        )
+        ShadowAlarmManager.setCanScheduleExactAlarms(true)
+    }
+
+    @Test
     fun testStartTrackingNow_whenStartFails_keepsNotificationForRetry() = runBlocking {
         ShadowAlarmManager.setCanScheduleExactAlarms(false)
         installFakes(startResult = true)

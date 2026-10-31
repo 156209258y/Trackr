@@ -19,7 +19,9 @@ import com.trackr.core.domain.arrival.ArrivalText
 import com.trackr.core.model.BusLineDetail
 import com.trackr.core.model.FavoriteStationLine
 import com.trackr.core.model.TransitCity
+import com.trackr.core.navigation.deeplink.DeepLinkUris
 import com.trackr.data.repository.ITransitRepository
+import com.trackr.deeplink.DeepLinkIntents
 import com.trackr.di.AppScopeQualifier
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -168,17 +170,13 @@ class BusStopWidgetProvider : AppWidgetProvider(), KoinComponent {
     ): RemoteViews {
         val views = RemoteViews(context.packageName, R.layout.widget_bus_stop)
 
-        // 点击小组件主视图打开应用
-        val mainIntent = Intent(context, MainActivity::class.java).apply {
+        // 点击小组件主视图：有收藏就打开它的线路详情（trackr://line），没有就只打开应用
+        val mainIntent = if (favorite != null) {
+            DeepLinkIntents.activityIntent(context, favorite.lineDetailLink())
+        } else {
+            Intent(context, MainActivity::class.java)
+        }.apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-            if (favorite != null) {
-                putExtra("extra_city_id", favorite.cityId)
-                putExtra("extra_line_id", favorite.lineId)
-                putExtra("extra_target_order", favorite.targetOrder)
-                putExtra("extra_stop_id", favorite.targetStopId)
-                putExtra("extra_source", favorite.source.name)
-                putExtra("extra_line_name", favorite.lineName)
-            }
         }
         val mainPendingIntent = PendingIntent.getActivity(
             context,
@@ -188,7 +186,7 @@ class BusStopWidgetProvider : AppWidgetProvider(), KoinComponent {
         )
         views.setOnClickPendingIntent(R.id.widget_root, mainPendingIntent)
 
-        // 绑定右上角刷新按钮
+        // 绑定右上角刷新按钮：显式指向本 receiver（这个 action 不在 Manifest 的导出 filter 里，S2）
         val refreshIntent = Intent(context, BusStopWidgetProvider::class.java).apply {
             action = ACTION_WIDGET_REFRESH
         }
@@ -222,6 +220,7 @@ class BusStopWidgetProvider : AppWidgetProvider(), KoinComponent {
     }
 
     companion object {
+        /** 刷新按钮 / [triggerRefresh] 用的显式广播 action。不放进 Manifest 的导出 filter（S2），别的 App 不能隐式触发 */
         const val ACTION_WIDGET_REFRESH = "com.trackr.action.WIDGET_REFRESH"
 
         /** 实时请求超时：goAsync 的广播需在 10 秒内 finish，留出更新视图的余量 */
@@ -253,15 +252,8 @@ class BusStopWidgetProvider : AppWidgetProvider(), KoinComponent {
             if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N_MR1) return
             try {
                 val shortcuts = favorites.take(3).mapIndexed { index, fav ->
-                    val intent = Intent(context, MainActivity::class.java).apply {
-                        action = Intent.ACTION_VIEW
+                    val intent = DeepLinkIntents.activityIntent(context, fav.lineDetailLink()).apply {
                         flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-                        putExtra("extra_city_id", fav.cityId)
-                        putExtra("extra_line_id", fav.lineId)
-                        putExtra("extra_target_order", fav.targetOrder)
-                        putExtra("extra_stop_id", fav.targetStopId)
-                        putExtra("extra_source", fav.source.name)
-                        putExtra("extra_line_name", fav.lineName)
                     }
                     ShortcutInfoCompat.Builder(context, "shortcut_${fav.id}")
                         .setShortLabel("${fav.lineName}·${fav.targetStopName}")
@@ -278,3 +270,13 @@ class BusStopWidgetProvider : AppWidgetProvider(), KoinComponent {
         }
     }
 }
+
+/** 收藏的线路详情链接（小组件主视图、动态快捷方式共用；§3.6） */
+internal fun FavoriteStationLine.lineDetailLink(): String = DeepLinkUris.line(
+    cityId = cityId,
+    lineId = lineId,
+    source = source,
+    stopId = targetStopId,
+    targetOrder = targetOrder,
+    lineName = lineName
+)

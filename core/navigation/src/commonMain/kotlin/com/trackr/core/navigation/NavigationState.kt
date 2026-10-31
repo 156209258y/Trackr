@@ -15,6 +15,8 @@ import androidx.navigation3.runtime.NavEntry
 import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.rememberDecoratedNavEntries
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
+import androidx.navigation3.runtime.result.rememberResultEventBus
+import androidx.navigation3.runtime.result.rememberResultEventBusNavEntryDecorator
 import androidx.navigation3.runtime.serialization.NavBackStackSerializer
 import androidx.savedstate.SavedState
 import androidx.savedstate.serialization.SavedStateConfiguration
@@ -119,18 +121,24 @@ class NavigationState(
     /**
      * 每条栈各自一组 decorator（保存页内状态 + ViewModel 作用域），切页签不会清掉另一条栈的状态（修 N2）；
      * 只有真的从某条栈里弹出的 entry 才清它的 rememberSaveable 状态和 ViewModel。
+     *
+     * 所有 entry 共用一个 `ResultEventBus`（§3.5）：弹层用 `LocalResultEventBus.current.sendResult(…)` 回传一次性结果，
+     * 上一页用 `ResultEffect<T> { … }` 收（第 22 步「收藏弹层 → 规划页『去看看』」用）。
      */
     @Composable
     fun toDecoratedEntries(
         startUnderneath: Boolean = true,
         entryProvider: (NavKey) -> NavEntry<NavKey>,
     ): List<NavEntry<NavKey>> {
+        val resultEventBus = rememberResultEventBus()
+        val resultDecorator = rememberResultEventBusNavEntryDecorator<NavKey>(resultEventBus)
         val decorated = stacks.mapValues { (_, stack) ->
             rememberDecoratedNavEntries(
                 backStack = stack,
                 entryDecorators = listOf(
                     rememberSaveableStateHolderNavEntryDecorator(),
                     rememberViewModelStoreNavEntryDecorator(),
+                    resultDecorator,
                 ),
                 entryProvider = entryProvider,
             )

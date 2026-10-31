@@ -346,7 +346,10 @@ class LiveProgressNotificationHelperTest {
         val notification = liveNotifier.buildNotification(context, watchWaitingState(), watch = threeLines)
         val transitCode = notification.actions[1].actionIntent
         val intent = org.robolectric.Shadows.shadowOf(transitCode).savedIntent
-        assertEquals(LiveProgressNotifier.ACTION_OPEN_TRANSIT_CODE, intent.action)
+        // 第 18 步：发 trackr://transit-code 链接（不再用 OPEN_TRANSIT_CODE action），显式指向 MainActivity
+        assertEquals(android.content.Intent.ACTION_VIEW, intent.action)
+        assertTrue(intent.dataString, intent.dataString.orEmpty().startsWith("trackr://transit-code?provider="))
+        assertEquals("com.trackr.MainActivity", intent.component?.className)
         assertTrue(org.robolectric.Shadows.shadowOf(transitCode).isActivityIntent)
     }
 

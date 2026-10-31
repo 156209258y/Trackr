@@ -1,6 +1,7 @@
 package com.trackr.core.navigation
 
 import androidx.navigation3.runtime.NavKey
+import com.trackr.core.navigation.deeplink.DeepLink
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
@@ -32,13 +33,16 @@ class Navigator(private val state: NavigationState) {
     }
 
     /**
-     * 切到 [tab]（不回根）再在它的栈上打开 [key]。小组件 / 通知跳线路详情用，栈顶去重防重放；
-     * 第 18 步换成 `applyDeepLink`（合成返回栈）。
+     * 落一条 deep link（§3.6 合成返回栈）：切到 [DeepLink.Stack.tab]，它的栈重置为 `[页签根, keys…]`，
+     * 按返回回到页签根页而不是退出 App。别的页签的栈不动。同一条链接重放结果不变。
+     * 页签不存在（不该发生）就落到起始页签；keys 里的页签根和连续重复的 Key 跳过。
      */
-    fun openInTab(tab: ScreenKey, key: ScreenKey) {
-        require(tab in state.stacks) { "$tab 不是顶层页签" }
+    fun applyDeepLink(link: DeepLink.Stack) {
+        val tab = link.tab.takeIf { it in state.stacks } ?: state.start
+        val stack = state.stacks.getValue(tab)
         state.topLevel = tab
-        state.stacks.getValue(tab).pushIfNotOnTop(key)
+        stack.popToRoot()
+        link.keys.forEach { key -> if (key != tab) stack.pushIfNotOnTop(key) }
     }
 
     /**

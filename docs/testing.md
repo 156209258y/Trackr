@@ -35,18 +35,18 @@
 
 ## 3. 测试目录与套件清单
 
-`./gradlew test` 共跑 87 个测试类、834 个用例：
+`./gradlew test` 共跑 91 个测试类、XXX 个用例：
 
 | 模块 | 测试类 | 模块 | 测试类 |
 | :--- | :--- | :--- | :--- |
-| `:androidApp` | 24 | `:core:ui` | 4 |
+| `:androidApp` | 26 | `:core:ui` | 4 |
 | `:composeApp` | 2 | `:feature:bus` | 3 |
 | `:core:data` | 12 | `:feature:favorites` | 3 |
 | `:core:database` | 1 | `:feature:line` | 6 |
 | `:core:datastore` | 1 | `:feature:me` | 2 |
 | `:core:designsystem` | 2 | `:feature:route` | 5 |
 | `:core:domain` | 4 | `:feature:search` | 1 |
-| `:core:navigation` | 3 | `:feature:stop` | 1 |
+| `:core:navigation` | 5 | `:feature:stop` | 1 |
 | `:core:network` | 12 | `:core:testing` | 1 |
 
 `:core:model` 没有测试。KMP 模块的 `test` 由约定插件 `trackr.kmp.library` 补上，只跑 Android 主机测试（`testAndroidHostTest`）；iOS 另跑 `./gradlew :core:domain:iosSimulatorArm64Test`（`:core:network`、`:core:data` 同理，需要 Xcode 和 iOS 模拟器运行时），`:core:database` 的 DAO 测试同样在 iOS 模拟器上跑（`./gradlew :core:database:iosSimulatorArm64Test`，用 BundledSQLiteDriver），设计系统只做编译检查 `./gradlew :core:designsystem:compileKotlinIosSimulatorArm64`，导航做编译检查加测试链接 `./gradlew :core:navigation:linkDebugTestIosSimulatorArm64`。各 `:feature:*`、`:composeApp`、`:core:ui` 在 iOS 上也只做这两步：`./gradlew :feature:bus:compileKotlinIosSimulatorArm64`、`./gradlew :feature:bus:linkDebugTestIosSimulatorArm64`（其他模块换模块名）。
@@ -71,7 +71,9 @@ Koin 由 `TrackrApp.onCreate` 启动，Robolectric 用例里每个用例都会�
 | 目录 | 测试类 | 覆盖范围 | 运行方式 |
 | :--- | :--- | :--- | :--- |
 | 根目录 | `TransitUnitTest` | 核心算法（`RouteProjectionMath` 坐标插值与站名纠错、线路与城市模型；车来了加解密第 8 步搬到 `:core:network` 的 `ChelaileCryptoTest`） | 本地 JVM |
-|  | `TrackrAppNavigationTest` | 用真实的 `TrackrRoot` 走一遍（首页 ViewModel 换成接 Fake 的）：首页根页在轮询；切到「更多」后停轮询，超过一个周期（15 秒）再回来立即补刷；进搜索后停轮询，15 秒内回来不补刷；收藏页是首页栈的子页，返回回首页；进程重建后恢复到「更多」时新建的首页 ViewModel 不轮询、切回首页才开始 | Robolectric Compose UI |
+|  | `TrackrAppNavigationTest` | 用真实的 `TrackrRoot` 走一遍（首页 ViewModel 换成接 Fake 的）：首页根页在轮询；切到「更多」后停轮询，超过一个周期（15 秒）再回来立即补刷；进搜索后停轮询，15 秒内回来不补刷；收藏页是首页栈的子页，返回回首页；进程重建后恢复到「更多」时新建的首页 ViewModel 不轮询、切回首页才开始；第 18 步 deep link（线路详情 ViewModel 也接 Fake）：冷启动带链接 → `[首页, 线路详情]`、首页停轮询、返回回首页根页；热启动在「更多」或首页子页（搜索）上收到链接 → 首页栈重置为 `[首页, 线路详情]`，返回直接回首页根页；同一条链接重放不叠第二页；「上了哪辆？」链接现在不动栈 | Robolectric Compose UI |
+|  | `MainActivityDeepLinkTest` | 真实的 `MainActivity`（第 18 步）：冷启动带 `trackr://line` 打开对应线路详情、Intent 里的链接被清掉、返回回首页根页；旧版 6 个 extra 仍能打开；热启动 `onNewIntent` 同样；带保存状态重建时不重放；`trackr://transit-code` 直接拉起支付宝乘车码、不动栈；坏链接忽略 | Robolectric Compose UI |
+| `deeplink` | `DeepLinkIntentsTest` | Intent ↔ `trackr://` 链接（第 18 步）：data 里的新链接；旧版 6 个 extra、两种拼法的旧 `OPEN_TRANSIT_CODE` action 兼容（只有 alipay 是支付宝）；`consume` 后同一个 Intent 不重放、不碰非 `trackr` 的 data；别的 App 传来的坏 Intent 忽略；动态快捷方式发的是 `ACTION_VIEW` + `trackr://line` | Robolectric (JVM) |
 | `data/remote/amap` | `AmapSdkManagerTest` | 高德 Key 本地持久化（`AmapKeyStorage`）：Android / Web 两槽分开存、读 Android Key 不回落到 Web 槽、旧 Key 从 `trackr_prefs` 挪出只做一次、新文件里已有的 Key 不被旧值覆盖（SDK 封装的用例第 17 步搬到 `:feature:route`） | Robolectric (JVM) |
 |  | `AmapSdkKeySyncTest` | 改了 Android Key 才重新注入 SDK：跳过启动时的值、改 Web Key 不注入、重复 `start()` 不开第二个收集 | 本地 JVM |
 | `data/remote/update` | `GithubUpdateCheckerTest` | 更新检查多源回退、强制更新判定、下载地址 https 与域名白名单校验、取消后不再试剩下的源（Ktor `MockEngine`） | Robolectric (JVM) |
@@ -82,10 +84,10 @@ Koin 由 `TrackrApp.onCreate` 启动，Robolectric 用例里每个用例都会�
 |  | `ScheduledReminderRepositoryTest` | 旧存储上：定时提醒增删改与持久化、并发写入不丢更新、JSON 损坏备份、计划触发时间记录 | Robolectric (JVM) |
 |  | `RoomScheduledReminderRepositoryTest` | 新存储上：增删改与重开读回、并发保存 / 开关不丢更新、计划触发时刻存进 `reminder.lastScheduledTriggerAt` 并且改别的提醒时不被冲掉 | Robolectric (JVM) |
 | `di` | `KoinGraphVerifyTest` | Koin 依赖图：`appModule`、`platformBridgeModule`、`routeDataModule`、各 feature 的 `xxxModule` 和 `routeAndroidModule` 各自 `verify()`，静态检查构造参数都有绑定；`appModules` 就是这些模块按顺序拼起来；Robolectric 里把每个定义实际取一次（带参数的 ViewModel 用样例 key） | Robolectric (JVM) |
-| `receiver` | `ScheduledReminderReceiverTest` | 定时提醒触发、自动跟车需精确闹钟、传给 `TrackingController` 的单线路目标；降级：非精确闹钟或启动被拒时改发通知并追加「系统限制未能自动开启跟车」提示，点「开启实时追踪」仍失败时保留通知、成功才关掉 | Robolectric (JVM) |
+| `receiver` | `ScheduledReminderReceiverTest` | 定时提醒触发、自动跟车需精确闹钟、传给 `TrackingController` 的单线路目标；降级：非精确闹钟或启动被拒时改发通知并追加「系统限制未能自动开启跟车」提示，点「开启实时追踪」仍失败时保留通知、成功才关掉；点通知发 `trackr://line` 链接、解析出同一条线路详情（第 18 步） | Robolectric (JVM) |
 |  | `BootCompletedReceiverTest` | 开机禁用已错过的一次性提醒、时间变化重新调度、无关广播忽略 | Robolectric (JVM) |
 | `service` | `ArrivalAlertManagerTest` | 到站/临近提醒与实时通知并存时的去重 | Robolectric (JVM) |
-|  | `LiveProgressNotificationHelperTest` | 实时进度通知进度计算与文案；一起等通知：标题写最先到的、正文只带第 2 条线、「我上车了 / 乘车码 / 结束」（乘车码打开 App）、「上了哪辆？」和乘车中文字 | Robolectric (JVM) |
+|  | `LiveProgressNotificationHelperTest` | 实时进度通知进度计算与文案；一起等通知：标题写最先到的、正文只带第 2 条线、「我上车了 / 乘车码 / 结束」（乘车码发 `trackr://transit-code` 打开 App）、「上了哪辆？」和乘车中文字 | Robolectric (JVM) |
 |  | `BusTrackingServiceTest` | 追踪服务：路线且有精确定位时前台服务带 `location` 类型、等车近站开定位；没有精确定位退回 `specialUse` 且不开定位；单线路不要 `location`；结束追踪时关定位并停服务；过时的启动请求先进前台再停；服务销毁时结束会话；一起等：3 条线每轮只 1 次站点请求、最先到的写进会话、带 `location` 类型，上车后只请求那一条线并以终点为目标 | Robolectric (JVM) |
 | `service/vendor` | `LiveUpdatePromotionTest` | Android 16 Live Update 推广通知构建与厂商识别 | Robolectric (JVM) |
 |  | `XiaomiFocusAdapterTest` | 小米焦点通知 JSON 负载构建 | Robolectric (JVM) |
@@ -135,9 +137,11 @@ Koin 由 `TrackrApp.onCreate` 启动，Robolectric 用例里每个用例都会�
 | `:core:domain` `math` | `CoordTransformTest` | WGS-84 / GCJ-02 坐标转换 | commonTest（JVM + iOS 模拟器） |
 | `:core:domain` `tracking` | `TrackingEngineTest` | 追踪状态机：单线路选车、换车重置提醒、车辆短暂消失保持原车；路线两阶段（候车锁车、乘车到站、信号丢失）；定位跟车检测（待确认、上车、没赶上、超时兜底、错锁纠正）与定位档位；自适应轮询间隔与失败退避；下车站判定（含 WGS-84 转 GCJ-02）；开始 / 换乘切程（代际号 +1、只发换乘提醒）/ 走完结束 / 手动下一程 / 我上车了 / 改提醒站数；服务定位过滤；一起等（第 15 步，`watch_*`）：多线取最快、先后变化、到站提醒每辆一次、没定位不自动判上车、只有一辆在站、两辆在站定位分得清不弹窗 / 分不清或没定位写 `boardChoice`、选车与「还没上」、`boardChoice` 5 分钟清掉或被定位分清、手动上车按 A..A+1 最近、锁不到后续补锁并以终点为目标、某线无数据、10 条线等车阶段只发 1 次站点请求、有定位自动判上车且待确认只请求在站的线、只有 1 程无下车站到终点结束、上车后旧结果丢弃 | commonTest（JVM + iOS 模拟器） |
 | `:core:domain` 根目录 | `JvmParityTest` | 第 7 步换掉的 JVM API 与新写法逐个比对：公里数格式化、角度转弧度（逐位相同）、两种测距公式、分钟取整、提醒时刻格式化 | androidHostTest（只 JVM） |
-| `:core:navigation` | `NavigatorTest` | `Navigator` 纯逻辑：栈顶去重压栈、逐页返回、非首页页签根页返回回首页、首页根页返回交给系统；切页签保留各自的栈、再点当前页签回根并发 `reselect`；`openInTab`（通知 / 小组件跳详情）去重防重放；`showInTab`（规划页去收藏：栈里已有就退到它、没有就回根再压，不叠重复页）；页签隐藏时清栈回首页；`isShowingRootOf`（首页轮询条件）；`stacksShown`（叠放起始页签 / 只显示当前页签）；`TopLevel.visibleTabs` 没 Key 时只去掉「路线规划」；第 17 步起 3 个页签，「收藏」不能再当页签切、作为首页栈的子页打开，`popChildPage` 只在当前栈里退、根页不切页签 | commonTest（JVM + iOS 模拟器） |
+| `:core:navigation` | `NavigatorTest` | `Navigator` 纯逻辑：栈顶去重压栈、逐页返回、非首页页签根页返回回首页、首页根页返回交给系统；切页签保留各自的栈、再点当前页签回根并发 `reselect`；`applyDeepLink`（第 18 步合成返回栈：冷 / 热启动都把目标页签栈重置为 `[根, 目标]`、别的页签不动、重放幂等、跳过根和相邻重复、未知页签落到首页）；`showInTab`（规划页去收藏：栈里已有就退到它、没有就回根再压，不叠重复页）；页签隐藏时清栈回首页；`isShowingRootOf`（首页轮询条件）；`stacksShown`（叠放起始页签 / 只显示当前页签）；`TopLevel.visibleTabs` 没 Key 时只去掉「路线规划」；第 17 步起 3 个页签，「收藏」不能再当页签切、作为首页栈的子页打开，`popChildPage` 只在当前栈里退、根页不切页签 | commonTest（JVM + iOS 模拟器） |
+|  | `DeepLinkParserTest` | `DeepLinkParser` / `DeepLinkUris`（第 18 步，§3.6 表）：line / route / stop / tracking/board / transit-code 五种链接；和拼链接的函数往返（含掌上公交带中文和冒号的 id、线名里的 `& = # ? / +`）；scheme / host 不分大小写；外来 scheme、未知 host、段数不对、空白 / 控制字符 / 超长 id、坏的百分号编码忽略；可选参数坏了退回默认值 | commonTest（JVM + iOS 模拟器） |
 |  | `NavigationKeyTest` | `ScreenKey` 用 JSON 序列化与反序列化（第 16 步从 `:androidApp` 搬来） | commonTest（JVM + iOS 模拟器） |
 |  | `NavigationStateRestorationTest` | `StateRestorationTester` 模拟进程重建后 3 条栈和当前页签、页内 `rememberSaveable` 都恢复；存档后页签少了一个（4 → 3）时每条栈仍归原页签、不按位置错给「更多」；切页签不丢另一条栈的页内状态和 ViewModel、弹出页面只清它自己的 ViewModel；`TrackrSavedStateConfiguration` 登记了全部 `ScreenKey`，默认配置存不了 | Robolectric Compose UI（只 JVM） |
+|  | `NavigationSceneAndResultTest` | 第 18 步导航基建：`BottomSheetSceneStrategy` 把带 `bottomSheet()` 的 entry 叠在上一页上显示、返回关掉，没带的照常单页；所有 entry 共用的 `ResultEventBus`：弹层 `sendResult`，下面那页 `ResultEffect` 收到 | Robolectric Compose UI（只 JVM） |
 | `:core:network` `json` | `JsonCompatTest` | 和 org.json 同规则的只读 JSON：optString / optInt / optDouble / optBoolean / opt 的取值与默认值 | commonTest（JVM + iOS 模拟器） |
 |  | `JsonCompatParityTest` | 同一段 JSON 每个字段分别用兼容层和真正的 org.json 取值，结果逐个相同 | androidHostTest（只 JVM） |
 | `:core:network` `remote/common` | `BaseTransitApiClientTest` | 地铁站名识别、距离计算、车牌清洗；HTTP/JSON 执行封装、异常信息不带 query、协程取消时底层请求一起取消、20 秒总超时（换成小值验证）且超时消息不带 key | commonTest（JVM + iOS 模拟器） |

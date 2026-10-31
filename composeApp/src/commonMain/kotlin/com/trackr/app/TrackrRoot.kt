@@ -34,14 +34,16 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.dropUnlessResumed
 import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
+import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.ui.NavDisplay
 import com.trackr.core.data.repository.AmapKeyRepository
 import com.trackr.core.designsystem.theme.TrackrTheme
-import com.trackr.core.model.DataSourceType
 import com.trackr.core.navigation.Navigator
 import com.trackr.core.navigation.ScreenKey
 import com.trackr.core.navigation.TrackrTransitions
+import com.trackr.core.navigation.deeplink.DeepLink
+import com.trackr.core.navigation.scene.BottomSheetSceneStrategy
 import com.trackr.core.navigation.rememberNavigationState
 import com.trackr.feature.bus.busEntries
 import com.trackr.feature.favorites.favoritesEntries
@@ -51,7 +53,6 @@ import com.trackr.feature.route.routeEntries
 import com.trackr.feature.search.searchEntries
 import com.trackr.feature.stop.stopEntries
 import com.trackr.ui.navigation.LocalAppViewModelStoreOwner
-import com.trackr.ui.navigation.PendingDeepLink
 import com.trackr.ui.navigation.rememberVisibleTabs
 import com.trackr.ui.screens.favoritesedit.FavoritesEditViewModel
 import com.trackr.feature.bus.home.BusHomeViewModel
@@ -63,10 +64,13 @@ import org.koin.compose.viewmodel.koinViewModel
 /**
  * 应用的根 Composable（重构计划 §2.2、§3.3）：主题、底栏、各页签的返回栈和 NavDisplay。
  * 第 17 步从 `MainActivity` 原样搬来；`MainActivity` 只剩 Intent 处理和 `setContent { TrackrRoot(…) }`。
+ *
+ * @param deepLink 待落栈的链接（`DeepLinkParser` 解析小组件 / 快捷方式 / 通知的 `trackr://` 得到，§3.6）。
+ *   落完调 [onDeepLinkConsumed]，调用方把它清掉（一次性消费）。乘车码链接不入栈，由平台层直接处理，不传进来。
  */
 @Composable
 fun TrackrRoot(
-    pendingDeepLink: PendingDeepLink? = null,
+    deepLink: DeepLink? = null,
     onDeepLinkConsumed: () -> Unit = {}
 ) {
     TrackrTheme {
@@ -79,7 +83,7 @@ fun TrackrRoot(
                 // Android：地图会话（切页签不销毁地图）；iOS：直接显示
                 PlatformHost {
                     TrackrNavApp(
-                        pendingDeepLink = pendingDeepLink,
+                        deepLink = deepLink,
                         onDeepLinkConsumed = onDeepLinkConsumed
                     )
                 }
@@ -90,7 +94,7 @@ fun TrackrRoot(
 
 @Composable
 private fun TrackrNavApp(
-    pendingDeepLink: PendingDeepLink?,
+    deepLink: DeepLink?,
     onDeepLinkConsumed: () -> Unit
 ) {
     // 3 个页签各一条返回栈 + 当前页签，跨进程重建恢复（:core:navigation，重构计划 §3.3）
@@ -120,20 +124,27 @@ private fun TrackrNavApp(
     // 申请定位与通知权限（Android：首次打开时弹说明再申请；iOS 阶段 G 再做）
     PermissionOnboarding()
 
-    // 处理来自桌面小组件、快捷方式或通知栏的直接跳转（一次性消费，防止重复入栈）
-    LaunchedEffect(pendingDeepLink) {
-        val deepLink = pendingDeepLink ?: return@LaunchedEffect
-        val source = runCatching { DataSourceType.valueOf(deepLink.sourceName) }
-            .getOrDefault(DataSourceType.CHELAILE)
-        val lineDetailKey = ScreenKey.LineDetail(
-            cityId = deepLink.cityId,
-            lineId = deepLink.lineId,
-            targetOrder = deepLink.targetOrder,
-            stopId = deepLink.stopId,
-            source = source,
-            lineName = deepLink.lineName
-        )
-        navigator.openInTab(ScreenKey.Home, lineDetailKey)
+    // 来自桌面小组件、快捷方式或通知栏的跳转（§3.6）：合成返回栈，按返回回到页签根页。一次性消费，重放结果也不变
+    // 首帧就带着的链接（冷启动）：只有它需要补关首页轮询，见下面
+    val coldStartLink = remember { deepLink }
+    LaunchedEffect(deepLink) {
+        val link = deepLink ?: return@LaunchedEffect
+        when (link) {
+            is DeepLink.Stack -> {
+                navigator.applyDeepLink(link)
+                // 冷启动时首帧先组合了首页，它的 entry 还没到 STARTED 就被线路页换掉，LifecycleStartEffect 不会跑 onStop，
+                // 首页 ViewModel 就一直开着默认的轮询。和上面首帧的判断一样：首页根页没显示就关掉。
+                // 只管冷启动：热启动时首页 entry 已经 STARTED，离开时自己会关；这里再关的话，推入动画没完就按返回，
+                // 首页 entry 没离开过组合、不会再走 onStart，轮询就一直关着
+                if (link === coldStartLink && !navigationState.isShowingRootOf(ScreenKey.Home)) {
+                    homeViewModel.setPollingActive(false)
+                }
+            }
+            // 「上了哪辆？」弹层第 21 步做；在那之前只把 App 拉到前台，栈不动
+            is DeepLink.ChooseBoardedBus -> Unit
+            // 乘车码由平台层直接拉起，不会传到这里
+            is DeepLink.TransitCode -> Unit
+        }
         onDeepLinkConsumed()
     }
 
@@ -233,6 +244,8 @@ private fun TrackrNavApp(
             }),
             onBack = { navigator.back() },
             modifier = Modifier.fillMaxSize(),
+            // 弹层型目的地（§3.7）：entry 带 BottomSheetSceneStrategy.bottomSheet() 就叠在上一页上；其余照常单页
+            sceneStrategies = remember { listOf(BottomSheetSceneStrategy<NavKey>()) },
             transitionSpec = TrackrTransitions.push,
             popTransitionSpec = TrackrTransitions.pop,
             predictivePopTransitionSpec = TrackrTransitions.predictivePop

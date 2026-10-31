@@ -4,6 +4,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.navigation3.runtime.NavBackStack
 import androidx.navigation3.runtime.NavKey
 import com.trackr.core.model.DataSourceType
+import com.trackr.core.navigation.deeplink.DeepLink
+import com.trackr.core.navigation.deeplink.DeepLinkParser
+import com.trackr.core.navigation.deeplink.DeepLinkUris
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.launch
@@ -13,6 +16,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
+import kotlin.test.assertIs
 import kotlin.test.assertTrue
 
 class NavigatorTest {
@@ -246,19 +250,86 @@ class NavigatorTest {
     }
 
     @Test
-    fun openInTab_switchesWithoutPoppingAndDedupsReplay() {
+    fun applyDeepLink_coldStart_buildsSyntheticStack_andBackReturnsToTabRootThenExits() {
+        val state = newState()
+        val navigator = Navigator(state)
+
+        navigator.applyDeepLink(DeepLink.Stack(ScreenKey.Home, listOf(line49)))
+
+        assertEquals(ScreenKey.Home, state.topLevel)
+        assertEquals(listOf(ScreenKey.Home, line49), state.currentStack.toList())
+        assertFalse(state.isAtTabRoot, "子页不显示底栏")
+        assertTrue(navigator.back())
+        assertEquals(listOf<NavKey>(ScreenKey.Home), state.currentStack.toList(), "按返回回到首页根页，不退出")
+        assertFalse(navigator.back(), "首页根页再按返回才交给系统")
+    }
+
+    @Test
+    fun applyDeepLink_warmStart_resetsTargetTabStack_leavesOtherTabsAlone() {
         val state = newState()
         val navigator = Navigator(state)
         navigator.open(ScreenKey.Search)
+        navigator.open(stop)
         navigator.selectTab(ScreenKey.More)
+        navigator.open(ScreenKey.About)
 
-        navigator.openInTab(ScreenKey.Home, line49)
-        navigator.openInTab(ScreenKey.Home, line49) // 同一个通知 / 小组件 Intent 重放
+        navigator.applyDeepLink(DeepLink.Stack(ScreenKey.Home, listOf(line49)))
 
         assertEquals(ScreenKey.Home, state.topLevel)
-        assertEquals(listOf(ScreenKey.Home, ScreenKey.Search, line49), state.currentStack.toList())
+        assertEquals(listOf(ScreenKey.Home, line49), state.currentStack.toList(), "首页栈重置为 [首页, 线路]，原来的子页不留")
+        assertEquals(listOf(ScreenKey.More, ScreenKey.About), state.stacks.getValue(ScreenKey.More).toList(), "别的页签的栈不动")
         assertTrue(navigator.back())
-        assertEquals(ScreenKey.Search, state.currentKey)
+        assertEquals(ScreenKey.Home, state.currentKey)
+    }
+
+    @Test
+    fun applyDeepLink_replay_isIdempotent() {
+        val state = newState()
+        val navigator = Navigator(state)
+        val link = DeepLink.Stack(ScreenKey.Home, listOf(line49))
+
+        navigator.applyDeepLink(link)
+        navigator.applyDeepLink(link) // 同一个通知 / 小组件 Intent 重放
+
+        assertEquals(listOf(ScreenKey.Home, line49), state.currentStack.toList())
+    }
+
+    @Test
+    fun applyDeepLink_multiLevelStack_skipsTabRootAndAdjacentDuplicates() {
+        val state = newState()
+        val navigator = Navigator(state)
+
+        navigator.applyDeepLink(DeepLink.Stack(ScreenKey.Home, listOf(ScreenKey.Home, stop, stop, line49)))
+
+        assertEquals(listOf(ScreenKey.Home, stop, line49), state.currentStack.toList())
+    }
+
+    @Test
+    fun applyDeepLink_fromParser_landsOnHomeTab() {
+        val state = newState()
+        val navigator = Navigator(state)
+        navigator.selectTab(ScreenKey.RoutePlan)
+        val link = DeepLinkParser.parse(
+            DeepLinkUris.line("021", "line_49", DataSourceType.CHELAILE, stopId = "stop_004", targetOrder = 4, lineName = "49路")
+        )
+
+        navigator.applyDeepLink(assertIs<DeepLink.Stack>(link))
+
+        assertEquals(ScreenKey.Home, state.topLevel)
+        assertEquals(listOf(ScreenKey.Home, line49), state.currentStack.toList())
+        assertEquals(listOf<NavKey>(ScreenKey.RoutePlan), state.stacks.getValue(ScreenKey.RoutePlan).toList())
+    }
+
+    @Test
+    fun applyDeepLink_unknownTab_fallsBackToStartTab() {
+        val state = newState()
+        val navigator = Navigator(state)
+        navigator.selectTab(ScreenKey.More)
+
+        navigator.applyDeepLink(DeepLink.Stack(ScreenKey.Search, listOf(line49)))
+
+        assertEquals(ScreenKey.Home, state.topLevel)
+        assertEquals(listOf(ScreenKey.Home, line49), state.currentStack.toList())
     }
 
     @Test

@@ -1,6 +1,5 @@
 package com.trackr.ui.screens.favoritesgroup.components
 
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -24,6 +23,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.navigationevent.NavigationEventInfo
+import androidx.navigationevent.compose.NavigationBackHandler
+import androidx.navigationevent.compose.rememberNavigationEventState
 import com.trackr.core.model.CandidateLine
 import com.trackr.core.model.FavoriteGroup
 import com.trackr.core.model.GroupCategory
@@ -97,10 +99,12 @@ fun GroupEditDialog(
         to2 != initialTo2 ||
         line2 != initialLine2
 
-    // 拦截物理返回键或手势返回，防止误触导致表单内容丢失
-    BackHandler(enabled = isDirty) {
-        showDiscardConfirmDialog = true
-    }
+    // 拦截物理返回键或手势返回，防止误触导致表单内容丢失（第 18 步从 BackHandler 迁到 NavigationBackHandler，§3.7）
+    NavigationBackHandler(
+        state = rememberNavigationEventState(NavigationEventInfo.None),
+        isBackEnabled = isDirty,
+        onBackCompleted = { showDiscardConfirmDialog = true }
+    )
 
     val handleDismissRequest = {
         if (isDirty) {

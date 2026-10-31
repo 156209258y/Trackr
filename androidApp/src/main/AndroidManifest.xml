@@ -53,6 +53,8 @@
             android:value="${AMAP_ANDROID_KEY}" />
         <service android:name="com.amap.api.location.APSService" />
 
+        <!-- trackr:// 链接只用显式 Intent 发给 MainActivity（小组件、快捷方式、通知），不注册对应的 intent-filter，
+             避免对外暴露（重构计划 §3.6）。外部传进来的链接由 DeepLinkParser 校验 -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -101,10 +103,10 @@
             android:name=".widget.BusStopWidgetProvider"
             android:exported="true"
             android:label="@string/widget_name">
+            <!-- 只放系统小组件广播。刷新按钮发的是显式 PendingIntent（BusStopWidgetProvider.ACTION_WIDGET_REFRESH），
+                 不放进导出的 filter，别的 App 不能隐式触发网络刷新（S2，第 18 步） -->
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-                <action android:name="com.trackr.action.WIDGET_REFRESH" />
-                <action android:name="com.github.u5151561.trackr.action.WIDGET_REFRESH" />
             </intent-filter>
             <meta-data
                 android:name="android.appwidget.provider"

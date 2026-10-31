@@ -7,6 +7,7 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.graphics.Color
+import android.net.Uri
 import android.os.Build
 import android.util.Log
 import androidx.core.app.NotificationCompat
@@ -22,6 +23,7 @@ import com.trackr.core.model.TrackingSession
 import com.trackr.core.model.TrackingSessionState
 import com.trackr.core.model.TransitCodeProvider
 import com.trackr.core.model.WatchedLine
+import com.trackr.core.navigation.deeplink.DeepLinkUris
 import com.trackr.util.TransitCodeHelper
 import com.trackr.service.vendor.LiveUpdatePromotion
 import com.trackr.service.vendor.OppoFluidCloudAdapter
@@ -533,7 +535,7 @@ class LiveProgressNotifier(
     }
 
     /**
-     * 「乘车码」按钮：打开 App 的乘车码入口（`MainActivity` 收 [ACTION_OPEN_TRANSIT_CODE]，和桌面快捷方式一样）。
+     * 「乘车码」按钮：打开 App 的乘车码入口（`trackr://transit-code?provider=`，和桌面快捷方式一样，§3.6）。
      * 默认平台选了「每次询问」或读不到时，装了支付宝用支付宝，否则云闪付。
      */
     private fun transitCodePendingIntent(context: Context, requestCode: Int): PendingIntent {
@@ -543,9 +545,8 @@ class LiveProgressNotifier(
             TransitCodeProvider.ASK_ALWAYS ->
                 if (TransitCodeHelper.isAlipayInstalled(context)) TransitCodeProvider.ALIPAY else TransitCodeProvider.UNIONPAY
         }
-        val intent = Intent(ACTION_OPEN_TRANSIT_CODE)
+        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(DeepLinkUris.transitCode(provider)))
             .setClassName(context.packageName, "com.trackr.MainActivity")
-            .putExtra(EXTRA_TRANSIT_CODE_PROVIDER, provider.id)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
         return PendingIntent.getActivity(
             context,
@@ -633,11 +634,11 @@ class LiveProgressNotifier(
         /** 锁屏开关关掉时锁屏上的标题（D3） */
         internal const val LOCK_SCREEN_PUBLIC_TITLE = "追客 · 追踪中"
 
-        /** 打开乘车码（`MainActivity` 和 `res/xml/shortcuts.xml` 用同一个 action） */
+        /**
+         * 「乘车码」按钮在 [NotificationAction] 里的标识。第 18 步起按钮发的是 `trackr://transit-code` 链接，
+         * 这个 action 只剩旧版兼容（已发出的旧通知，`DeepLinkIntents` 还认它）。
+         */
         const val ACTION_OPEN_TRANSIT_CODE = "com.github.u5151561.trackr.action.OPEN_TRANSIT_CODE"
-
-        /** 乘车码平台（`alipay` / `unionpay`），同快捷方式的 extra */
-        const val EXTRA_TRANSIT_CODE_PROVIDER = "extra_provider"
     }
 }
 
