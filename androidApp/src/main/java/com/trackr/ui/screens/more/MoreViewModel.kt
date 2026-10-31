@@ -74,6 +74,13 @@ class MoreViewModel(
         repository.setLiveNotificationEnabled(enabled)
     }
 
+    /** 锁屏显示追踪进度（D3）。正式位置在第 25 步的「我的」页 */
+    val showOnLockScreen: StateFlow<Boolean> = repository.showOnLockScreen
+
+    fun setShowOnLockScreen(enabled: Boolean) {
+        repository.setShowOnLockScreen(enabled)
+    }
+
     fun setEngineMode(mode: EngineMode) {
         repository.setEngineMode(mode)
     }

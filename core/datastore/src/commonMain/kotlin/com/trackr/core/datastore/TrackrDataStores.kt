@@ -42,6 +42,9 @@ object SettingsKeys {
     val PREFERRED_TRANSIT_CODE_PROVIDER = stringPreferencesKey("preferred_transit_code_provider")
     val NEARBY_STOPS_COUNT = intPreferencesKey("nearby_stops_count")
     val LIVE_NOTIFICATION_ENABLED = booleanPreferencesKey("is_live_notification_enabled")
+
+    /** 追踪通知锁屏显示全部内容（D3，第 13 步新加，旧存储没有这个键）；没有 = 开 */
+    val SHOW_ON_LOCK_SCREEN = booleanPreferencesKey("show_on_lock_screen")
     val FAVORITES_GROUP_MIGRATION_VERSION = intPreferencesKey("favorites_group_migration_version")
 
     /** 旧 SharedPreferences 的设置导入到第几代（见 LegacySettingsMigration）；没有 = 还没导入 */

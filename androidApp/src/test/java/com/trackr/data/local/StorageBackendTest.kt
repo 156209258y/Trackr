@@ -171,6 +171,7 @@ class StorageBackendTest {
         val transitCode: TransitCodeProvider,
         val nearby: Int,
         val live: Boolean,
+        val lockScreen: Boolean,
         val favorites: List<FavoriteStationLine>,
         val history: List<String>,
         val routes: List<TransitGroup>,
@@ -193,6 +194,7 @@ class StorageBackendTest {
             transitCode = transit.preferredTransitCodeProvider.value,
             nearby = transit.nearbyStopsCount.value,
             live = transit.isLiveNotificationEnabled.value,
+            lockScreen = transit.showOnLockScreen.value,
             favorites = transit.favorites.value,
             history = transit.searchHistory.value,
             routes = groups.groups.value,
@@ -244,6 +246,7 @@ class StorageBackendTest {
         transit.removeFavorite("mg_1")
         transit.setEngineMode(EngineMode.CHELAILE)
         transit.addSearchHistory("万达")
+        transit.setShowOnLockScreen(false)
         backend.amapKeys.setWebKey("web-new")
         transit.flushWrites()
         (backend.amapKeys as com.trackr.core.data.repository.DefaultAmapKeyRepository).flush()
@@ -251,6 +254,7 @@ class StorageBackendTest {
 
         assertEquals(before, legacySnapshot())
         val reopened = seen(open())
+        assertFalse(reopened.lockScreen)
         assertEquals(listOf("051_100_7"), reopened.favorites.map { it.id })
         assertEquals(EngineMode.CHELAILE, reopened.engine)
         assertEquals(listOf("万达", "59", "7路"), reopened.history)
@@ -271,6 +275,7 @@ class StorageBackendTest {
         assertEquals(1, StoreSwitch.generation(context))
         val transit = TransitRepository(context, TransitProviderCoordinator(emptyMap()), legacy.transitStore, scope)
         transit.removeFavorite("051_100_7")
+        transit.setShowOnLockScreen(false)
         transit.flushWrites()
         closeAll()
 
@@ -279,7 +284,9 @@ class StorageBackendTest {
         val back = open()
         assertTrue(back.usesNewStore)
         assertTrue(back.migrationReport!!.ran)
-        assertEquals(listOf("mg_1"), seen(back).favorites.map { it.id })
+        val seenBack = seen(back)
+        assertEquals(listOf("mg_1"), seenBack.favorites.map { it.id })
+        assertFalse(seenBack.lockScreen)
     }
 
     @Test

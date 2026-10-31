@@ -30,6 +30,7 @@ import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Alarm
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.rounded.QrCode2
@@ -90,6 +91,7 @@ fun MoreScreen(
     val nearbyStopsCount by viewModel.nearbyStopsCount.collectAsStateWithLifecycle()
     val preferredTransitCode by viewModel.preferredTransitCode.collectAsStateWithLifecycle()
     val isLiveNotificationEnabled by viewModel.isLiveNotificationEnabled.collectAsStateWithLifecycle()
+    val showOnLockScreen by viewModel.showOnLockScreen.collectAsStateWithLifecycle()
     val reminders by viewModel.reminders.collectAsStateWithLifecycle()
 
     // 采用 rememberSaveable 确保配置变更（旋转/折叠展开）时不丢失弹窗状态
@@ -546,6 +548,58 @@ fun MoreScreen(
                                         )
                                     }
                                 }
+                            }
+
+                            Spacer(modifier = Modifier.height(14.dp))
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+                            Spacer(modifier = Modifier.height(10.dp))
+
+                            // 2.4 锁屏显示追踪进度（D3）
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Surface(
+                                    shape = CircleShape,
+                                    color = MaterialTheme.colorScheme.primaryContainer,
+                                    modifier = Modifier.size(40.dp)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(
+                                            imageVector = Icons.Default.Lock,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.width(14.dp))
+
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "锁屏显示追踪进度",
+                                        style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.SemiBold),
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Text(
+                                        text = if (showOnLockScreen) {
+                                            "锁屏能看到线路和剩几站"
+                                        } else {
+                                            "锁屏只显示「追踪中」（系统锁屏设为隐藏敏感内容时）"
+                                        },
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+
+                                Spacer(modifier = Modifier.width(8.dp))
+
+                                Switch(
+                                    checked = showOnLockScreen,
+                                    onCheckedChange = { viewModel.setShowOnLockScreen(it) }
+                                )
                             }
                         }
                     }

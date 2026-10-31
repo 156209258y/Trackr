@@ -70,6 +70,18 @@ class SettingsMigrationTest {
     }
 
     @Test
+    fun settings_showOnLockScreen_copiedOnlyWhenPresent() = runBlocking {
+        // 旧版没有这个键：不写，读的时候按默认开
+        val untouched = LegacySettingsMigration(context, generation = 0).migrate(emptyPreferences())
+        assertNull(untouched[SettingsKeys.SHOW_ON_LOCK_SCREEN])
+
+        // 退回旧存储期间关掉过：再导入时带上
+        LegacyFixtures.prefs(context, LegacyPrefs.TRANSIT).edit().putBoolean("show_on_lock_screen", false).commit()
+        val result = LegacySettingsMigration(context, generation = 1).migrate(emptyPreferences())
+        assertEquals(false, result[SettingsKeys.SHOW_ON_LOCK_SCREEN])
+    }
+
+    @Test
     fun settings_wrongType_isSkippedWithoutCrash() = runBlocking {
         LegacyFixtures.prefs(context, LegacyPrefs.TRANSIT).edit()
             .putInt("engine_mode", 3)

@@ -51,6 +51,8 @@ class LegacySettingsMigration(
             (legacy[LegacyPrefs.KEY_TRANSIT_CODE_PROVIDER] as? String)?.let { target[SettingsKeys.PREFERRED_TRANSIT_CODE_PROVIDER] = it }
             (legacy[LegacyPrefs.KEY_NEARBY_STOPS_COUNT] as? Int)?.let { target[SettingsKeys.NEARBY_STOPS_COUNT] = it }
             (legacy[LegacyPrefs.KEY_LIVE_NOTIFICATION] as? Boolean)?.let { target[SettingsKeys.LIVE_NOTIFICATION_ENABLED] = it }
+            // 旧版没有这个键；只有退回旧存储期间改过才会有（第 13 步）
+            (legacy[LegacyPrefs.KEY_SHOW_ON_LOCK_SCREEN] as? Boolean)?.let { target[SettingsKeys.SHOW_ON_LOCK_SCREEN] = it }
             (legacy[LegacyPrefs.KEY_FAVORITES_GROUP_MIGRATION_VERSION] as? Int)?.let {
                 target[SettingsKeys.FAVORITES_GROUP_MIGRATION_VERSION] = it
             }

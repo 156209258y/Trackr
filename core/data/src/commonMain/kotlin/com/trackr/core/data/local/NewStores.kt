@@ -32,6 +32,7 @@ class RoomDataStoreTransitStore(
             transitCodeProvider = prefs[SettingsKeys.PREFERRED_TRANSIT_CODE_PROVIDER],
             nearbyStopsCount = prefs[SettingsKeys.NEARBY_STOPS_COUNT],
             liveNotificationEnabled = prefs[SettingsKeys.LIVE_NOTIFICATION_ENABLED],
+            showOnLockScreen = prefs[SettingsKeys.SHOW_ON_LOCK_SCREEN],
             favorites = db.favoriteLines().getAll().map { it.toModel() },
             searchHistory = db.searchHistory().getAll().map { it.query }
         )
@@ -59,6 +60,10 @@ class RoomDataStoreTransitStore(
 
     override suspend fun saveLiveNotificationEnabled(enabled: Boolean) {
         settings.edit { it[SettingsKeys.LIVE_NOTIFICATION_ENABLED] = enabled }
+    }
+
+    override suspend fun saveShowOnLockScreen(enabled: Boolean) {
+        settings.edit { it[SettingsKeys.SHOW_ON_LOCK_SCREEN] = enabled }
     }
 
     override suspend fun saveFavorites(list: List<FavoriteStationLine>) {

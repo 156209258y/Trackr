@@ -42,6 +42,7 @@ class SharedPrefsTransitStore(private val prefs: SharedPreferences) : TransitLoc
         transitCodeProvider = prefs.getString(KEY_TRANSIT_CODE_PROVIDER, null),
         nearbyStopsCount = if (prefs.contains(KEY_NEARBY_STOPS_COUNT)) prefs.getInt(KEY_NEARBY_STOPS_COUNT, 4) else null,
         liveNotificationEnabled = if (prefs.contains(KEY_LIVE_NOTIFICATION)) prefs.getBoolean(KEY_LIVE_NOTIFICATION, true) else null,
+        showOnLockScreen = if (prefs.contains(KEY_SHOW_ON_LOCK_SCREEN)) prefs.getBoolean(KEY_SHOW_ON_LOCK_SCREEN, true) else null,
         favorites = decodeOrEmpty(prefs.getString(KEY_FAVORITES, null)),
         searchHistory = decodeOrEmpty(prefs.getString(KEY_SEARCH_HISTORY, null))
     )
@@ -79,6 +80,10 @@ class SharedPrefsTransitStore(private val prefs: SharedPreferences) : TransitLoc
         prefs.edit().putBoolean(KEY_LIVE_NOTIFICATION, enabled).apply()
     }
 
+    override suspend fun saveShowOnLockScreen(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_SHOW_ON_LOCK_SCREEN, enabled).apply()
+    }
+
     override suspend fun saveFavorites(list: List<FavoriteStationLine>) {
         prefs.edit().putString(KEY_FAVORITES, legacyJson.encodeToString(list)).apply()
     }
@@ -105,6 +110,7 @@ class SharedPrefsTransitStore(private val prefs: SharedPreferences) : TransitLoc
         private const val KEY_TRANSIT_CODE_PROVIDER = "preferred_transit_code_provider"
         private const val KEY_NEARBY_STOPS_COUNT = "nearby_stops_count"
         private const val KEY_LIVE_NOTIFICATION = "is_live_notification_enabled"
+        private const val KEY_SHOW_ON_LOCK_SCREEN = "show_on_lock_screen"
         private const val KEY_FAVORITES = "favorites_json"
         private const val KEY_SEARCH_HISTORY = "search_history_json"
         const val KEY_FAVORITES_GROUP_MIGRATION_VERSION = "favorites_group_migration_version"

@@ -1,6 +1,7 @@
 package com.trackr.service
 
 import android.app.Application
+import android.app.Notification
 import androidx.test.core.app.ApplicationProvider
 import com.trackr.core.model.LegPhase
 import com.trackr.core.model.TrackingSessionState
@@ -8,6 +9,7 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -272,5 +274,42 @@ class LiveProgressNotificationHelperTest {
         assertEquals(listOf("跳到下一程", "结束"), notification.actions.map { it.title.toString() })
         assertEquals(400, notification.extras.getInt("android.progressMax"))
         assertEquals(200, notification.extras.getInt("android.progress"))
+    }
+
+    // D3：锁屏可见性。直接建实例，不走 object 转发
+    private fun notifierWithLockScreen(setting: () -> Boolean) = LiveProgressNotifier(
+        liveNotificationSetting = { true },
+        nextLegLineNameOf = { null },
+        showOnLockScreenSetting = setting
+    )
+
+    @Test
+    fun buildNotification_lockScreenOn_isPublicWithoutPublicVersion() {
+        val notification = notifierWithLockScreen { true }.buildNotification(context, onBoardState(), nextLineName = null)
+        assertEquals(Notification.VISIBILITY_PUBLIC, notification.visibility)
+        assertNull(notification.publicVersion)
+    }
+
+    @Test
+    fun buildNotification_lockScreenOff_isPrivateWithRedactedPublicVersion() {
+        val notification = notifierWithLockScreen { false }.buildNotification(context, onBoardState(), nextLineName = "M492")
+        assertEquals(Notification.VISIBILITY_PRIVATE, notification.visibility)
+
+        val public = notification.publicVersion
+        assertNotNull(public)
+        val title = public!!.extras.getCharSequence(Notification.EXTRA_TITLE)?.toString()
+        assertEquals("追客 · 追踪中", title)
+        assertNull(public.extras.getCharSequence(Notification.EXTRA_TEXT))
+        assertTrue(public.actions.isNullOrEmpty())
+        // 完整版照旧
+        assertEquals("还有 2 站在 深大北门 下车", notification.extras.getCharSequence(Notification.EXTRA_TITLE)?.toString())
+    }
+
+    @Test
+    fun buildNotification_lockScreenSettingThrows_fallsBackToPublic() {
+        val notification = notifierWithLockScreen { error("读不到设置") }
+            .buildNotification(context, onBoardState(), nextLineName = null)
+        assertEquals(Notification.VISIBILITY_PUBLIC, notification.visibility)
+        assertNull(notification.publicVersion)
     }
 }

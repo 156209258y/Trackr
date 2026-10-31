@@ -164,4 +164,17 @@ class MoreViewModelTest {
         assertTrue(viewModel.isLiveNotificationEnabled.value)
         assertTrue(viewModel.uiState.value.isLiveNotificationEnabled)
     }
+
+    @Test
+    fun testShowOnLockScreen_defaultOnAndToggle() = runTest {
+        assertTrue(viewModel.showOnLockScreen.value)
+
+        viewModel.setShowOnLockScreen(false)
+        testScheduler.runCurrent()
+        assertFalse(viewModel.showOnLockScreen.value)
+
+        viewModel.setShowOnLockScreen(true)
+        testScheduler.runCurrent()
+        assertTrue(viewModel.showOnLockScreen.value)
+    }
 }

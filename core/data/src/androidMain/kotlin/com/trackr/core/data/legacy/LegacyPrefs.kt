@@ -24,6 +24,7 @@ object LegacyPrefs {
     const val KEY_TRANSIT_CODE_PROVIDER = "preferred_transit_code_provider"
     const val KEY_NEARBY_STOPS_COUNT = "nearby_stops_count"
     const val KEY_LIVE_NOTIFICATION = "is_live_notification_enabled"
+    const val KEY_SHOW_ON_LOCK_SCREEN = "show_on_lock_screen"
     const val KEY_FAVORITES_GROUP_MIGRATION_VERSION = "favorites_group_migration_version"
 
     // trackr_route_groups

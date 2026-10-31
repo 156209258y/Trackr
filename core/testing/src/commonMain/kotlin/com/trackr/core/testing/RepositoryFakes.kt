@@ -65,6 +65,9 @@ class FakeSettingsRepository(
     private val _isLiveNotificationEnabled = MutableStateFlow(true)
     override val isLiveNotificationEnabled: StateFlow<Boolean> = _isLiveNotificationEnabled.asStateFlow()
 
+    private val _showOnLockScreen = MutableStateFlow(true)
+    override val showOnLockScreen: StateFlow<Boolean> = _showOnLockScreen.asStateFlow()
+
     override fun setEngineMode(mode: EngineMode) {
         _engineMode.value = mode
     }
@@ -79,6 +82,10 @@ class FakeSettingsRepository(
 
     override fun setLiveNotificationEnabled(enabled: Boolean) {
         _isLiveNotificationEnabled.value = enabled
+    }
+
+    override fun setShowOnLockScreen(enabled: Boolean) {
+        _showOnLockScreen.value = enabled
     }
 
     override suspend fun selectCity(city: TransitCity) {

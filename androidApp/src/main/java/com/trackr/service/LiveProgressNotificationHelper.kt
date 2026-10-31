@@ -30,10 +30,12 @@ import org.koin.mp.KoinPlatform
  *
  * @param liveNotificationSetting 读「实时通知」设置开关（Koin 里接仓库）
  * @param nextLegLineNameOf 第 N 程之后那一程的线路名（Koin 里接 [TransferAutoSwitcher]）
+ * @param showOnLockScreenSetting 读「锁屏显示」开关（D3）；读不到按开
  */
 class LiveProgressNotifier(
     private val liveNotificationSetting: () -> Boolean,
-    private val nextLegLineNameOf: (legIndex: Int) -> String?
+    private val nextLegLineNameOf: (legIndex: Int) -> String?,
+    private val showOnLockScreenSetting: () -> Boolean = { true }
 ) {
 
     /**
@@ -209,6 +211,14 @@ class LiveProgressNotifier(
             .setProgress(maxProgress, currentProgress, false)
             .setContentIntent(contentPendingIntent)
 
+        // D3：默认锁屏显示全部内容；关了锁屏开关只显示「追客 · 追踪中」（系统设成隐藏敏感内容时生效）
+        if (runCatching { showOnLockScreenSetting() }.getOrDefault(true)) {
+            builder.setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+        } else {
+            builder.setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
+                .setPublicVersion(buildLockScreenPublicVersion(context))
+        }
+
         // 按钮（最多 3 个）：等车 = 我已上车 / 提前N站提醒 / 结束；乘车 = 跳到下一程（非最后一程）/ 结束
         notificationActions(state).forEach { action ->
             builder.addAction(0, action.label, receiverPendingIntent(context, action.intentAction, action.requestCode))
@@ -228,6 +238,16 @@ class LiveProgressNotifier(
         }
         return notification
     }
+
+    /** 锁屏开关关掉时锁屏上看到的版本：不带线路、站名和按钮 */
+    private fun buildLockScreenPublicVersion(context: Context): Notification =
+        NotificationCompat.Builder(context, CHANNEL_ID_LIVE_PROGRESS)
+            .setSmallIcon(R.drawable.ic_stat_trackr)
+            .setContentTitle(LOCK_SCREEN_PUBLIC_TITLE)
+            .setOngoing(true)
+            .setCategory(NotificationCompat.CATEGORY_PROGRESS)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .build()
 
     /** 通知上的文字 */
     data class NotificationTexts(
@@ -483,6 +503,9 @@ class LiveProgressNotifier(
 
         /** 读取失败时的兜底值，与设置项默认值（开启）一致；常驻通知和强提醒共用 */
         internal const val LIVE_NOTIFICATION_ENABLED_FALLBACK = true
+
+        /** 锁屏开关关掉时锁屏上的标题（D3） */
+        internal const val LOCK_SCREEN_PUBLIC_TITLE = "追客 · 追踪中"
     }
 }
 

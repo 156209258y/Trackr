@@ -124,7 +124,8 @@ val appModule: Module = module {
     single {
         LiveProgressNotifier(
             liveNotificationSetting = { get<ITransitRepository>().isLiveNotificationEnabled.value },
-            nextLegLineNameOf = { legIndex -> get<TransferAutoSwitcher>().nextLegLineName(legIndex) }
+            nextLegLineNameOf = { legIndex -> get<TransferAutoSwitcher>().nextLegLineName(legIndex) },
+            showOnLockScreenSetting = { get<ITransitRepository>().showOnLockScreen.value }
         )
     }
     single { ArrivalAlertNotifier(get()) }

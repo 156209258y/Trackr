@@ -101,6 +101,9 @@ class TransitRepository(
     private val _isLiveNotificationEnabled = MutableStateFlow(initial.liveNotificationEnabled ?: true)
     override val isLiveNotificationEnabled: StateFlow<Boolean> = _isLiveNotificationEnabled.asStateFlow()
 
+    private val _showOnLockScreen = MutableStateFlow(initial.showOnLockScreen ?: true)
+    override val showOnLockScreen: StateFlow<Boolean> = _showOnLockScreen.asStateFlow()
+
     private val _activeTrackingSession = MutableStateFlow(TrackingSessionState())
     override val activeTrackingSession: StateFlow<TrackingSessionState> = _activeTrackingSession.asStateFlow()
 
@@ -146,6 +149,11 @@ class TransitRepository(
     override fun setLiveNotificationEnabled(enabled: Boolean) {
         _isLiveNotificationEnabled.value = enabled
         writer.enqueue { store.saveLiveNotificationEnabled(enabled) }
+    }
+
+    override fun setShowOnLockScreen(enabled: Boolean) {
+        _showOnLockScreen.value = enabled
+        writer.enqueue { store.saveShowOnLockScreen(enabled) }
     }
 
     private fun loadInitialEngineMode(): EngineMode {
