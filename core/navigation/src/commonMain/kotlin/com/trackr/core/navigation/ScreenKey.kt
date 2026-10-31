@@ -51,4 +51,12 @@ sealed interface ScreenKey : NavKey {
 
     @Serializable
     data object About : ScreenKey
+
+    /** 路线详情（§3.1 公交页签子页，第 22 步做页面；第 17 步只占位） */
+    @Serializable
+    data class RouteDetail(val groupId: String) : ScreenKey
+
+    /** 编辑收藏（§3.1 公交页签子页，第 22 步做页面；第 17 步只占位） */
+    @Serializable
+    data object FavoritesEdit : ScreenKey
 }

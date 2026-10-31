@@ -3,8 +3,9 @@ package com.trackr.core.navigation
 import androidx.navigation3.runtime.NavKey
 
 /**
- * 顶层页签（每个页签一条返回栈）。第 16 步仍是 4 个页签：首页、路线规划、收藏、更多；
- * 第 17 步改成 §3.1 的 3 个（公交、路线、我的）。
+ * 顶层页签（每个页签一条返回栈）。第 17 步按 §3.1 改成 3 个：首页、路线规划、更多
+ * （「收藏」不再是页签，[ScreenKey.FavoritesGroup] 作为首页栈的子页保留到第 22 步）。
+ * 页签的 Key 和底栏文字暂不改名（Home→Bus、More→Me 留给阶段 D）。
  */
 object TopLevel {
     /** 起始页签：非起始页签在根页按返回回到这里；它的根页再按返回就退出（exit-through-home）。 */
@@ -14,7 +15,6 @@ object TopLevel {
     val tabs: List<ScreenKey> = listOf(
         ScreenKey.Home,
         ScreenKey.RoutePlan,
-        ScreenKey.FavoritesGroup,
         ScreenKey.More,
     )
 

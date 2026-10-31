@@ -218,18 +218,31 @@ interface AmapRouteGateway {
  * 路线规划：高德输入提示（LRU 64）、公交算路（LRU 16，键 = 城市 + 6 位小数坐标 + 15 分钟时间桶）、
  * 方案与实时线路对齐（命中备忘 24 小时 / 没命中 10 分钟，并发 4），后面是 [AmapRouteGateway]。
  *
- * 第 8 步只定接口：这些缓存和对齐现在都还在 `FavoritesGroupViewModel` 里，
- * 第 17 步拆 VM 时把它们搬进本接口的实现（重构计划 §2.5、§2.10）。
+ * 第 17 步从 `FavoritesGroupViewModel` 搬来（实现 `DefaultRoutePlanRepository`）；防抖、取消上一次、
+ * 「我的位置」解析留在规划页的 ViewModel（重构计划 §2.5、§2.10）。都不抛异常，查不到就是空列表。
  */
 interface RoutePlanRepository {
+    /** 是否至少配置了一条高德通道（Android Key 或 Web Key） */
     fun isConfigured(): Boolean
 
-    /** @param location 当前位置 "lng,lat"（GCJ-02），可为空 */
-    suspend fun searchTips(keyword: String, city: TransitCity, location: String?): Result<List<AmapTipItem>>
+    /**
+     * 输入提示：先查 LRU，再走高德，都没有结果时降级为本地站点搜索；非空才缓存。
+     * @param location 当前位置 "lng,lat"（GCJ-02），可为空
+     */
+    suspend fun searchTips(keyword: String, city: TransitCity, location: String?): List<AmapTipItem>
 
+    /**
+     * 补全缺少经纬度的起 / 终点：[useAmap] 时直接问高德（不经输入提示缓存），再查本地站点；都没有就原样返回。
+     */
+    suspend fun resolveLocation(tip: AmapTipItem, city: TransitCity, location: String?, useAmap: Boolean): AmapTipItem
+
+    /**
+     * 公交算路：缓存 → [useAmap] 时高德算路并与实时源对齐 → 本地直达 / 一次换乘兜底 → 注入起终点坐标；非空才缓存。
+     */
     suspend fun planTransit(
         origin: AmapTipItem,
         destination: AmapTipItem,
-        city: TransitCity
-    ): Result<List<AmapTransitSchemeResult>>
+        city: TransitCity,
+        useAmap: Boolean
+    ): List<AmapTransitSchemeResult>
 }

@@ -42,6 +42,8 @@ import com.trackr.ui.screens.more.AboutScreen
 import com.trackr.ui.screens.more.MoreScreen
 import com.trackr.ui.screens.more.MoreViewModel
 import com.trackr.ui.screens.search.SearchScreen
+import com.trackr.ui.screens.search.SearchViewModel
+import com.trackr.di.TransitUserLocationStore
 import com.trackr.ui.screens.stopdetail.StopDetailScreen
 import com.trackr.ui.screens.stopdetail.StopDetailViewModel
 import com.trackr.util.MainDispatcherRule
@@ -274,7 +276,9 @@ class ScreenshotGeneratorTest {
             initialLineId = "sh_71",
             initialTargetOrder = 5,
             initialStationId = "s5",
-            repository = fakeRepo,
+            settings = fakeRepo,
+            favorites = fakeRepo,
+            realtime = fakeRepo,
             reminderRepository = FakeScheduledReminderRepository(),
             trackingRepository = trackingRepository,
             trackingController = trackingController,
@@ -322,7 +326,9 @@ class ScreenshotGeneratorTest {
             initialLineId = "sh_71",
             initialTargetOrder = 5,
             initialStationId = "s5",
-            repository = fakeRepo,
+            settings = fakeRepo,
+            favorites = fakeRepo,
+            realtime = fakeRepo,
             reminderRepository = FakeScheduledReminderRepository(),
             trackingRepository = trackingRepository,
             trackingController = trackingController,
@@ -584,7 +590,10 @@ class ScreenshotGeneratorTest {
             locationRepository = DefaultLocationRepository(AndroidLocationSource(app), AndroidMonotonicClock),
             trackingController = trackingController,
             trackingRepository = trackingRepository,
-            repository = fakeRepo,
+            settings = fakeRepo,
+            favorites = fakeRepo,
+            realtime = fakeRepo,
+            userLocationStore = TransitUserLocationStore(fakeRepo),
             enableAutoPolling = false
         )
         mainDispatcherRule.testDispatcher.scheduler.advanceUntilIdle()
@@ -685,7 +694,10 @@ class ScreenshotGeneratorTest {
             namesakeStId = "nst_ps_1",
             stationLat = 31.2330,
             stationLng = 121.4780,
-            repository = fakeRepo,
+            settings = fakeRepo,
+            favorites = fakeRepo,
+            realtime = fakeRepo,
+            userLocationStore = TransitUserLocationStore(fakeRepo),
             enableAutoPolling = false
         )
         mainDispatcherRule.testDispatcher.scheduler.advanceUntilIdle()
@@ -756,12 +768,12 @@ class ScreenshotGeneratorTest {
             )
         )
 
-        val vm = HomeViewModel(
-            locationRepository = DefaultLocationRepository(AndroidLocationSource(app), AndroidMonotonicClock),
-            trackingController = trackingController,
-            trackingRepository = trackingRepository,
-            repository = fakeRepo,
-            enableAutoPolling = false
+        // 第 17 步：搜索从 HomeViewModel 拆成 SearchViewModel
+        val vm = SearchViewModel(
+            settings = fakeRepo,
+            realtime = fakeRepo,
+            searchHistoryRepository = fakeRepo,
+            userLocationStore = TransitUserLocationStore(fakeRepo)
         )
         vm.updateSearchQuery("71")
         mainDispatcherRule.testDispatcher.scheduler.advanceUntilIdle()
@@ -894,7 +906,6 @@ class ScreenshotGeneratorTest {
         )
         val fakeReminderRepo = FakeScheduledReminderRepository(initialReminders = initialReminders)
         val vm = MoreViewModel(
-            application = app,
             repository = fakeRepo,
             reminderRepository = fakeReminderRepo,
             amapKeys = FakeAmapKeyRepository()

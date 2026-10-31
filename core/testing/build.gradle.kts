@@ -10,6 +10,8 @@ kotlin {
             api(project(":core:domain"))
             api(project(":core:data"))
             api(libs.kotlinx.coroutines.core)
+            // 第 17 步：功能模块 commonTest 用的主调度器替换（MainDispatcherHolder）
+            api(libs.kotlinx.coroutines.test)
         }
         commonTest.dependencies {
             implementation(kotlin("test"))

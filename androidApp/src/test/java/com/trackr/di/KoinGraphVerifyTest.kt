@@ -3,11 +3,21 @@ package com.trackr.di
 import android.app.Application
 import android.content.Context
 import com.trackr.core.model.DataSourceType
+import com.trackr.app.di.routeDataModule
 import com.trackr.core.navigation.ScreenKey
 import com.trackr.core.network.provider.ITransitProvider
 import com.trackr.ui.screens.linedetail.LineDetailViewModel
 import com.trackr.ui.screens.stopdetail.StopDetailViewModel
+import com.trackr.feature.bus.busModule
+import com.trackr.feature.favorites.favoritesModule
+import com.trackr.feature.line.lineModule
+import com.trackr.feature.me.meModule
+import com.trackr.feature.route.routeAndroidModule
+import com.trackr.feature.route.routeModule
+import com.trackr.feature.search.searchModule
+import com.trackr.feature.stop.stopModule
 import com.trackr.util.MainDispatcherRule
+import kotlinx.coroutines.CoroutineDispatcher
 import io.ktor.client.HttpClientConfig
 import io.ktor.client.engine.HttpClientEngine
 import org.junit.Assert.assertEquals
@@ -53,7 +63,9 @@ class KoinGraphVerifyTest {
         Function0::class,
         Function1::class,
         // AndroidTrackingController 收一个启动前台服务的 lambda（测试替换用，Koin 里用默认值）
-        Function2::class
+        Function2::class,
+        // 第 17 步拆出来的 ViewModel / 数据层对象：IO 调度器用构造参数默认值
+        CoroutineDispatcher::class
     )
 
     /** 静态校验某个模块：别的模块的定义也算可用绑定 */
@@ -66,12 +78,46 @@ class KoinGraphVerifyTest {
     fun appModule_verify() = verifyModule(appModule)
 
     @Test
-    fun viewModelModule_verify() = verifyModule(viewModelModule)
+    fun platformBridgeModule_verify() = verifyModule(platformBridgeModule)
+
+    // 第 17 步：原来的 viewModelModule 拆进各功能模块，每个模块一条
+    @Test
+    fun routeDataModule_verify() = verifyModule(routeDataModule)
+
+    @Test
+    fun busModule_verify() = verifyModule(busModule)
+
+    @Test
+    fun searchModule_verify() = verifyModule(searchModule)
+
+    @Test
+    fun stopModule_verify() = verifyModule(stopModule)
+
+    @Test
+    fun lineModule_verify() = verifyModule(lineModule)
+
+    @Test
+    fun routeModule_verify() = verifyModule(routeModule)
+
+    @Test
+    fun routeAndroidModule_verify() = verifyModule(routeAndroidModule)
+
+    @Test
+    fun favoritesModule_verify() = verifyModule(favoritesModule)
+
+    @Test
+    fun meModule_verify() = verifyModule(meModule)
 
     @Test
     fun appModules_containsEveryModuleUnderTest() {
         // 新加模块时要在上面补一条 verify 用例，这里提醒一下
-        assertEquals(listOf(appModule, viewModelModule), appModules)
+        assertEquals(
+            listOf(
+                appModule, platformBridgeModule, routeDataModule, busModule, searchModule, stopModule,
+                lineModule, routeModule, favoritesModule, meModule, routeAndroidModule
+            ),
+            appModules
+        )
     }
 
     /** 带参数的定义：按类型给一份样例参数 */

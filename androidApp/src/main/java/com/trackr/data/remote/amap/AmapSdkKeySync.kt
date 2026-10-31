@@ -1,6 +1,7 @@
 package com.trackr.data.remote.amap
 
 import com.trackr.core.data.repository.AmapKeyRepository
+import com.trackr.core.domain.platform.AmapSdkKeyApplier
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers

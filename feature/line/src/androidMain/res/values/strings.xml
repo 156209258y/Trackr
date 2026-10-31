@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 乘车码弹层（TransitCodeBottomSheet）的文案，第 17 步随页面从 :androidApp 搬来 -->
+<resources>
+    <string name="transit_code_title">乘车码</string>
+    <string name="alipay_transit_code">支付宝乘车码</string>
+    <string name="unionpay_transit_code">云闪付乘车码</string>
+    <string name="alipay_transit_code_desc">系统级一键秒开，推荐优先使用</string>
+    <string name="unionpay_transit_code_desc">唤醒云闪付乘车码，享受银联乘车优惠</string>
+    <string name="transit_code_set_default">记住选择，下次直接唤醒</string>
+</resources>

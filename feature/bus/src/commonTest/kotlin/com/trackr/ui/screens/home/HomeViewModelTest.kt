@@ -1,0 +1,538 @@
+package com.trackr.ui.screens.home
+
+import com.trackr.core.data.repository.DefaultTrackingRepository
+import com.trackr.core.data.repository.InMemoryTrackingSessionStore
+import com.trackr.core.model.DataSourceType
+import com.trackr.core.model.EngineMode
+import com.trackr.core.model.FavoriteStationLine
+import com.trackr.core.model.NearbyStop
+import com.trackr.core.model.ProvinceCityCatalog
+import com.trackr.core.model.TrackingTarget
+import com.trackr.core.model.TransitCity
+import com.trackr.core.model.UserFix
+import com.trackr.core.testing.FakeClock
+import com.trackr.core.testing.FakeFavoritesRepository
+import com.trackr.core.testing.FakeLocationRepository
+import com.trackr.core.testing.FakeRealtimeRepository
+import com.trackr.core.testing.FakeSettingsRepository
+import com.trackr.core.testing.FakeTrackingController
+import com.trackr.core.testing.FakeUserLocationStore
+import com.trackr.core.testing.MainDispatcherHolder
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.test.runTest
+import kotlin.test.AfterTest
+import kotlin.test.BeforeTest
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
+import kotlin.time.Duration.Companion.milliseconds
+
+/**
+ * 第 17 步：HomeViewModel 改拿拆开的接口，这里把几个 Fake 放在一起，保留原测试里 `fakeRepository.xxx` 的写法
+ * （转发方式同旧 FakeTransitRepository）。
+ */
+private class HomeFakes(city: TransitCity) {
+    val settings = FakeSettingsRepository(city)
+    val favoritesRepo = FakeFavoritesRepository()
+    val realtime = FakeRealtimeRepository(currentCity = { settings.selectedCity.value })
+    val userLocationStore = FakeUserLocationStore()
+    val location = FakeLocationRepository()
+
+    val selectedCity get() = settings.selectedCity
+    val userLocation get() = userLocationStore.userLocation
+    fun setHasSavedCity(saved: Boolean) = settings.setHasSavedCity(saved)
+    fun setNearbyStopsCount(count: Int) = settings.setNearbyStopsCount(count)
+    suspend fun toggleFavorite(item: FavoriteStationLine) = favoritesRepo.toggleFavorite(item)
+
+    var supportedCitiesResult: Result<List<TransitCity>> by realtime::supportedCitiesResult
+    var nearbyStopsResult: Result<List<NearbyStop>> by realtime::nearbyStopsResult
+    var resolveCityResult: Result<TransitCity?>? by realtime::resolveCityResult
+    val nearbyStopsCalls get() = realtime.nearbyStopsCalls
+    var nearbyStopsResultProvider: ((TransitCity, Double, Double) -> Result<List<NearbyStop>>)? by realtime::nearbyStopsResultProvider
+}
+
+@OptIn(ExperimentalCoroutinesApi::class)
+class HomeViewModelTest {
+
+    private val main = MainDispatcherHolder()
+
+    private lateinit var fakeRepository: HomeFakes
+    private lateinit var trackingRepository: DefaultTrackingRepository
+    private lateinit var trackingController: FakeTrackingController
+    private val shanghai = TransitCity(cityId = "034", cityName = "上海", pinyin = "shanghai", province = "直辖市")
+    private val beijing = TransitCity(cityId = "001", cityName = "北京", pinyin = "beijing", province = "直辖市")
+    private val hangzhou = TransitCity(cityId = "0571", cityName = "杭州", pinyin = "hangzhou", province = "浙江省")
+
+    @BeforeTest
+    fun setup() {
+        main.install()
+        fakeRepository = HomeFakes(shanghai)
+        fakeRepository.supportedCitiesResult = Result.success(listOf(shanghai, beijing, hangzhou))
+        trackingRepository = DefaultTrackingRepository(
+            InMemoryTrackingSessionStore(),
+            CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
+        )
+        trackingController = FakeTrackingController(trackingRepository)
+    }
+
+    @AfterTest
+    fun tearDown() {
+        main.reset()
+    }
+
+    private fun createViewModel(
+        enableAutoPolling: Boolean = false,
+        elapsedRealtimeMillis: (() -> Long)? = null
+    ): HomeViewModel {
+        val f = fakeRepository
+        return if (elapsedRealtimeMillis == null) {
+            HomeViewModel(
+                settings = f.settings,
+                favorites = f.favoritesRepo,
+                realtime = f.realtime,
+                userLocationStore = f.userLocationStore,
+                locationRepository = f.location,
+                trackingController = trackingController,
+                trackingRepository = trackingRepository,
+                enableAutoPolling = enableAutoPolling
+            )
+        } else {
+            HomeViewModel(
+                settings = f.settings,
+                favorites = f.favoritesRepo,
+                realtime = f.realtime,
+                userLocationStore = f.userLocationStore,
+                locationRepository = f.location,
+                trackingController = trackingController,
+                trackingRepository = trackingRepository,
+                enableAutoPolling = enableAutoPolling,
+                elapsedRealtimeMillis = elapsedRealtimeMillis
+            )
+        }
+    }
+
+    /** 原 Robolectric 的「授予权限 + GPS 新鲜缓存 3 m」：设备定位直接给出这个坐标 */
+    private fun grantFreshGpsLocation(lat: Double, lng: Double) {
+        fakeRepository.location.bestFixResult = UserFix(lat = lat, lng = lng, accuracyMeters = 3.0f, elapsedMillis = 1_000_000L)
+    }
+
+    @Test
+    fun testInitialState_loadsSelectedCityAndObservesRepository() = runTest(main.dispatcher) {
+        val viewModel = createViewModel()
+        testScheduler.runCurrent()
+
+        assertEquals("上海", viewModel.uiState.value.currentCity.cityName)
+        assertEquals("034", viewModel.uiState.value.currentCity.cityId)
+    }
+
+    @Test
+    fun testSelectCity_updatesCurrentCityInRepositoryAndState() = runTest(main.dispatcher) {
+        val viewModel = createViewModel()
+        testScheduler.runCurrent()
+
+        viewModel.selectCity(beijing)
+        testScheduler.runCurrent()
+
+        assertEquals("北京", viewModel.uiState.value.currentCity.cityName)
+        assertEquals("001", fakeRepository.selectedCity.value.cityId)
+    }
+
+    @Test
+    fun testFilterCities_queryMatchesCityNameAndPinyin() = runTest(main.dispatcher) {
+        val viewModel = createViewModel()
+        testScheduler.runCurrent()
+
+        viewModel.setCityPickerOpen(true)
+        testScheduler.runCurrent()
+
+        assertEquals(3, viewModel.uiState.value.cities.size)
+
+        // Filter by pinyin prefix "hangz" (since "shanghai" contains "hang")
+        viewModel.updateCitySearchQuery("hangz")
+        val filteredPinyin = viewModel.uiState.value.filteredCities
+        assertEquals(1, filteredPinyin.size)
+        assertEquals("杭州", filteredPinyin.first().cityName)
+
+        // Filter by unique city character "京"
+        viewModel.updateCitySearchQuery("京")
+        val filteredName = viewModel.uiState.value.filteredCities
+        assertEquals(1, filteredName.size)
+        assertEquals("北京", filteredName.first().cityName)
+    }
+
+    @Test
+    fun testFavorites_observesRepositoryChanges() = runTest(main.dispatcher) {
+        val fav = FavoriteStationLine(
+            id = "fav_1",
+            cityId = "034",
+            cityName = "上海",
+            lineId = "l1",
+            lineName = "49路",
+            direction = 0,
+            startStop = "A",
+            endStop = "B",
+            targetStopId = "s1",
+            targetStopName = "人民广场",
+            targetOrder = 2,
+            source = DataSourceType.CHELAILE
+        )
+
+        val viewModel = createViewModel()
+        testScheduler.runCurrent()
+
+        fakeRepository.toggleFavorite(fav)
+        testScheduler.runCurrent()
+
+        assertEquals(1, viewModel.uiState.value.favorites.size)
+        assertEquals("人民广场", viewModel.uiState.value.favorites.first().targetStopName)
+    }
+
+    @Test
+    fun testEngineModeSwitching() = runTest(main.dispatcher) {
+        val viewModel = createViewModel()
+        testScheduler.runCurrent()
+
+        assertEquals(EngineMode.CHELAILE, viewModel.uiState.value.engineMode)
+
+        viewModel.toggleEngineMode()
+        testScheduler.runCurrent()
+        assertEquals(EngineMode.MYGOLBS, viewModel.uiState.value.engineMode)
+
+        viewModel.toggleEngineMode()
+        testScheduler.runCurrent()
+        assertEquals(EngineMode.CHELAILE, viewModel.uiState.value.engineMode)
+
+        viewModel.setEngineMode(EngineMode.MYGOLBS)
+        testScheduler.runCurrent()
+        assertEquals(EngineMode.MYGOLBS, viewModel.uiState.value.engineMode)
+    }
+
+    @Test
+    fun testEngineModeSwitching_immediatelyRefreshesNearbyStops() = runTest(main.dispatcher) {
+        val stopA = NearbyStop(stopId = "stop_a", name = "站点A")
+        val stopB = NearbyStop(stopId = "stop_b", name = "站点B")
+        fakeRepository.nearbyStopsResult = Result.success(listOf(stopA))
+
+        val viewModel = createViewModel()
+        testScheduler.runCurrent()
+        assertEquals("站点A", viewModel.uiState.value.nearbyStops.firstOrNull()?.name)
+
+        // 切换引擎模式前更新 mock 数据，模拟切换后数据源的数据
+        fakeRepository.nearbyStopsResult = Result.success(listOf(stopB))
+        viewModel.setEngineMode(EngineMode.MYGOLBS)
+        testScheduler.runCurrent()
+
+        // 验证无需重启，周边站点即刻被重新拉取并更新为站点B
+        assertEquals("站点B", viewModel.uiState.value.nearbyStops.firstOrNull()?.name)
+    }
+
+    @Test
+    fun testNearbyStopsCountChange_refreshesNearbyStops() = runTest(main.dispatcher) {
+        val stop1 = NearbyStop(stopId = "stop_1", name = "站点1")
+        val stop2 = NearbyStop(stopId = "stop_2", name = "站点2")
+        fakeRepository.nearbyStopsResult = Result.success(listOf(stop1))
+
+        val viewModel = createViewModel()
+        testScheduler.runCurrent()
+        assertEquals(1, viewModel.uiState.value.nearbyStops.size)
+
+        fakeRepository.nearbyStopsResult = Result.success(listOf(stop1, stop2))
+        fakeRepository.setNearbyStopsCount(8)
+        testScheduler.runCurrent()
+
+        assertEquals(2, viewModel.uiState.value.nearbyStops.size)
+    }
+
+    @Test
+    fun testFilteredCities_filtersByEngineMode() = runTest(main.dispatcher) {
+        val clCity = TransitCity(cityId = "034", cityName = "上海", mygolbsCityCode = null)
+        val mgCity = TransitCity(cityId = "", cityName = "玉林", mygolbsCityCode = "450900")
+        val bothCity = TransitCity(cityId = "051", cityName = "深圳", mygolbsCityCode = "440300")
+        fakeRepository.supportedCitiesResult = Result.success(listOf(clCity, mgCity, bothCity))
+
+        val viewModel = createViewModel()
+        testScheduler.runCurrent()
+
+        // 1. CHELAILE 模式包含车来了城市 (clCity, bothCity)
+        viewModel.setEngineMode(EngineMode.CHELAILE)
+        testScheduler.runCurrent()
+        assertEquals(2, viewModel.uiState.value.filteredCities.size)
+
+        // 2. MYGOLBS 模式只包含有 mygolbsCityCode 的城市 (mgCity, bothCity)
+        viewModel.setEngineMode(EngineMode.MYGOLBS)
+        testScheduler.runCurrent()
+        val mgList = viewModel.uiState.value.filteredCities
+        assertEquals(2, mgList.size)
+        assertTrue(mgList.any { it.cityName == "玉林" })
+        assertTrue(mgList.any { it.cityName == "深圳" })
+
+        // 3. CHELAILE 模式只包含有 cityId 的城市 (clCity, bothCity)
+        viewModel.setEngineMode(EngineMode.CHELAILE)
+        testScheduler.runCurrent()
+        val clList = viewModel.uiState.value.filteredCities
+        assertEquals(2, clList.size)
+        assertTrue(clList.any { it.cityName == "上海" })
+        assertTrue(clList.any { it.cityName == "深圳" })
+    }
+
+    @Test
+    fun testRefresh_triggersRelocationAndRefreshesData() = runTest(main.dispatcher) {
+        grantFreshGpsLocation(30.2741, 120.1551)
+
+        val dummyStop = NearbyStop(
+            stopId = "stop_hz_1",
+            name = "武林广场",
+            distanceMeters = 100,
+            lines = emptyList()
+        )
+        fakeRepository.nearbyStopsResult = Result.success(listOf(dummyStop))
+
+        val viewModel = createViewModel()
+        testScheduler.runCurrent()
+
+        viewModel.refresh()
+        testScheduler.runCurrent()
+
+        assertEquals(false, viewModel.uiState.value.isRefreshing)
+        assertEquals(false, viewModel.uiState.value.isLocating)
+        assertEquals(1, viewModel.uiState.value.nearbyStops.size)
+        assertEquals("武林广场", viewModel.uiState.value.nearbyStops.first().name)
+        // 验证用户定位坐标被同步更新到 repository
+        assertEquals(30.2741, fakeRepository.userLocation.value?.first ?: 0.0, absoluteTolerance = 0.0001)
+        assertEquals(120.1551, fakeRepository.userLocation.value?.second ?: 0.0, absoluteTolerance = 0.0001)
+        // 启动 + 下拉刷新都按强制刷新取定位（原用例靠 Robolectric 定位缓存年龄间接覆盖）
+        assertEquals(listOf(true, true), fakeRepository.location.bestFixCalls)
+    }
+
+    @Test
+    fun testRefreshLocationAndNearby_delegatesToRefresh() = runTest(main.dispatcher) {
+        val dummyStop = NearbyStop(
+            stopId = "stop_sh_1",
+            name = "人民广场",
+            distanceMeters = 50,
+            lines = emptyList()
+        )
+        fakeRepository.nearbyStopsResult = Result.success(listOf(dummyStop))
+
+        val viewModel = createViewModel()
+        testScheduler.runCurrent()
+
+        viewModel.refreshLocationAndNearby()
+        testScheduler.runCurrent()
+
+        assertEquals(false, viewModel.uiState.value.isRefreshing)
+        assertEquals(false, viewModel.uiState.value.isLocating)
+        assertEquals(1, viewModel.uiState.value.nearbyStops.size)
+        assertEquals("人民广场", viewModel.uiState.value.nearbyStops.first().name)
+    }
+
+    @Test
+    fun testStartupLocate_keepsSavedCity_whenLocatedCityDiffers() = runTest(main.dispatcher) {
+        // Issue #6：已选城市（上海），定位到另一个城市（杭州），重启后不应被覆盖
+        grantFreshGpsLocation(30.2741, 120.1551)
+        fakeRepository.resolveCityResult = Result.success(hangzhou)
+
+        val viewModel = createViewModel()
+        testScheduler.runCurrent()
+
+        assertEquals("034", fakeRepository.selectedCity.value.cityId)
+        assertEquals("上海", viewModel.uiState.value.currentCity.cityName)
+        assertEquals("杭州", viewModel.uiState.value.locatedCity?.cityName)
+        assertEquals(30.2741, fakeRepository.userLocation.value?.first ?: 0.0, absoluteTolerance = 0.0001)
+    }
+
+    @Test
+    fun testPullToRefresh_keepsSavedCity() = runTest(main.dispatcher) {
+        grantFreshGpsLocation(30.2741, 120.1551)
+        fakeRepository.resolveCityResult = Result.success(hangzhou)
+
+        val viewModel = createViewModel()
+        testScheduler.runCurrent()
+        viewModel.refresh()
+        testScheduler.runCurrent()
+
+        assertEquals("034", fakeRepository.selectedCity.value.cityId)
+        assertEquals("上海", viewModel.uiState.value.currentCity.cityName)
+    }
+
+    @Test
+    fun testStartupLocate_switchesToLocatedCity_whenNoCitySavedYet() = runTest(main.dispatcher) {
+        grantFreshGpsLocation(30.2741, 120.1551)
+        fakeRepository.setHasSavedCity(false)
+        fakeRepository.resolveCityResult = Result.success(hangzhou)
+
+        val viewModel = createViewModel()
+        testScheduler.runCurrent()
+
+        assertEquals("0571", fakeRepository.selectedCity.value.cityId)
+        assertEquals("杭州", viewModel.uiState.value.currentCity.cityName)
+    }
+
+    @Test
+    fun testRelocateFromCityPicker_switchesToLocatedCity() = runTest(main.dispatcher) {
+        grantFreshGpsLocation(30.2741, 120.1551)
+        fakeRepository.resolveCityResult = Result.success(hangzhou)
+
+        val viewModel = createViewModel()
+        testScheduler.runCurrent()
+        assertEquals("上海", viewModel.uiState.value.currentCity.cityName)
+
+        viewModel.refreshLocationAndNearby(switchCity = true)
+        testScheduler.runCurrent()
+
+        assertEquals("0571", fakeRepository.selectedCity.value.cityId)
+        assertEquals("杭州", viewModel.uiState.value.currentCity.cityName)
+    }
+
+    @Test
+    fun testStartupLocate_awayFromSavedCity_fallsBackToSavedCityCenter() = runTest(main.dispatcher) {
+        // 人在杭州，已选上海：GPS 坐标查不到上海站点，改用上海中心点再查
+        grantFreshGpsLocation(30.2741, 120.1551)
+        fakeRepository.resolveCityResult = Result.success(hangzhou)
+        val center = assertNotNull(ProvinceCityCatalog.findCityCenterCoordinates("上海"))
+        val centerStop = NearbyStop(stopId = "sh_center", name = "人民广场", distanceMeters = 0, lines = emptyList())
+        fakeRepository.nearbyStopsResultProvider = { _, lat, lng ->
+            if (lat == center.first && lng == center.second) Result.success(listOf(centerStop))
+            else Result.success(emptyList())
+        }
+
+        val viewModel = createViewModel()
+        testScheduler.runCurrent()
+
+        assertEquals("034", fakeRepository.selectedCity.value.cityId)
+        assertEquals(listOf("人民广场"), viewModel.uiState.value.nearbyStops.map { it.name })
+        assertEquals(center.first, viewModel.uiState.value.currentLat, absoluteTolerance = 0.0001)
+        assertEquals(center.second, viewModel.uiState.value.currentLng, absoluteTolerance = 0.0001)
+    }
+
+    @Test
+    fun testStopTracking_callsControllerAndActiveTrackingBecomesInactive() = runTest(main.dispatcher) {
+        val viewModel = createViewModel()
+        testScheduler.runCurrent()
+        trackingController.start(
+            TrackingTarget.SingleLine(
+                cityId = "034",
+                lineId = "line_71",
+                lineName = "71路",
+                targetStopId = "stop_5",
+                targetStopName = "人民广场",
+                targetOrder = 5,
+                totalStops = 20
+            )
+        )
+        testScheduler.runCurrent()
+        assertTrue(viewModel.uiState.value.activeTracking.isActive)
+        assertEquals("line_71", viewModel.uiState.value.activeTracking.lineId)
+
+        viewModel.stopTracking()
+        testScheduler.runCurrent()
+
+        assertEquals(1, trackingController.stopCount)
+        assertFalse(trackingRepository.legState.value.isActive)
+        assertFalse(viewModel.uiState.value.activeTracking.isActive)
+    }
+
+    @Test
+    fun testPollingLifecycle_pauseResumeAndExplicitControl() = runTest(main.dispatcher) {
+        val vmWithAutoPolling = createViewModel(enableAutoPolling = true)
+        assertTrue(vmWithAutoPolling.isPollingActive)
+
+        vmWithAutoPolling.pausePolling()
+        assertFalse(vmWithAutoPolling.isPollingActive)
+
+        vmWithAutoPolling.resumePolling()
+        assertTrue(vmWithAutoPolling.isPollingActive)
+
+        vmWithAutoPolling.setPollingActive(false)
+        assertFalse(vmWithAutoPolling.isPollingActive)
+
+        vmWithAutoPolling.setPollingActive(true)
+        assertTrue(vmWithAutoPolling.isPollingActive)
+
+        vmWithAutoPolling.pausePolling()
+    }
+
+    @Test
+    fun testPollingLifecycle_disabledByDefaultInTest() = runTest(main.dispatcher) {
+        val viewModel = createViewModel()
+        assertFalse(viewModel.isPollingActive)
+
+        viewModel.setPollingActive(true)
+        assertTrue(viewModel.isPollingActive)
+
+        viewModel.pausePolling()
+        assertFalse(viewModel.isPollingActive)
+    }
+
+    @Test
+    fun testSetPollingActive_resumeAfterOneInterval_refreshesImmediately() = runTest(main.dispatcher) {
+        val clock = FakeClock()
+        val viewModel = createViewModel(elapsedRealtimeMillis = clock::elapsedMillis)
+        testScheduler.runCurrent()
+        val callsBefore = fakeRepository.nearbyStopsCalls.size
+
+        // 离开首页超过一个轮询周期后回来：立即补刷一次，而不是再等 15 秒
+        clock.advanceBy((HomeViewModel.POLLING_INTERVAL_MS + 1).milliseconds)
+        viewModel.setPollingActive(true)
+        testScheduler.runCurrent()
+
+        assertEquals(callsBefore + 1, fakeRepository.nearbyStopsCalls.size)
+        viewModel.setPollingActive(false)
+        assertFalse(viewModel.isPollingActive)
+    }
+
+    @Test
+    fun testSetPollingActive_resumeAtExactlyOneInterval_refreshesImmediately() = runTest(main.dispatcher) {
+        val clock = FakeClock()
+        val viewModel = createViewModel(elapsedRealtimeMillis = clock::elapsedMillis)
+        testScheduler.runCurrent()
+        val callsBefore = fakeRepository.nearbyStopsCalls.size
+
+        // 边界：距上次刷新正好一个轮询周期（15000 ms）也算到期，补刷一次
+        clock.advanceBy(HomeViewModel.POLLING_INTERVAL_MS.milliseconds)
+        viewModel.setPollingActive(true)
+        testScheduler.runCurrent()
+
+        assertEquals(callsBefore + 1, fakeRepository.nearbyStopsCalls.size)
+        viewModel.setPollingActive(false)
+        assertFalse(viewModel.isPollingActive)
+    }
+
+    @Test
+    fun testSetPollingActive_resumeWithinInterval_doesNotRefreshImmediately() = runTest(main.dispatcher) {
+        val clock = FakeClock()
+        val viewModel = createViewModel(elapsedRealtimeMillis = clock::elapsedMillis)
+        testScheduler.runCurrent()
+        val callsBefore = fakeRepository.nearbyStopsCalls.size
+
+        clock.advanceBy(1_000L.milliseconds)
+        viewModel.setPollingActive(true)
+        testScheduler.runCurrent()
+
+        assertEquals(callsBefore, fakeRepository.nearbyStopsCalls.size)
+        viewModel.setPollingActive(false)
+    }
+
+    @Test
+    fun testRefresh_whenNoUsableFix_showsLocationErrorAndKeepsPosition() = runTest(main.dispatcher) {
+        // 原 testRefresh_whenCachedLocationOlderThanTenMinutes_isRejected 的 VM 部分：
+        // 「超 10 分钟的缓存不用」由 LocationRepositoryTest.staleLocationOlderThanTenMinutes_isRejected 覆盖，
+        // 这里只验证定位仓库给不出定位时首页的表现
+        fakeRepository.location.bestFixResult = null
+
+        val viewModel = createViewModel()
+        testScheduler.runCurrent()
+        testScheduler.advanceTimeBy(HomeViewModel.LOCATION_WINDOW_MS + 500L)
+        testScheduler.runCurrent()
+
+        assertNull(fakeRepository.userLocation.value)
+        assertEquals("定位不可用，已保留当前位置", viewModel.uiState.value.locationError)
+        assertFalse(viewModel.uiState.value.isLocating)
+    }
+}

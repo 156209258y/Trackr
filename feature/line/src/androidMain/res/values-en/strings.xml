@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 乘车码弹层（TransitCodeBottomSheet）的文案，第 17 步随页面从 :androidApp 搬来 -->
+<resources>
+    <string name="transit_code_title">Transit Code</string>
+    <string name="alipay_transit_code">Alipay Transit Code</string>
+    <string name="unionpay_transit_code">UnionPay Transit Code</string>
+    <string name="alipay_transit_code_desc">System-level instant launch</string>
+    <string name="unionpay_transit_code_desc">Launch UnionPay Transit Code with bank discounts</string>
+    <string name="transit_code_set_default">Remember preference for direct launch</string>
+</resources>

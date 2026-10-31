@@ -35,7 +35,28 @@
 
 ## 3. 测试目录与套件清单
 
-`./gradlew test` 共跑 78 个测试类：`:androidApp` 43 个，`:core:designsystem` 2 个，`:core:domain` 4 个，`:core:navigation` 3 个，`:core:network` 12 个，`:core:data` 11 个，`:core:database` 1 个，`:core:datastore` 1 个，`:core:testing` 1 个（`:core:model` 没有测试）。KMP 模块的 `test` 由约定插件 `trackr.kmp.library` 补上，只跑 Android 主机测试（`testAndroidHostTest`）；iOS 另跑 `./gradlew :core:domain:iosSimulatorArm64Test`（`:core:network`、`:core:data` 同理，需要 Xcode 和 iOS 模拟器运行时），`:core:database` 的 DAO 测试同样在 iOS 模拟器上跑（`./gradlew :core:database:iosSimulatorArm64Test`，用 BundledSQLiteDriver），设计系统只做编译检查 `./gradlew :core:designsystem:compileKotlinIosSimulatorArm64`，导航做编译检查加测试链接 `./gradlew :core:navigation:linkDebugTestIosSimulatorArm64`。
+`./gradlew test` 共跑 84 个测试类、798 个用例：
+
+| 模块 | 测试类 | 模块 | 测试类 |
+| :--- | :--- | :--- | :--- |
+| `:androidApp` | 24 | `:core:ui` | 3 |
+| `:composeApp` | 2 | `:feature:bus` | 2 |
+| `:core:data` | 12 | `:feature:favorites` | 3 |
+| `:core:database` | 1 | `:feature:line` | 5 |
+| `:core:datastore` | 1 | `:feature:me` | 2 |
+| `:core:designsystem` | 2 | `:feature:route` | 5 |
+| `:core:domain` | 4 | `:feature:search` | 1 |
+| `:core:navigation` | 3 | `:feature:stop` | 1 |
+| `:core:network` | 12 | `:core:testing` | 1 |
+
+`:core:model` 没有测试。KMP 模块的 `test` 由约定插件 `trackr.kmp.library` 补上，只跑 Android 主机测试（`testAndroidHostTest`）；iOS 另跑 `./gradlew :core:domain:iosSimulatorArm64Test`（`:core:network`、`:core:data` 同理，需要 Xcode 和 iOS 模拟器运行时），`:core:database` 的 DAO 测试同样在 iOS 模拟器上跑（`./gradlew :core:database:iosSimulatorArm64Test`，用 BundledSQLiteDriver），设计系统只做编译检查 `./gradlew :core:designsystem:compileKotlinIosSimulatorArm64`，导航做编译检查加测试链接 `./gradlew :core:navigation:linkDebugTestIosSimulatorArm64`。各 `:feature:*`、`:composeApp`、`:core:ui` 在 iOS 上也只做这两步：`./gradlew :feature:bus:compileKotlinIosSimulatorArm64`、`./gradlew :feature:bus:linkDebugTestIosSimulatorArm64`（其他模块换模块名）。
+
+第 17 步起页面和 ViewModel 搬进 `:feature:*`、`:composeApp`、`:core:ui`，测试跟着搬（包名不变）：
+
+- ViewModel 测试放各模块的 `src/commonTest`，用 `kotlin.test`。`commonTest` 里没有 JUnit 的 `MainDispatcherRule`，改用 `:core:testing` 的 `MainDispatcherHolder`：`@BeforeTest` 调 `install()`、`@AfterTest` 调 `reset()`，用例写 `runTest(main.dispatcher)`，`viewModelScope` 里的 `delay` 才受 `advanceTimeBy` 控制。
+- 这些测试看不到 `:androidApp`，Fake 都在 `:core:testing`：`FeatureTestSupport.kt`（`FakeUserLocationStore`、`MainDispatcherHolder`）、`RouteGroupFakes.kt`（`InMemoryFavoritesStore`、`InMemoryRouteGroupRepository`（转调真实的 `DefaultFavoritesRepository`）、`FakeAmapRouteGateway`、`FakeLocalMigrationFlags`）、`SearchFakes.kt`（`RecordingSearchRealtimeRepository`：记下每次搜索，可让搜索挂起）。`FakeScheduledReminderRepository` 也从 `:androidApp` 挪进了 `:core:testing`。
+- Compose UI 测试和高德 SDK 测试放 `src/androidHostTest`，跑 Robolectric。新模块的 Robolectric 配置在各自 `src/androidHostTest/resources/robolectric.properties`（`sdk=34`）。
+- 单跑某个模块：`./gradlew :feature:route:testAndroidHostTest`（其他模块同理）。
 
 Koin 由 `TrackrApp.onCreate` 启动，Robolectric 用例里每个用例都会重新启动一次。第 4 步留下的 object 转发第 12 步删了：通知、提醒用 Koin 里的 `LiveProgressNotifier`、`ArrivalAlertNotifier` 实例（Robolectric 用例里 `GlobalContext.get().get()`），纯函数和常量在 `ReminderAlarmScheduler`、`AmapKeyStorage` 的伴生对象里。要换掉某个依赖（如定位、实时数据、`TrackingController`）时，在用例里 `loadKoinModules(module { single<接口> { fake } })` 覆盖，下一个用例重启 Koin 后自动恢复。
 
@@ -43,16 +64,16 @@ Koin 由 `TrackrApp.onCreate` 启动，Robolectric 用例里每个用例都会�
 
 第 9 步起 `TrackrApp.onCreate` 会打开本地存储（`StorageBackend`：默认 Room + DataStore，并把旧 SharedPreferences 导入一次）。带 `TrackrApp` 的 Robolectric 用例因此用的是新存储；要测旧存储，直接 new 仓库的旧构造函数（`RouteGroupRepository(context)`、`ScheduledReminderRepository(context)`），要单独测存储本身，用 `@Config(application = Application::class)` 不启动 `TrackrApp`（同一进程里同一个 DataStore 文件只能开一个）。
 
-`:androidApp` 的测试位于 `androidApp/src/test/java/com/trackr/`，下表按子目录列出全部测试类（辅助类 `FakeTransitRepository`、`FakeScheduledReminderRepository`、`MainDispatcherRule` 不含测试；`FakeTransitRepository` 由 `:core:testing` 里按接口拆开的 Fake 合成）。`:core:designsystem` 的测试位于 `core/designsystem/src/androidHostTest/kotlin/com/trackr/core/designsystem/`：`rail/RouteRailDrawUtilsTest`（走向条绘制工具常量与绘制不崩溃）、`theme/TrackrThemeTest`（v3 蓝浅 / 深两套且不用动态取色、`TrackrColors` 与旧名别名、`eta` / `item` 字号、圆角与尺寸、Compose 资源在 Android 上能读到），都是 Robolectric Compose UI。单跑：`./gradlew :core:designsystem:testAndroidHostTest`。
+`:androidApp` 的测试位于 `androidApp/src/test/java/com/trackr/`，下表按子目录列出全部测试类（辅助类 `FakeTransitRepository`、`MainDispatcherRule` 不含测试；`FakeTransitRepository` 由 `:core:testing` 里按接口拆开的 Fake 合成）。功能模块、`:composeApp`、`:core:ui` 的测试见后面单独一张表。`:core:designsystem` 的测试位于 `core/designsystem/src/androidHostTest/kotlin/com/trackr/core/designsystem/`：`rail/RouteRailDrawUtilsTest`（走向条绘制工具常量与绘制不崩溃）、`theme/TrackrThemeTest`（v3 蓝浅 / 深两套且不用动态取色、`TrackrColors` 与旧名别名、`eta` / `item` 字号、圆角与尺寸、Compose 资源在 Android 上能读到），都是 Robolectric Compose UI。单跑：`./gradlew :core:designsystem:testAndroidHostTest`。
 
 `:core:domain` 的测试放 `core/domain/src/commonTest/kotlin/com/trackr/core/domain/`，用 `kotlin.test`，Android 主机和 iOS 模拟器各跑一遍：`arrival/ArrivalTextTest`、`math/CoordTransformTest`、`tracking/TrackingEngineTest`（第 12 步把第 7 步搬来的 `GroupLegTrackerTest`、`SingleLegTrackerTest`、`BoardingDetectionTest` 全部用例和原 `TransferAutoSwitchManagerTest` 的纯逻辑用例并进来，覆盖范围见下表）。`src/androidHostTest` 里的 `JvmParityTest` 只在 JVM 上跑：逐个比对第 7 步换掉的 JVM API（`String.format(Locale.CHINA, "%.1f公里")`、`Math.toRadians`、`Math.round`、`"%02d:%02d".format`）和新写法结果一致。`:core:testing` 放平台能力接口的 Fake（`FakeClock`、`FakeTrackingController`、`FakeAnnouncer`、`FakeLocationSource`、`FakeReminderAlarms` 等），`FakesTest` 测这些 Fake 本身。单跑：`./gradlew :core:domain:testAndroidHostTest`。
 
 | 目录 | 测试类 | 覆盖范围 | 运行方式 |
 | :--- | :--- | :--- | :--- |
 | 根目录 | `TransitUnitTest` | 核心算法（`RouteProjectionMath` 坐标插值与站名纠错、线路与城市模型；车来了加解密第 8 步搬到 `:core:network` 的 `ChelaileCryptoTest`） | 本地 JVM |
-| `data/remote/amap` | `AmapSdkManagerTest` | 高德 Key 优先级、隐私合规与 Key 注入 | Robolectric (JVM) |
+|  | `TrackrAppNavigationTest` | 用真实的 `TrackrRoot` 走一遍（首页 ViewModel 换成接 Fake 的）：首页根页在轮询；切到「更多」后停轮询，超过一个周期（15 秒）再回来立即补刷；进搜索后停轮询，15 秒内回来不补刷；收藏页是首页栈的子页，返回回首页；进程重建后恢复到「更多」时新建的首页 ViewModel 不轮询、切回首页才开始 | Robolectric Compose UI |
+| `data/remote/amap` | `AmapSdkManagerTest` | 高德 Key 本地持久化（`AmapKeyStorage`）：Android / Web 两槽分开存、读 Android Key 不回落到 Web 槽、旧 Key 从 `trackr_prefs` 挪出只做一次、新文件里已有的 Key 不被旧值覆盖（SDK 封装的用例第 17 步搬到 `:feature:route`） | Robolectric (JVM) |
 |  | `AmapSdkKeySyncTest` | 改了 Android Key 才重新注入 SDK：跳过启动时的值、改 Web Key 不注入、重复 `start()` 不开第二个收集 | 本地 JVM |
-|  | `AmapSdkTransitServiceTest` | 高德 SDK 公交路径转换为方案、无 Key 时的提示 | Robolectric (JVM) |
 | `data/remote/update` | `GithubUpdateCheckerTest` | 更新检查多源回退、强制更新判定、下载地址 https 与域名白名单校验、取消后不再试剩下的源（Ktor `MockEngine`） | Robolectric (JVM) |
 | `data/local` | `StorageBackendTest` | 整套存储端到端：同一份旧数据经新存储和旧存储读出来完全相同、旧文件不被改动、新存储写入重开读回、USE_NEW_STORE 关了再开能带回旧存储期间的改动、库打不开时退回旧存储、旧的聚合配置在新旧存储里读成同一个主数据源 | Robolectric (JVM) |
 |  | `BackupRulesTest` | `backup_rules.xml` 和 `data_extraction_rules.xml` 两段：排除高德 Key（新旧两个文件）和追踪会话、不排除 `trackr.db` 和设置、没有 include、三段一样、Manifest 都接上了 | Robolectric (JVM) |
@@ -60,7 +81,7 @@ Koin 由 `TrackrApp.onCreate` 启动，Robolectric 用例里每个用例都会�
 |  | `RoomRouteGroupRepositoryTest` | 新存储（Room）上：读回逐字段一致（程、候选线、轨迹点）、清理假数据、删分组时路线一起改成不分组、排序和加候选线持久化、并发写入不丢更新 | Robolectric (JVM) |
 |  | `ScheduledReminderRepositoryTest` | 旧存储上：定时提醒增删改与持久化、并发写入不丢更新、JSON 损坏备份、计划触发时间记录 | Robolectric (JVM) |
 |  | `RoomScheduledReminderRepositoryTest` | 新存储上：增删改与重开读回、并发保存 / 开关不丢更新、计划触发时刻存进 `reminder.lastScheduledTriggerAt` 并且改别的提醒时不被冲掉 | Robolectric (JVM) |
-| `di` | `KoinGraphVerifyTest` | Koin 依赖图：每个模块 `verify()` 静态检查构造参数都有绑定；Robolectric 里把每个定义实际取一次（带参数的 ViewModel 用样例 key） | Robolectric (JVM) |
+| `di` | `KoinGraphVerifyTest` | Koin 依赖图：`appModule`、`platformBridgeModule`、`routeDataModule`、各 feature 的 `xxxModule` 和 `routeAndroidModule` 各自 `verify()`，静态检查构造参数都有绑定；`appModules` 就是这些模块按顺序拼起来；Robolectric 里把每个定义实际取一次（带参数的 ViewModel 用样例 key） | Robolectric (JVM) |
 | `receiver` | `ScheduledReminderReceiverTest` | 定时提醒触发、自动跟车需精确闹钟、传给 `TrackingController` 的单线路目标；降级：非精确闹钟或启动被拒时改发通知并追加「系统限制未能自动开启跟车」提示，点「开启实时追踪」仍失败时保留通知、成功才关掉 | Robolectric (JVM) |
 |  | `BootCompletedReceiverTest` | 开机禁用已错过的一次性提醒、时间变化重新调度、无关广播忽略 | Robolectric (JVM) |
 | `service` | `ArrivalAlertManagerTest` | 到站/临近提醒与实时通知并存时的去重 | Robolectric (JVM) |
@@ -69,31 +90,41 @@ Koin 由 `TrackrApp.onCreate` 启动，Robolectric 用例里每个用例都会�
 | `service/vendor` | `LiveUpdatePromotionTest` | Android 16 Live Update 推广通知构建与厂商识别 | Robolectric (JVM) |
 |  | `XiaomiFocusAdapterTest` | 小米焦点通知 JSON 负载构建 | Robolectric (JVM) |
 | `ui` | `ScreenshotGeneratorTest` | 主要页面明暗主题截图生成 | Robolectric Compose UI |
-| `ui/components` | `BusArrivalBadgeTest` | 到站状态徽标文字与高亮（走 `ArrivalText`） | 本地 JVM |
-|  | `ExpressiveRouteRailUiTest` | 经典横向与纵向走向条渲染、逐字竖排与点击事件响应 | Robolectric Compose UI |
-| `ui/components/citypicker` | `CityPickerItemRowTest` | 城市选择列表项渲染与点击 | Robolectric Compose UI |
-| `ui/components/timetable` | `TimetableBottomSheetTest` | 时刻表底部弹窗渲染 | Robolectric Compose UI |
-| `ui/screens/favoritesgroup` | `FavoritesGroupNavigationEventTest` | 分组编辑弹窗未保存时的返回确认 | Robolectric Compose UI |
-|  | `FavoritesGroupScreenTest` | 收藏分组卡片渲染、候选线路切换与分组管理 | Robolectric Compose UI |
-|  | `FavoritesGroupViewModelTest` | 分组筛选、候选线路、多线路 ETA 聚合、临时分组；高德 Key 只读、跟着仓库走（Key 在「更多」页改） | Robolectric (JVM) |
-|  | `TransitGroupCardTextTest` | 分组卡片乘车站数、摘要与上车时间文案 | 本地 JVM |
-|  | `TransitGroupCardTrackingTest` | 分组卡片跟车中各阶段展示 | Robolectric Compose UI |
-| `ui/screens/home` | `HomeViewModelTest` | 首页城市切换、城市汉字与拼音前缀过滤、搜索防抖、收藏状态监听 | Robolectric (JVM) |
-| `ui/screens/linedetail` | `BusFollowContentTest` | 跟车内容渲染与空车辆处理 | Robolectric Compose UI |
-|  | `LineDetailViewModelTest` | 线路详情加载、站点选择、单车行程跟踪、走向条横纵向切换、收藏切换 | 本地 JVM |
-|  | `StationArrivalContentTest` | 线路页到站大字：在路上、到站了、车都过了只给下一班始发时间、首班、末班已过 | Robolectric Compose UI |
-| `ui/screens/more` | `AboutViewModelTest` | 关于页更新检查状态流转 | Robolectric (JVM) |
-|  | `MoreViewModelTest` | 设置项读写（数据源只有车来了 / 掌上公交二选一）与定时提醒开关/删除；高德 Key 两槽各写各的、清空一槽不动另一槽、区块状态文字 | Robolectric (JVM) |
-| `ui/navigation` | `NavigationFlowTest` | D2 底栏「路线规划」：有 / 无 Key、只有 Web Key、只有 Android Key、只有构建时 Key 时显示与否；停在该页签时 Key 被清空回首页并清栈；恢复到该页签但已无 Key 时回首页 | Robolectric Compose UI |
-| `ui/screens/routeplan` | `RoutePlanScreenTest` | 路线规划搜索台、起终点互换、方案卡片与特征标签；没有「配置Key」胶囊；只有 Web Key / 没有地图会话时不画地图、没有回中按钮 | Robolectric Compose UI |
-| `ui/screens/stopdetail` | `StopDetailViewModelTest` | 站点详情物理站台切换、途经线路实时 ETA、收藏增删 | 本地 JVM |
-| `ui/util` | `PollingCoordinatorTest` | 定时/倒计时轮询策略与生命周期控制 | 本地 JVM |
 | `util` | `ReminderSchedulerTest` | 提醒下次触发时间计算、错过的一次性提醒判定 | 本地 JVM |
 |  | `SignatureUtilsTest` | 包名与签名 SHA-1（取签名历史中的当前证书） | Robolectric (JVM) |
 |  | `TransitCodeHelperTest` | 支付宝/云闪付乘车码跳转 Intent | Robolectric (JVM) |
 | `widget` | `FavoritesShortcutWidgetSyncTest` | 应用级收藏同步：启动时不刷新，收藏真变一次只刷新一次快捷方式与小组件，重复 `start()` 不开第二个收集 | Robolectric (JVM) |
 
-`:core:domain`、`:core:navigation`、`:core:network`、`:core:data` 和 `:core:testing` 的测试类（`:core:navigation` 单跑：`./gradlew :core:navigation:testAndroidHostTest`；网络测试一律用 Ktor `MockEngine`，不发真实 HTTP）：
+功能模块、`:composeApp`、`:core:ui` 的测试类（第 17 步从 `:androidApp` 搬来或新写；目录相对各模块的 `src/commonTest/kotlin/com/trackr/` 或 `src/androidHostTest/kotlin/com/trackr/`）。原 `FavoritesGroupViewModelTest` 删了，用例按新 ViewModel 拆进 `RoutePlanViewModelTest`、`RouteDetailViewModelTest`、`FavoritesEditViewModelTest`，缓存部分进 `:core:data` 的 `RoutePlanRepositoryTest`：
+
+| 模块 / 目录 | 测试类 | 覆盖范围 | 运行方式 |
+| :--- | :--- | :--- | :--- |
+| `:core:ui` `ui/util` | `PollingCoordinatorTest` | 定时 / 倒计时轮询策略：按周期触发、每秒倒计时到点触发、动作抛异常不打断；协调器生命周期与手动控制、重启倒计时（关了自动轮询也通知 tick）、scope 取消后停止 | commonTest（JVM；iOS 只编译和链接测试，不跑） |
+| `:core:ui` `ui/components` | `BusArrivalBadgeTest` | 到站状态徽标文字与高亮（走 `ArrivalText`）：到站、快到算到站、0 站未到算下一站、剩余站数带 / 不带 ETA、3 分钟内高亮、站序无效、优先用状态文字、没车兜底 | androidHostTest（只 JVM） |
+| `:core:ui` `ui/screens/favoritesgroup` | `TransitGroupCardTextTest` | 分组卡片文案：乘车站数（没对齐显示待定）、直达 / 换乘摘要、上车时间（首程 ETA + 乘车站数、步行按 80 米/分、第三程累加前面各程、乘车中以下车站为锚点、前一程没对齐给空）、跟车阶段标签与进度、换乘前下一程实时、卡片大字（等车 / 未追踪 / 乘车中到站） | androidHostTest（只 JVM） |
+| `:feature:bus` `ui/screens/home` | `HomeViewModelTest` | 首页：初始加载已选城市、切城市、城市汉字与拼音过滤、按数据源过滤城市、收藏监听；切数据源立即刷新附近站、附近站数量变了重刷；启动定位（没存城市切到定位城市、存过就保留、离开已存城市回到城市中心）、下拉刷新保留城市、城市选择器里重新定位；结束追踪；轮询暂停恢复，`setPollingActive` 恢复时离上次刷新 ≥15 秒立即补刷、不到不补；没可用定位时报错并保留位置 | commonTest（JVM；iOS 只编译和链接测试，不跑） |
+| `:feature:bus` `ui/components/citypicker` | `CityPickerItemRowTest` | 城市选择列表项渲染与点击、没省份标签时不显示省份 | Robolectric Compose UI |
+| `:feature:search` `ui/screens/search` | `SearchViewModelTest` | 搜索（第 17 步从首页拆出来）：搜索历史加入去重排序、删一条、清空、容量上限；输入防抖 300 ms 后只搜一次、关键字去首尾空格、防抖内换词取消旧的、新词取消进行中的请求、「搜索中」状态；空查询清结果并取消待发的搜索；换城市清结果保留查询词、换数据源有词才重搜；用选中城市和首页当前坐标搜（拆分前读首页的 currentLat / currentLng，经 `HomeCoordinates` 传过来），没有首页坐标时用 GPS、再没有用城市中心 | commonTest（JVM；iOS 只编译和链接测试，不跑） |
+| `:feature:stop` `ui/screens/stopdetail` | `StopDetailViewModelTest` | 站点详情：初次加载站台并解析站名、切物理站台后用那个站台刷新、收藏切换、轮询暂停恢复、上一轮没回来跳过本轮、回到页面只在数据过时时刷新（关了自动轮询不刷） | commonTest（JVM；iOS 只编译和链接测试，不跑） |
+| `:feature:line` `ui/screens/linedetail` | `LineDetailViewModelTest` | 线路详情：初次加载（带目标站序只请求一次、不带时为默认站补一次）、选站并重置倒计时、跟车、走向条横纵切换、收藏切换、乘车码弹层与偏好、提醒站数夹在范围内、开始追踪传单线路目标、车都过了用时刻表补下一班（快来的车不用）、上一轮没回来跳过、回到页面只在过时时刷新 | commonTest（JVM；iOS 只编译和链接测试，不跑） |
+|  | `BusFollowContentTest` | 跟车内容渲染与空车辆处理 | Robolectric Compose UI |
+|  | `StationArrivalContentTest` | 线路页到站大字：在路上、到站了、车都过了只给下一班始发时间（没有时用时刻表或提示）、首班、末班已过；反向切换按钮已去掉 | Robolectric Compose UI |
+| `:feature:line` `ui/components` | `ExpressiveRouteRailUiTest` | 经典横向与纵向走向条渲染、逐字竖排、车辆胶囊不进文字、点击事件响应、线段颜色 | Robolectric Compose UI |
+| `:feature:line` `ui/components/timetable` | `TimetableBottomSheetTest` | 时刻表底部弹窗渲染 | Robolectric Compose UI |
+| `:feature:route` `ui/screens/routeplan` | `RoutePlanViewModelTest` | 路线规划：输入提示防抖只请求最后一个词、太短的词不请求并清空、同城同词命中 LRU 缓存；算路取消上一次、相同查询走缓存、「我的位置」不可用时报错且不查 POI、跨城才带 `cityd`；高德 Key 跟着仓库走、旧 Web 槽不当 Android Key；存入收藏没选分组时用当前选中的收藏分组 | commonTest（JVM；iOS 只编译和链接测试，不跑） |
+|  | `RoutePlanScreenTest` | 路线规划搜索台、起终点互换、存入收藏分组弹窗、方案卡片与特征标签（每个方案一个、并列给第一个、都不突出就不给）、方案摘要时间与分段文字、跟车状态文字、方案面板切页与按选中方案开始跟车、跟车中显示状态条；没有「配置Key」胶囊；只有 Web Key / 没有地图会话时不画地图、没有回中按钮 | Robolectric Compose UI |
+| `:feature:route` `ui/screens/routedetail` | `RouteDetailViewModelTest` | 路线详情：给某程加候选线、多线路 ETA 聚合并选最快的线、开始跟车用卡片上选的候选线、临时方案开始跟车不保存且收藏前显示为临时 | commonTest（JVM；iOS 只编译和链接测试，不跑） |
+| `:feature:route` `data/remote/amap` | `AmapSdkManagerTest` | 高德 SDK 封装：Android / Web Key 都是用户填的优先、空了回落内置（去空格）；隐私合规不崩、注入 Key 安全返回、没 Key 返回 false；地图不可用原因（Key 和 ABI 都有时为空、模拟器 ABI 不支持、缺 Key）。内置 Key 由 `setBuiltInKeys` 设定，不受本机 `local.properties` 影响 | Robolectric (JVM) |
+|  | `AmapSdkTransitServiceTest` | 高德 SDK 公交路径转换为方案（含折线和末段步行、多候选线用主线站点）、无 Key 时的提示 | Robolectric (JVM) |
+| `:feature:favorites` `ui/screens/favoritesedit` | `FavoritesEditViewModelTest` | 编辑收藏：初始分组与类别筛选、自定义收藏分组增删与筛选、删除 / 保存临时分组、存通勤路线自动在「家」里补返程、通勤与家分开筛选、手动生成返程、一次性数据修复只迁一次旧通勤并记版本；ViewModel 清掉时把进程级的选中收藏分组一起清掉 | commonTest（JVM；iOS 只编译和链接测试，不跑） |
+| `:feature:favorites` `ui/screens/favoritesgroup` | `FavoritesGroupNavigationEventTest` | 分组编辑弹窗：没改动直接关，有改动时点取消 / 按返回键弹放弃确认 | Robolectric Compose UI |
+|  | `TransitGroupCardTrackingTest` | 分组卡片跟车各阶段：未追踪显示首程大字和第二程预计上车时间；等车显示阶段徽标、「我上车了」和「在这」；乘车临近换乘显示下车大字、下一程实时和信号丢失 | Robolectric Compose UI |
+| `:feature:me` `ui/screens/more` | `MoreViewModelTest` | 设置项读写（数据源只有车来了 / 掌上公交二选一、附近站数量夹在范围内、乘车码偏好）、实时通知开关、锁屏显示默认开、定时提醒开关 / 删除；高德 Key 两槽各写各的、清空一槽不动另一槽（两槽都空时底栏没有「路线规划」）、区块状态文字三种 | commonTest（JVM；iOS 只编译和链接测试，不跑） |
+|  | `AboutViewModelTest` | 关于页更新检查：初始空闲、有更新 / 已最新 / 出错、关弹窗回空闲 | commonTest（JVM；iOS 只编译和链接测试，不跑） |
+| `:composeApp` `ui/navigation` | `NavigationFlowTest` | D2 底栏「路线规划」：有 / 无 Key、只有 Web Key、只有 Android Key、只有构建时 Key 时显示与否；停在该页签时 Key 被清空回首页并清栈；恢复到该页签但已无 Key 时回首页；后来填了 Key 页签出现但不切过去 | Robolectric Compose UI |
+| `:composeApp` `ui/screens/favoritesgroup` | `FavoritesGroupScreenTest` | 旧收藏页：多线路直达和多程换乘卡片只显示线路胶囊、点胶囊切候选线、同站换乘（步行 0）、分组新建与删除、快速新建分组胶囊、临时追踪置顶卡片且菜单里只有「保存」 | Robolectric Compose UI |
+
+`:core:domain`、`:core:navigation`、`:core:network`、`:core:data`、`:core:database`、`:core:datastore` 和 `:core:testing` 的测试类（`:core:navigation` 单跑：`./gradlew :core:navigation:testAndroidHostTest`；网络测试一律用 Ktor `MockEngine`，不发真实 HTTP）：
 
 | 模块 / 目录 | 测试类 | 覆盖范围 | 运行方式 |
 | :--- | :--- | :--- | :--- |
@@ -101,9 +132,9 @@ Koin 由 `TrackrApp.onCreate` 启动，Robolectric 用例里每个用例都会�
 | `:core:domain` `math` | `CoordTransformTest` | WGS-84 / GCJ-02 坐标转换 | commonTest（JVM + iOS 模拟器） |
 | `:core:domain` `tracking` | `TrackingEngineTest` | 追踪状态机：单线路选车、换车重置提醒、车辆短暂消失保持原车；路线两阶段（候车锁车、乘车到站、信号丢失）；定位跟车检测（待确认、上车、没赶上、超时兜底、错锁纠正）与定位档位；自适应轮询间隔与失败退避；下车站判定（含 WGS-84 转 GCJ-02）；开始 / 换乘切程（代际号 +1、只发换乘提醒）/ 走完结束 / 手动下一程 / 我上车了 / 改提醒站数；服务定位过滤；一起等（第 15 步，`watch_*`）：多线取最快、先后变化、到站提醒每辆一次、没定位不自动判上车、只有一辆在站、两辆在站定位分得清不弹窗 / 分不清或没定位写 `boardChoice`、选车与「还没上」、`boardChoice` 5 分钟清掉或被定位分清、手动上车按 A..A+1 最近、锁不到后续补锁并以终点为目标、某线无数据、10 条线等车阶段只发 1 次站点请求、有定位自动判上车且待确认只请求在站的线、只有 1 程无下车站到终点结束、上车后旧结果丢弃 | commonTest（JVM + iOS 模拟器） |
 | `:core:domain` 根目录 | `JvmParityTest` | 第 7 步换掉的 JVM API 与新写法逐个比对：公里数格式化、角度转弧度（逐位相同）、两种测距公式、分钟取整、提醒时刻格式化 | androidHostTest（只 JVM） |
-| `:core:navigation` | `NavigatorTest` | `Navigator` 纯逻辑：栈顶去重压栈、逐页返回、非首页页签根页返回回首页、首页根页返回交给系统；切页签保留各自的栈、再点当前页签回根并发 `reselect`；`openInTab`（通知 / 小组件跳详情）去重防重放；页签隐藏时清栈回首页；`isShowingRootOf`（首页轮询条件）；`stacksShown`（叠放起始页签 / 只显示当前页签）；`TopLevel.visibleTabs` 没 Key 时只去掉「路线规划」 | commonTest（JVM + iOS 模拟器） |
+| `:core:navigation` | `NavigatorTest` | `Navigator` 纯逻辑：栈顶去重压栈、逐页返回、非首页页签根页返回回首页、首页根页返回交给系统；切页签保留各自的栈、再点当前页签回根并发 `reselect`；`openInTab`（通知 / 小组件跳详情）去重防重放；`showInTab`（规划页去收藏：栈里已有就退到它、没有就回根再压，不叠重复页）；页签隐藏时清栈回首页；`isShowingRootOf`（首页轮询条件）；`stacksShown`（叠放起始页签 / 只显示当前页签）；`TopLevel.visibleTabs` 没 Key 时只去掉「路线规划」；第 17 步起 3 个页签，「收藏」不能再当页签切、作为首页栈的子页打开，`popChildPage` 只在当前栈里退、根页不切页签 | commonTest（JVM + iOS 模拟器） |
 |  | `NavigationKeyTest` | `ScreenKey` 用 JSON 序列化与反序列化（第 16 步从 `:androidApp` 搬来） | commonTest（JVM + iOS 模拟器） |
-|  | `NavigationStateRestorationTest` | `StateRestorationTester` 模拟进程重建后 4 条栈和当前页签、页内 `rememberSaveable` 都恢复；切页签不丢另一条栈的页内状态和 ViewModel、弹出页面只清它自己的 ViewModel；`TrackrSavedStateConfiguration` 登记了全部 `ScreenKey`，默认配置存不了 | Robolectric Compose UI（只 JVM） |
+|  | `NavigationStateRestorationTest` | `StateRestorationTester` 模拟进程重建后 3 条栈和当前页签、页内 `rememberSaveable` 都恢复；存档后页签少了一个（4 → 3）时每条栈仍归原页签、不按位置错给「更多」；切页签不丢另一条栈的页内状态和 ViewModel、弹出页面只清它自己的 ViewModel；`TrackrSavedStateConfiguration` 登记了全部 `ScreenKey`，默认配置存不了 | Robolectric Compose UI（只 JVM） |
 | `:core:network` `json` | `JsonCompatTest` | 和 org.json 同规则的只读 JSON：optString / optInt / optDouble / optBoolean / opt 的取值与默认值 | commonTest（JVM + iOS 模拟器） |
 |  | `JsonCompatParityTest` | 同一段 JSON 每个字段分别用兼容层和真正的 org.json 取值，结果逐个相同 | androidHostTest（只 JVM） |
 | `:core:network` `remote/common` | `BaseTransitApiClientTest` | 地铁站名识别、距离计算、车牌清洗；HTTP/JSON 执行封装、异常信息不带 query、协程取消时底层请求一起取消、20 秒总超时（换成小值验证）且超时消息不带 key | commonTest（JVM + iOS 模拟器） |
@@ -123,6 +154,7 @@ Koin 由 `TrackrApp.onCreate` 启动，Robolectric 用例里每个用例都会�
 |  | `RealtimeRepositoryLineDetailCacheTest` | 线路详情同 key 并发只请求一次上游、TTL 内复用与过期重拉、目标站顺序不同算不同 key、失败不缓存、取消的调用方不影响其他等待者 | commonTest（JVM + iOS 模拟器） |
 |  | `LocationRepositoryTest` | 首页取定位：够新够准直接用、强制刷新 10 秒 / 平时 60 秒、4.5 秒窗口取最准且 ≤100 m 提前结束、超过 10 分钟的旧定位不用、无权限不定位；规划页 lastKnown 取 10 分钟内最准的 | commonTest（JVM + iOS 模拟器） |
 |  | `CountyLevelCityMatchTest` | 县级市/县城匹配与省份校验 | commonTest（JVM + iOS 模拟器） |
+| `:core:data` `route` | `RoutePlanRepositoryTest` | `DefaultRoutePlanRepository` 缓存（第 17 步）：同城、同坐标、同一 15 分钟时间桶的算路命中缓存，跨时间桶重新算；输入提示按城市 + 关键字缓存，空结果不缓存 | commonTest（JVM + iOS 模拟器） |
 | `:core:data` `repository` | `FavoritesRepositoryTest` | 收藏合一（第 14 步）在 Room 内存库上：车和路线合并排序（新车在最前、新路线在最后）、拖动排序（跨类型、只给几条）、改分组、删分组后车和路线都变不分组、旧数据迁入后顺序和分组不变、启动对账（删孤儿行、补缺的）、默认分组、清理假数据、并发写不丢 | Robolectric（只 JVM） |
 | `:core:data` | `TrackrDatabaseMigrationTest` | 库 1 -> 2：按 `schemas/.../1.json` 手工建版本 1 的库再用正式 builder 打开，`favorite_item` 按原顺序生成（车在前、路线按 sortOrder），分组按收藏页原来的规则补，旧表一行不变，仓库读出的顺序和分组和升级前一样；空库、重开 | Robolectric（只 JVM） |
 | `:core:data` `legacy` | `LegacyLibraryMigrationTest` | 旧 SharedPreferences -> Room / DataStore：每个旧 key 一条（收藏、搜索历史、路线、收藏分组、收藏合一索引 `favorite_items_json`、提醒 + 计划触发时刻、6 个设置（聚合优先级不导入）、两个 Key 槽，含 0a4fdab 之前存在 `trackr_prefs` 的 Key 与「Key 文件优先」）；旧文件前后一字不差；损坏 JSON 不崩、只跳过那一项、原文复制到 `legacy_backup/`；已有 `_corrupt_backup_` 原样复制；同一代只跑一次、换代只替换旧文件里有的项；库重建后重新导入 | Robolectric（只 JVM） |
@@ -144,14 +176,22 @@ Koin 由 `TrackrApp.onCreate` 启动，Robolectric 用例里每个用例都会�
 ### 运行特定 ViewModel 测试
 
 ```bash
-./gradlew :androidApp:testDebugUnitTest --tests "com.trackr.ui.screens.linedetail.LineDetailViewModelTest"
-./gradlew :androidApp:testDebugUnitTest --tests "com.trackr.ui.screens.home.HomeViewModelTest"
+./gradlew :feature:line:testAndroidHostTest --tests "com.trackr.ui.screens.linedetail.LineDetailViewModelTest"
+./gradlew :feature:bus:testAndroidHostTest --tests "com.trackr.ui.screens.home.HomeViewModelTest"
 ```
 
 ### 运行 Compose UI 测试
 
 ```bash
-./gradlew :androidApp:testDebugUnitTest --tests "com.trackr.ui.components.ExpressiveRouteRailUiTest"
+./gradlew :feature:line:testAndroidHostTest --tests "com.trackr.ui.components.ExpressiveRouteRailUiTest"
+./gradlew :androidApp:testDebugUnitTest --tests "com.trackr.TrackrAppNavigationTest"
+```
+
+### 功能模块的 iOS 检查
+
+```bash
+./gradlew :feature:bus:compileKotlinIosSimulatorArm64
+./gradlew :feature:bus:linkDebugTestIosSimulatorArm64
 ```
 
 ### 生成 JaCoCo 代码覆盖率报告

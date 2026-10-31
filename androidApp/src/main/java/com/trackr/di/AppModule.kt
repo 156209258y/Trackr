@@ -20,21 +20,17 @@ import com.trackr.core.domain.platform.ReminderAlarms
 import com.trackr.core.domain.platform.TrackingController
 import com.trackr.core.domain.platform.UpdateChecker
 import com.trackr.core.domain.tracking.TrackingEngine
-import com.trackr.core.navigation.ScreenKey
 import com.trackr.core.network.provider.chelaile.ChelaileTransitProvider
 import com.trackr.core.network.provider.mygolbs.MygolbsTransitProvider
 import com.trackr.core.network.remote.amap.AmapTransitApiClient
 import com.trackr.core.network.remote.chelaile.ChelaileApiClient
 import com.trackr.core.network.remote.common.createTrackrHttpClient
 import com.trackr.core.network.remote.mygolbs.MygolbsApiClient
+import com.trackr.app.di.trackrModules
 import com.trackr.data.local.StorageBackend
-import com.trackr.core.data.local.StoreMigrationFlags
 import com.trackr.data.location.AndroidLocationSource
 import com.trackr.data.location.AndroidMonotonicClock
-import com.trackr.data.remote.amap.AmapSdkKeyApplier
 import com.trackr.data.remote.amap.AmapSdkKeySync
-import com.trackr.data.remote.amap.AmapSdkTransitService
-import com.trackr.data.remote.amap.AndroidAmapSdkKeyApplier
 import com.trackr.data.remote.update.GithubUpdateChecker
 import com.trackr.data.repository.IRouteGroupRepository
 import com.trackr.data.repository.IScheduledReminderRepository
@@ -45,12 +41,6 @@ import com.trackr.data.repository.TransitRepository
 import com.trackr.service.AndroidTrackingController
 import com.trackr.service.ArrivalAlertNotifier
 import com.trackr.service.LiveProgressNotifier
-import com.trackr.ui.screens.favoritesgroup.FavoritesGroupViewModel
-import com.trackr.ui.screens.home.HomeViewModel
-import com.trackr.ui.screens.linedetail.LineDetailViewModel
-import com.trackr.ui.screens.more.AboutViewModel
-import com.trackr.ui.screens.more.MoreViewModel
-import com.trackr.ui.screens.stopdetail.StopDetailViewModel
 import com.trackr.util.ReminderAlarmScheduler
 import com.trackr.util.ReminderScheduleState
 import com.trackr.widget.FavoritesShortcutWidgetSync
@@ -59,10 +49,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
-import org.koin.android.ext.koin.androidApplication
 import org.koin.android.ext.koin.androidContext
 import org.koin.core.module.Module
-import org.koin.core.module.dsl.viewModel
 import org.koin.core.qualifier.named
 import org.koin.dsl.module
 import org.koin.dsl.onClose
@@ -161,7 +149,7 @@ val appModule: Module = module {
     single<LocationSource> { AndroidLocationSource(androidContext()) }
     single<LocationRepository> { DefaultLocationRepository(source = get(), clock = get()) }
     single<TrackingController> { AndroidTrackingController(androidContext(), get()) }
-    single<AmapSdkKeyApplier> { AndroidAmapSdkKeyApplier(androidContext()) }
+    // AmapSdkKeyApplier（把 Key 注入高德 SDK）第 17 步随 SDK 封装挪到 :feature:route 的 routeAndroidModule
     // 用户改了 Android Key 就重新注入 SDK（第 11 步：Key 对话框在「更多」页，不再由规划页 VM 注入）
     single { AmapSdkKeySync(get(), get(), get(AppScopeQualifier)) }
 
@@ -169,60 +157,8 @@ val appModule: Module = module {
     factory<UpdateChecker> { GithubUpdateChecker(get()) }
 }
 
-/** 6 个 ViewModel。带参数的页面用 `parametersOf(key)` 传入导航 key */
-val viewModelModule: Module = module {
-    viewModel {
-        HomeViewModel(
-            repository = get(),
-            locationRepository = get(),
-            trackingRepository = get(),
-            trackingController = get()
-        )
-    }
-    viewModel {
-        val context = androidContext()
-        FavoritesGroupViewModel(
-            groupRepository = get(),
-            transitRepository = get(),
-            coordinator = get(),
-            amapApiClient = get(),
-            amapSdkService = runCatching { AmapSdkTransitService(context) }.getOrNull(),
-            migrationFlags = StoreMigrationFlags(get()),
-            amapKeys = get(),
-            locationRepository = get(),
-            trackingRepository = get(),
-            trackingController = get()
-        )
-    }
-    viewModel { (key: ScreenKey.LineDetail) ->
-        LineDetailViewModel(
-            cityId = key.cityId,
-            initialLineId = key.lineId,
-            initialTargetOrder = key.targetOrder.takeIf { it > 0 },
-            initialStationId = key.stopId.takeIf { it.isNotBlank() },
-            initialSource = key.source,
-            lineNameHint = key.lineName,
-            repository = get(),
-            reminderRepository = get(),
-            trackingRepository = get(),
-            trackingController = get()
-        )
-    }
-    viewModel { (key: ScreenKey.StopDetail) ->
-        StopDetailViewModel(
-            cityId = key.cityId,
-            stopId = key.stopId,
-            initialStopName = key.stopName,
-            physicalStId = key.physicalStId,
-            namesakeStId = key.namesakeStId,
-            stationLat = key.lat,
-            stationLng = key.lng,
-            repository = get()
-        )
-    }
-    viewModel { MoreViewModel(androidApplication(), get(), get(), get()) }
-    viewModel { AboutViewModel(androidApplication(), get()) }
-}
-
-/** 启动时装载的全部 Koin 模块；`KoinGraphVerifyTest` 逐个校验 */
-val appModules: List<Module> = listOf(appModule, viewModelModule)
+/**
+ * 启动时装载的全部 Koin 模块；`KoinGraphVerifyTest` 逐个校验。
+ * 第 17 步：原来的 viewModelModule 拆进各功能模块（`:composeApp` 的 [trackrModules]），页面要的 Android 能力在 [platformBridgeModule]。
+ */
+val appModules: List<Module> = listOf(appModule, platformBridgeModule) + trackrModules

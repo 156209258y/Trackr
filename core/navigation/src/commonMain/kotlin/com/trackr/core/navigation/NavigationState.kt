@@ -5,16 +5,22 @@ import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.rememberSerializable
+import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
 import androidx.navigation3.runtime.NavBackStack
 import androidx.navigation3.runtime.NavEntry
 import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.rememberDecoratedNavEntries
-import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
+import androidx.navigation3.runtime.serialization.NavBackStackSerializer
+import androidx.savedstate.SavedState
 import androidx.savedstate.serialization.SavedStateConfiguration
+import androidx.savedstate.serialization.decodeFromSavedState
+import androidx.savedstate.serialization.encodeToSavedState
+import kotlinx.serialization.PolymorphicSerializer
 
 /**
  * 记住导航状态：每个顶层页签一条返回栈 + 当前页签，都能跨配置变更和进程重建恢复（§3.3、§3.8）。
@@ -33,8 +39,33 @@ fun rememberNavigationState(
         stateSerializer = ScreenKey.serializer(),
         configuration = configuration,
     ) { mutableStateOf(start) }
-    val stacks = topLevel.associateWith { tab -> rememberNavBackStack(configuration, tab) }
+    // 升级前恢复出来的当前页签可能已经不是页签了（第 17 步删了「收藏」页签）：回到起始页签
+    remember(current, topLevel) {
+        if (current.value !in topLevel) current.value = start
+    }
+    // 每条栈用页签名作存档 key，不按调用位置。第 17 步页签从 4 个变 3 个，按位置存的话旧版存下的第 3 条（收藏）会被「更多」拿走
+    val stackSaver = remember(configuration) { navBackStackSaver(configuration) }
+    val stacks = topLevel.associateWith { tab ->
+        rememberSaveable(saver = stackSaver, key = "trackr.tabStack.$tab") { NavBackStack<NavKey>(tab) }.also { stack ->
+            // 兜底：恢复出来的栈底不是这个页签（旧版存档、页签改动）就丢掉，从页签根页重来
+            remember(stack) {
+                if (stack.firstOrNull() != tab) {
+                    stack.clear()
+                    stack.add(tab)
+                }
+            }
+        }
+    }
     return remember(start, topLevel, current, stacks) { NavigationState(start, current, stacks) }
+}
+
+/** 一条返回栈和 [SavedState] 互转（和 `rememberNavBackStack` 用的序列化一样，只是存档 key 由调用方给） */
+private fun navBackStackSaver(configuration: SavedStateConfiguration): Saver<NavBackStack<NavKey>, SavedState> {
+    val serializer = NavBackStackSerializer(PolymorphicSerializer(NavKey::class))
+    return Saver(
+        save = { stack -> encodeToSavedState(serializer, stack, configuration) },
+        restore = { saved -> decodeFromSavedState(serializer, saved, configuration) },
+    )
 }
 
 /**
@@ -77,7 +108,7 @@ class NavigationState(
     fun stacksShown(startUnderneath: Boolean): List<ScreenKey> =
         if (startUnderneath) stacksInUse else listOf(topLevel)
 
-    /** 「当前页签是 [tab]，且它停在根页」。首页轮询开关用（`shouldPollHome`）。 */
+    /** 「当前页签是 [tab]，且它停在根页」（第 16 步首页轮询开关用过；第 17 步起轮询改由首页 Route 的生命周期控制） */
     fun isShowingRootOf(tab: ScreenKey): Boolean =
         topLevel == tab && stacks[tab]?.lastOrNull() == tab
 

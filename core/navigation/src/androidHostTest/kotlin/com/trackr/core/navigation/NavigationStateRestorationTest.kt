@@ -55,6 +55,7 @@ class NavigationStateRestorationTest {
     private val oneOfEachKey: List<ScreenKey> = listOf(
         ScreenKey.Home, ScreenKey.RoutePlan, ScreenKey.FavoritesGroup, ScreenKey.Search,
         line49, stop, ScreenKey.More, ScreenKey.About,
+        ScreenKey.RouteDetail(groupId = "g1"), ScreenKey.FavoritesEdit,
     )
 
     class PageViewModel : ViewModel() {
@@ -71,8 +72,8 @@ class NavigationStateRestorationTest {
     private val viewModels = mutableMapOf<NavKey, PageViewModel>()
 
     @Composable
-    private fun Host() {
-        val navigationState = rememberNavigationState()
+    private fun Host(tabs: List<ScreenKey> = TopLevel.tabs) {
+        val navigationState = rememberNavigationState(topLevel = tabs)
         val nav = remember(navigationState) { Navigator(navigationState) }
         SideEffect {
             state = navigationState
@@ -131,6 +132,34 @@ class NavigationStateRestorationTest {
         act { navigator.back(); navigator.back() }
         assertEquals(ScreenKey.Home, state.topLevel)
         assertEquals(line49, state.currentKey)
+    }
+
+    @Test
+    fun emulatedRestore_afterTabRemoved_eachStackStaysWithItsTab() {
+        // 第 17 步前是 4 个页签（收藏在第 3 位）；存档后页签少了一个，「更多」不能拿到收藏那条栈
+        val fourTabs = listOf(ScreenKey.Home, ScreenKey.RoutePlan, ScreenKey.FavoritesGroup, ScreenKey.More)
+        var tabs = fourTabs
+        val restorationTester = StateRestorationTester(composeTestRule)
+        restorationTester.setContent { Host(tabs) }
+
+        act {
+            navigator.open(line49)
+            navigator.selectTab(ScreenKey.FavoritesGroup)
+            navigator.open(stop)
+            navigator.selectTab(ScreenKey.More)
+            navigator.open(ScreenKey.About)
+            navigator.selectTab(ScreenKey.FavoritesGroup)
+        }
+
+        tabs = TopLevel.tabs
+        restorationTester.emulateSavedInstanceStateRestore()
+        composeTestRule.waitForIdle()
+
+        assertEquals(TopLevel.tabs.toSet(), state.stacks.keys)
+        assertEquals("当前页签已不存在：回起始页签", ScreenKey.Home, state.topLevel)
+        assertEquals(listOf<NavKey>(ScreenKey.Home, line49), state.stacks.getValue(ScreenKey.Home).toList())
+        assertEquals(listOf<NavKey>(ScreenKey.RoutePlan), state.stacks.getValue(ScreenKey.RoutePlan).toList())
+        assertEquals(listOf<NavKey>(ScreenKey.More, ScreenKey.About), state.stacks.getValue(ScreenKey.More).toList())
     }
 
     @Test
@@ -223,5 +252,7 @@ class NavigationStateRestorationTest {
             is ScreenKey.StopDetail -> ScreenKey.StopDetail.serializer()
             ScreenKey.More -> ScreenKey.More.serializer()
             ScreenKey.About -> ScreenKey.About.serializer()
+            is ScreenKey.RouteDetail -> ScreenKey.RouteDetail.serializer()
+            ScreenKey.FavoritesEdit -> ScreenKey.FavoritesEdit.serializer()
         }.descriptor.serialName
 }

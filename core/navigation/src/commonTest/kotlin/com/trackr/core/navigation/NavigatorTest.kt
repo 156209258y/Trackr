@@ -34,11 +34,12 @@ class NavigatorTest {
     )
 
     @Test
-    fun initialState_startsAtHomeRoot_withFourTabStacks() {
+    fun initialState_startsAtHomeRoot_withThreeTabStacks() {
         val state = newState()
         assertEquals(ScreenKey.Home, state.topLevel)
         assertEquals(ScreenKey.Home, state.currentKey)
         assertTrue(state.isAtTabRoot)
+        assertEquals(listOf(ScreenKey.Home, ScreenKey.RoutePlan, ScreenKey.More), TopLevel.tabs, "第 17 步：3 个页签")
         assertEquals(TopLevel.tabs.toSet(), state.stacks.keys)
         TopLevel.tabs.forEach { tab -> assertEquals(listOf<NavKey>(tab), state.stacks.getValue(tab).toList()) }
         assertEquals(listOf<NavKey>(ScreenKey.Home), state.keysShown())
@@ -114,17 +115,13 @@ class NavigatorTest {
         navigator.open(ScreenKey.About)
         navigator.selectTab(ScreenKey.RoutePlan)
         navigator.open(line49)
-        navigator.selectTab(ScreenKey.FavoritesGroup)
-        navigator.open(line49)
 
         navigator.selectTab(ScreenKey.Home)
         assertEquals(ScreenKey.Search, state.currentKey)
         navigator.selectTab(ScreenKey.More)
         assertEquals(ScreenKey.About, state.currentKey)
         navigator.selectTab(ScreenKey.RoutePlan)
-        assertEquals(line49, state.currentKey)
-        navigator.selectTab(ScreenKey.FavoritesGroup)
-        assertEquals(listOf(ScreenKey.FavoritesGroup, line49), state.currentStack.toList())
+        assertEquals(listOf(ScreenKey.RoutePlan, line49), state.currentStack.toList())
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -152,6 +149,66 @@ class NavigatorTest {
     fun selectTab_unknownTab_isRejected() {
         val navigator = Navigator(newState())
         assertFailsWith<IllegalArgumentException> { navigator.selectTab(ScreenKey.Search) }
+        // 第 17 步「收藏」不再是页签
+        assertFailsWith<IllegalArgumentException> { navigator.selectTab(ScreenKey.FavoritesGroup) }
+    }
+
+    @Test
+    fun favoritesGroup_isChildPageOfHomeTab() {
+        // 首页「管理路线组」：压在首页栈上，返回回首页
+        val state = newState()
+        val navigator = Navigator(state)
+        navigator.open(ScreenKey.FavoritesGroup)
+        assertEquals(listOf<NavKey>(ScreenKey.Home, ScreenKey.FavoritesGroup), state.currentStack.toList())
+        assertFalse(state.isAtTabRoot, "子页不显示底栏")
+        assertTrue(navigator.back())
+        assertEquals(ScreenKey.Home, state.currentKey)
+
+        // 规划页「存入收藏」后去收藏：切到首页页签再压栈
+        navigator.selectTab(ScreenKey.RoutePlan)
+        navigator.showInTab(ScreenKey.Home, ScreenKey.FavoritesGroup)
+        assertEquals(ScreenKey.Home, state.topLevel)
+        assertEquals(listOf<NavKey>(ScreenKey.Home, ScreenKey.FavoritesGroup), state.currentStack.toList())
+        assertEquals(listOf<NavKey>(ScreenKey.RoutePlan), state.stacks.getValue(ScreenKey.RoutePlan).toList())
+    }
+
+    @Test
+    fun showInTab_neverStacksDuplicatesOrOnTopOfOtherChildPages() {
+        val state = newState()
+        val navigator = Navigator(state)
+        val homeStack = state.stacks.getValue(ScreenKey.Home)
+
+        // 首页栈停在线路详情：去收藏先回根，不叠成 [Home, LineDetail, FavoritesGroup]
+        navigator.open(line49)
+        navigator.selectTab(ScreenKey.RoutePlan)
+        navigator.showInTab(ScreenKey.Home, ScreenKey.FavoritesGroup)
+        assertEquals(listOf<NavKey>(ScreenKey.Home, ScreenKey.FavoritesGroup), homeStack.toList())
+
+        // 收藏页上又开了线路详情：再去收藏退回已有的收藏页，不压第二个
+        navigator.open(line49)
+        navigator.selectTab(ScreenKey.RoutePlan)
+        navigator.showInTab(ScreenKey.Home, ScreenKey.FavoritesGroup)
+        assertEquals(ScreenKey.Home, state.topLevel)
+        assertEquals(listOf<NavKey>(ScreenKey.Home, ScreenKey.FavoritesGroup), homeStack.toList())
+
+        // 已在栈顶：不变
+        navigator.showInTab(ScreenKey.Home, ScreenKey.FavoritesGroup)
+        assertEquals(listOf<NavKey>(ScreenKey.Home, ScreenKey.FavoritesGroup), homeStack.toList())
+        assertFailsWith<IllegalArgumentException> { navigator.showInTab(ScreenKey.Search, line49) }
+    }
+
+    @Test
+    fun popChildPage_popsOnlyWithinCurrentStack() {
+        val state = newState()
+        val navigator = Navigator(state)
+        navigator.selectTab(ScreenKey.More)
+        navigator.open(ScreenKey.About)
+
+        navigator.popChildPage()
+        assertEquals(ScreenKey.More, state.currentKey)
+        navigator.popChildPage() // 已在根页：不切页签（和系统返回不同）
+        assertEquals(ScreenKey.More, state.topLevel)
+        assertEquals(listOf<NavKey>(ScreenKey.More), state.currentStack.toList())
     }
 
     @Test
@@ -212,7 +269,7 @@ class NavigatorTest {
         navigator.selectTab(ScreenKey.RoutePlan)
         navigator.open(line49)
 
-        navigator.onTabsChanged(setOf(ScreenKey.Home, ScreenKey.FavoritesGroup, ScreenKey.More))
+        navigator.onTabsChanged(setOf(ScreenKey.Home, ScreenKey.More))
 
         assertEquals(ScreenKey.Home, state.topLevel)
         assertEquals(ScreenKey.Search, state.currentKey, "起始页签的栈保留")
@@ -254,7 +311,7 @@ class NavigatorTest {
     fun visibleTabs_withoutMapKey_dropsOnlyRoutePlan_keepingOrder() {
         assertEquals(TopLevel.tabs, TopLevel.visibleTabs(hasMapKey = true))
         assertEquals(
-            listOf(ScreenKey.Home, ScreenKey.FavoritesGroup, ScreenKey.More),
+            listOf(ScreenKey.Home, ScreenKey.More),
             TopLevel.visibleTabs(hasMapKey = false)
         )
         assertTrue(TopLevel.start in TopLevel.visibleTabs(hasMapKey = false), "起始页签总在")

@@ -23,6 +23,8 @@ val TrackrSavedStateConfiguration: SavedStateConfiguration = SavedStateConfigura
             subclass(ScreenKey.StopDetail.serializer())
             subclass(ScreenKey.More.serializer())
             subclass(ScreenKey.About.serializer())
+            subclass(ScreenKey.RouteDetail.serializer())
+            subclass(ScreenKey.FavoritesEdit.serializer())
         }
     }
 }

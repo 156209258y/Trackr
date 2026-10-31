@@ -1,9 +1,9 @@
 package com.trackr
 
 import android.app.Application
+import com.trackr.core.domain.platform.MapSdkInitializer
 import com.trackr.data.local.StorageBackend
 import com.trackr.data.remote.amap.AmapSdkKeySync
-import com.trackr.data.remote.amap.AmapSdkManager
 import com.trackr.data.repository.IRouteGroupRepository
 import com.trackr.data.repository.IScheduledReminderRepository
 import com.trackr.data.repository.ITransitRepository
@@ -28,8 +28,13 @@ class TrackrApp : Application() {
 
         // 高德 SDK 必须在任何地图/搜索/定位实例创建之前完成隐私合规与 Key 注入，
         // 否则首次进入路线规划页会因未鉴权而只显示空白底图。Key 从存储读，所以放在存储打开之后
+        // （SDK 封装第 17 步搬进 :feature:route，经 MapSdkInitializer 调；构建时的 Key 从这里传进去）
         runCatching {
-            AmapSdkManager.initialize(applicationContext, storage.amapKeys.androidKey.value)
+            get<MapSdkInitializer>().initialize(
+                userAndroidKey = storage.amapKeys.androidKey.value,
+                builtInAndroidKey = BuildConfig.AMAP_ANDROID_KEY,
+                builtInWebKey = BuildConfig.AMAP_WEB_KEY
+            )
         }
         // 之后用户在「更多」页改 Android Key 时重新注入
         get<AmapSdkKeySync>().start()

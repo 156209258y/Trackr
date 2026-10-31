@@ -91,6 +91,10 @@ compose-mp-runtime-saveable = { group = "org.jetbrains.compose.runtime", name = 
 compose-mp-animation = { group = "org.jetbrains.compose.animation", name = "animation", version.ref = "composeMultiplatform" }
 jetbrains-navigation3-ui = { group = "org.jetbrains.androidx.navigation3", name = "navigation3-ui", version.ref = "navigation3Multiplatform" }
 jetbrains-lifecycle-viewmodel-navigation3 = { group = "org.jetbrains.androidx.lifecycle", name = "lifecycle-viewmodel-navigation3", version.ref = "lifecycleMultiplatform" }
+# 第 17 步：feature 的 ViewModel 进 commonMain（KMP 版 lifecycle；Android 上解析成同版本的 androidx 库）
+jetbrains-lifecycle-viewmodel = { group = "org.jetbrains.androidx.lifecycle", name = "lifecycle-viewmodel", version.ref = "lifecycleMultiplatform" }
+jetbrains-lifecycle-viewmodel-compose = { group = "org.jetbrains.androidx.lifecycle", name = "lifecycle-viewmodel-compose", version.ref = "lifecycleMultiplatform" }
+jetbrains-lifecycle-runtime-compose = { group = "org.jetbrains.androidx.lifecycle", name = "lifecycle-runtime-compose", version.ref = "lifecycleMultiplatform" }
 
 # ---- 预留：重构计划后续步骤使用，暂不应用 ----
 # Koin（第 3 步起）

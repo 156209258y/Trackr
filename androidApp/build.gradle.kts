@@ -123,6 +123,9 @@ dependencies {
     implementation(project(":core:navigation"))
     implementation(project(":core:network"))
     implementation(project(":core:data"))
+    // 第 17 步：页面搬进 :composeApp / :feature:*；:core:ui 给出页面要的 Android 能力接口（LiveUpdateSettings）
+    implementation(project(":composeApp"))
+    implementation(project(":core:ui"))
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)
@@ -150,6 +153,14 @@ dependencies {
 
     testImplementation(libs.junit)
     testImplementation(project(":core:testing"))
+    // 第 17 步：页面和 ViewModel 搬进了功能模块；截图测试、Koin 图校验要直接用它们（只在测试里，正式代码只依赖 :composeApp）
+    testImplementation(project(":feature:bus"))
+    testImplementation(project(":feature:search"))
+    testImplementation(project(":feature:stop"))
+    testImplementation(project(":feature:line"))
+    testImplementation(project(":feature:route"))
+    testImplementation(project(":feature:favorites"))
+    testImplementation(project(":feature:me"))
     testImplementation(libs.ktor.client.mock)
     testImplementation(platform(libs.koin.bom))
     testImplementation(libs.koin.test)
