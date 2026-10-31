@@ -68,8 +68,14 @@ fun GroupEditDialog(
     }
 
     var groupName by remember { mutableStateOf(initialName) }
-    var selectedCategory by remember { mutableStateOf(initialCategory) }
     var selectedCustomGroupId by remember { mutableStateOf(initialCustomGroupId) }
+
+    // 场景（GroupCategory）不再给用户选（第 14 步）：选「上班通勤」分组就是通勤，其余沿用原来的场景，原来是通勤的改成自定义
+    val derivedCategory = if (selectedCustomGroupId == "commute") {
+        GroupCategory.COMMUTE
+    } else {
+        initialGroup?.category?.takeIf { it != GroupCategory.COMMUTE } ?: GroupCategory.CUSTOM
+    }
 
     var from1 by remember { mutableStateOf(initialFrom1) }
     var to1 by remember { mutableStateOf(initialTo1) }
@@ -83,7 +89,6 @@ fun GroupEditDialog(
     var showValidationError by remember { mutableStateOf(false) }
 
     val isDirty = groupName != initialName ||
-        selectedCategory != initialCategory ||
         selectedCustomGroupId != initialCustomGroupId ||
         from1 != initialFrom1 ||
         to1 != initialTo1 ||
@@ -148,12 +153,7 @@ fun GroupEditDialog(
                         favoriteGroups.forEach { fg ->
                             FilterChip(
                                 selected = selectedCustomGroupId == fg.id,
-                                onClick = {
-                                    selectedCustomGroupId = fg.id
-                                    if (fg.id == "commute") {
-                                        selectedCategory = GroupCategory.COMMUTE
-                                    }
-                                },
+                                onClick = { selectedCustomGroupId = fg.id },
                                 label = { Text(fg.name) }
                             )
                         }
@@ -161,23 +161,7 @@ fun GroupEditDialog(
                     Spacer(modifier = Modifier.height(8.dp))
                 }
 
-                Text("所属场景", style = MaterialTheme.typography.labelMedium)
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    GroupCategory.entries.filter { it != GroupCategory.TEMPORARY }.forEach { cat ->
-                        FilterChip(
-                            selected = selectedCategory == cat,
-                            onClick = { selectedCategory = cat },
-                            label = { Text(cat.displayName) }
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(4.dp))
                 Text("第 1 程路线", style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold))
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     OutlinedTextField(
@@ -319,14 +303,14 @@ fun GroupEditDialog(
 
                     val updated = initialGroup?.copy(
                         name = finalName,
-                        category = selectedCategory,
+                        category = derivedCategory,
                         customGroupId = selectedCustomGroupId,
                         legs = if (legs.isNotEmpty()) legs else initialGroup.legs,
                         updatedAt = System.currentTimeMillis()
                     ) ?: TransitGroup(
                         id = UUID.randomUUID().toString(),
                         name = finalName,
-                        category = selectedCategory,
+                        category = derivedCategory,
                         customGroupId = selectedCustomGroupId,
                         legs = legs
                     )

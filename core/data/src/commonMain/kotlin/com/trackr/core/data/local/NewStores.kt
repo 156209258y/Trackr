@@ -7,17 +7,14 @@ import com.trackr.core.database.TrackrDatabase
 import com.trackr.core.database.entity.SearchHistoryEntity
 import com.trackr.core.datastore.AmapKeyKeys
 import com.trackr.core.datastore.SettingsKeys
-import com.trackr.core.model.FavoriteGroup
-import com.trackr.core.model.FavoriteStationLine
 import com.trackr.core.model.ScheduledReminder
-import com.trackr.core.model.TransitGroup
 import kotlinx.coroutines.flow.first
 
 /*
  * 新存储（USE_NEW_STORE 打开时用）：列表类进 Room，设置和高德 Key 进 DataStore（重构计划 §2.4）。
  */
 
-/** 设置在 `trackr_settings`，收藏的车和搜索历史在 Room */
+/** 设置在 `trackr_settings`，搜索历史在 Room（收藏的车第 14 步挪到 [RoomFavoritesStore]） */
 class RoomDataStoreTransitStore(
     private val db: TrackrDatabase,
     private val settings: DataStore<Preferences>
@@ -32,7 +29,6 @@ class RoomDataStoreTransitStore(
             nearbyStopsCount = prefs[SettingsKeys.NEARBY_STOPS_COUNT],
             liveNotificationEnabled = prefs[SettingsKeys.LIVE_NOTIFICATION_ENABLED],
             showOnLockScreen = prefs[SettingsKeys.SHOW_ON_LOCK_SCREEN],
-            favorites = db.favoriteLines().getAll().map { it.toModel() },
             searchHistory = db.searchHistory().getAll().map { it.query }
         )
     }
@@ -61,10 +57,6 @@ class RoomDataStoreTransitStore(
         settings.edit { it[SettingsKeys.SHOW_ON_LOCK_SCREEN] = enabled }
     }
 
-    override suspend fun saveFavorites(list: List<FavoriteStationLine>) {
-        db.favoriteLines().replaceAll(list.mapIndexed { index, item -> item.toEntity(index) })
-    }
-
     override suspend fun saveSearchHistory(list: List<String>) {
         // 旧版按不分大小写去重，主键是原文，这里再按原文去一次重，防止主键冲突时后面的覆盖前面的位置
         db.searchHistory().replaceAll(list.distinct().mapIndexed { index, query -> SearchHistoryEntity(query, index) })
@@ -82,31 +74,32 @@ class RoomDataStoreTransitStore(
     }
 }
 
-/** 路线（route / route_leg / route_candidate_line）和收藏分组（favorite_group） */
-class RoomRouteGroupStore(private val db: TrackrDatabase) : RouteGroupStore {
+/**
+ * 收藏合一（第 14 步）：车（favorite_line）、路线（route / route_leg / route_candidate_line）、收藏分组（favorite_group）、
+ * 合一索引（favorite_item）。读在一个事务里，写也在一个事务里（[com.trackr.core.database.dao.FavoritesDao.write]）。
+ *
+ * 车的 `position`、路线的 `position` / `sortOrder` / `customGroupId` 是写入时的镜像；顺序和分组以 favorite_item 为准，
+ * 由仓库读出后套上（DefaultFavoritesRepository）。
+ */
+class RoomFavoritesStore(private val db: TrackrDatabase) : FavoritesStore {
 
-    override suspend fun loadGroups(): List<TransitGroup>? {
-        val rows = db.routes().getAll()
-        return if (rows.isEmpty()) null else rows.map { it.toModel() }
+    override suspend fun load(): FavoritesSnapshot {
+        val rows = db.favorites().loadAll()
+        return FavoritesSnapshot(
+            stops = rows.stops.map { it.toModel() },
+            routes = if (rows.routes.isEmpty()) null else rows.routes.map { it.toModel() },
+            groups = if (rows.groups.isEmpty()) null else rows.groups.map { it.toModel() },
+            items = if (rows.items.isEmpty()) null else rows.items.mapNotNull { it.toRecordOrNull() }
+        )
     }
 
-    override suspend fun loadFavoriteGroups(): List<FavoriteGroup>? {
-        val rows = db.favoriteGroups().getAll()
-        return if (rows.isEmpty()) null else rows.map { it.toModel() }
-    }
-
-    override suspend fun saveGroups(list: List<TransitGroup>) {
-        db.routes().replaceAll(list.mapIndexed { index, group -> group.toRows(index) })
-    }
-
-    override suspend fun saveFavoriteGroups(list: List<FavoriteGroup>) {
-        db.favoriteGroups().replaceAll(list.mapIndexed { index, group -> group.toEntity(index) })
-    }
-
-    override suspend fun saveGroupsAndFavoriteGroups(groups: List<TransitGroup>, favoriteGroups: List<FavoriteGroup>) {
-        db.routes().replaceRoutesAndGroups(
-            rows = groups.mapIndexed { index, group -> group.toRows(index) },
-            groups = favoriteGroups.mapIndexed { index, group -> group.toEntity(index) }
+    override suspend fun write(change: FavoritesWrite) {
+        db.favorites().write(
+            stops = change.stops?.mapIndexed { index, item -> item.toEntity(index) },
+            routes = change.routes?.mapIndexed { index, route -> route.toRows(index) },
+            groups = change.groups?.mapIndexed { index, group -> group.toEntity(index) },
+            items = change.items?.map { it.toEntity() },
+            itemUpdates = change.itemUpdates.map { it.toEntity() }
         )
     }
 }

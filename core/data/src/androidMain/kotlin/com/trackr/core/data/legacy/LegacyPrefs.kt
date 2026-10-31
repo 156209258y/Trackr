@@ -32,6 +32,9 @@ object LegacyPrefs {
     const val KEY_GROUPS = "groups_list_json"
     const val KEY_FAVORITE_GROUPS = "favorite_groups_list_json"
 
+    /** 收藏合一索引（第 14 步起，旧存储模式下才写）：`List<FavoriteItemRecord>` 的 JSON */
+    const val KEY_FAVORITE_ITEMS = "favorite_items_json"
+
     // trackr_scheduled_reminders
     const val KEY_REMINDERS = "reminders_list_json"
 

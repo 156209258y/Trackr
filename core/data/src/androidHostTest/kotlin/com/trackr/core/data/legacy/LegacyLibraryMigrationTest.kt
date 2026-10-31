@@ -4,18 +4,21 @@ import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import com.trackr.core.data.local.RoomDataStoreTransitStore
+import com.trackr.core.data.local.RoomFavoritesStore
 import com.trackr.core.data.local.RoomReminderScheduleStateStore
 import com.trackr.core.data.local.RoomReminderStore
-import com.trackr.core.data.local.RoomRouteGroupStore
 import com.trackr.core.data.local.toEntity
 import com.trackr.core.database.TrackrDatabase
 import com.trackr.core.database.createInMemoryTrackrDatabase
+import com.trackr.core.database.entity.FavoriteItemEntity
 import com.trackr.core.datastore.AmapKeyKeys
 import com.trackr.core.datastore.SettingsKeys
 import com.trackr.core.datastore.TrackrDataStoreFiles
 import com.trackr.core.datastore.createPreferencesDataStore
 import com.trackr.core.datastore.trackrDataStorePath
 import com.trackr.core.model.FavoriteGroup
+import com.trackr.core.model.FavoriteItemRecord
+import com.trackr.core.model.FavoriteItemType
 import com.trackr.core.model.FavoriteStationLine
 import com.trackr.core.model.ScheduledReminder
 import com.trackr.core.model.TransitGroup
@@ -108,7 +111,7 @@ class LegacyLibraryMigrationTest {
         LegacyFixtures.writeAll(context)
         migrate()
         val expected = json.decodeFromString<List<FavoriteStationLine>>(LegacyFixtures.FAVORITES_JSON)
-        assertEquals(expected, RoomDataStoreTransitStore(db, settings).load().favorites)
+        assertEquals(expected, RoomFavoritesStore(db).load().stops)
         assertEquals(listOf("051_100_7", "mg_200_3"), db.favoriteLines().getAll().map { it.id })
     }
 
@@ -124,7 +127,7 @@ class LegacyLibraryMigrationTest {
         LegacyFixtures.writeAll(context)
         migrate()
         val expected = json.decodeFromString<List<TransitGroup>>(LegacyFixtures.GROUPS_JSON)
-        val loaded = RoomRouteGroupStore(db).loadGroups()
+        val loaded = RoomFavoritesStore(db).load().routes
         assertEquals(expected, loaded)
         // 指向不存在分组的路线也照样留着（旧版也这样显示）
         assertEquals("deleted-group", loaded!!.single { it.id == "route-3" }.customGroupId)
@@ -136,7 +139,7 @@ class LegacyLibraryMigrationTest {
         LegacyFixtures.writeAll(context)
         migrate()
         val expected = json.decodeFromString<List<FavoriteGroup>>(LegacyFixtures.FAVORITE_GROUPS_JSON)
-        assertEquals(expected, RoomRouteGroupStore(db).loadFavoriteGroups())
+        assertEquals(expected, RoomFavoritesStore(db).load().groups)
     }
 
     @Test
@@ -244,7 +247,7 @@ class LegacyLibraryMigrationTest {
         assertTrue(report.ran)
         assertTrue(report.imported.isEmpty())
         assertTrue(db.favoriteLines().getAll().isEmpty())
-        assertNull(RoomRouteGroupStore(db).loadFavoriteGroups())
+        assertNull(RoomFavoritesStore(db).load().groups)
         assertNull(settingsNow()[SettingsKeys.SELECTED_CITY_JSON])
         assertEquals(1, settingsNow()[SettingsKeys.LEGACY_MIGRATED])
     }
@@ -272,7 +275,7 @@ class LegacyLibraryMigrationTest {
         // 坏的那项没导，别的照常
         assertTrue(db.favoriteLines().getAll().isEmpty())
         assertTrue(db.reminders().getAll().isEmpty())
-        assertEquals(3, RoomRouteGroupStore(db).loadGroups()!!.size)
+        assertEquals(3, RoomFavoritesStore(db).load().routes!!.size)
         assertEquals(listOf("59", "7路", "万达"), RoomDataStoreTransitStore(db, settings).load().searchHistory)
         // 原文原样复制一份，旧 key 也还在
         assertEquals(corrupt, backupFile("trackr_prefs_favorites_json.json").readText())
@@ -317,6 +320,86 @@ class LegacyLibraryMigrationTest {
         assertEquals("bad-2", backupFile("trackr_prefs_favorites_json_2.json").readText())
     }
 
+    // ---- 收藏合一索引 favorite_items_json（第 14 步） ----
+
+    private val legacyItems = listOf(
+        FavoriteItemRecord(FavoriteItemType.ROUTE, "route-2", groupId = "home", sortOrder = 0),
+        FavoriteItemRecord(FavoriteItemType.STOP, "051_100_7", groupId = "gym", sortOrder = 1),
+        FavoriteItemRecord(FavoriteItemType.ROUTE, "route-1", groupId = null, sortOrder = 2),
+        FavoriteItemRecord(FavoriteItemType.STOP, "mg_200_3", groupId = null, sortOrder = 3)
+    )
+
+    private val preExistingItem = FavoriteItemEntity(id = "stop_kept", type = "STOP", refId = "kept", groupId = "gym", sortOrder = 9)
+
+    @Test
+    fun favoriteItemsJson_present_importedIntoFavoriteItem() = runBlocking {
+        LegacyFixtures.writeAll(context)
+        db.favorites().insertItems(listOf(preExistingItem))
+        // 同一个 key 出现两次：只留第一条
+        val withDuplicate = legacyItems + FavoriteItemRecord(FavoriteItemType.ROUTE, "route-2", groupId = "gym", sortOrder = 7)
+        LegacyFixtures.prefs(context, LegacyPrefs.ROUTE_GROUPS).edit()
+            .putString(LegacyPrefs.KEY_FAVORITE_ITEMS, json.encodeToString(withDuplicate))
+            .commit()
+
+        val report = migrate()
+
+        assertTrue(report.corruptKeys.isEmpty())
+        assertTrue(report.imported.containsKey("favoriteItems"))
+        // 整份替换：库里原来的行不在了
+        assertEquals(
+            listOf(
+                FavoriteItemEntity("route_route-2", "ROUTE", "route-2", "home", 0),
+                FavoriteItemEntity("stop_051_100_7", "STOP", "051_100_7", "gym", 1),
+                FavoriteItemEntity("route_route-1", "ROUTE", "route-1", null, 2),
+                FavoriteItemEntity("stop_mg_200_3", "STOP", "mg_200_3", null, 3)
+            ),
+            db.favorites().getItems()
+        )
+        assertEquals(legacyItems, RoomFavoritesStore(db).load().items)
+    }
+
+    @Test
+    fun favoriteItemsJson_absent_favoriteItemUntouched() = runBlocking {
+        LegacyFixtures.writeAll(context)
+        db.favorites().insertItems(listOf(preExistingItem))
+
+        val report = migrate()
+
+        assertFalse(report.imported.containsKey("favoriteItems"))
+        assertTrue(report.corruptKeys.isEmpty())
+        assertEquals(listOf(preExistingItem), db.favorites().getItems())
+        // 别的项照常导入
+        assertEquals(2, db.favoriteLines().getAll().size)
+        assertEquals(3, RoomFavoritesStore(db).load().routes!!.size)
+    }
+
+    @Test
+    fun favoriteItemsJson_corrupt_skippedAndBackedUp_othersImported() = runBlocking {
+        LegacyFixtures.writeAll(context)
+        db.favorites().insertItems(listOf(preExistingItem))
+        val corrupt = "[{\"type\":\"STOP\",\"refId\":"
+        LegacyFixtures.prefs(context, LegacyPrefs.ROUTE_GROUPS).edit()
+            .putString(LegacyPrefs.KEY_FAVORITE_ITEMS, corrupt)
+            .commit()
+
+        val report = migrate()
+
+        assertEquals(listOf("trackr_route_groups/favorite_items_json"), report.corruptKeys)
+        assertFalse(report.imported.containsKey("favoriteItems"))
+        // 坏的那项不动库里的索引
+        assertEquals(listOf(preExistingItem), db.favorites().getItems())
+        // 原文原样备份，旧 key 也还在
+        assertEquals(corrupt, backupFile("trackr_route_groups_favorite_items_json.json").readText())
+        assertEquals(corrupt, LegacyFixtures.prefs(context, LegacyPrefs.ROUTE_GROUPS).getString(LegacyPrefs.KEY_FAVORITE_ITEMS, null))
+        assertEquals(setOf("trackr_route_groups/favorite_items_json"), settingsNow()[SettingsKeys.LEGACY_CORRUPT_KEYS])
+        // 同一个文件里的路线、收藏分组和别的文件里的车都照常导入
+        val loaded = RoomFavoritesStore(db).load()
+        assertEquals(json.decodeFromString<List<FavoriteStationLine>>(LegacyFixtures.FAVORITES_JSON), loaded.stops)
+        assertEquals(json.decodeFromString<List<TransitGroup>>(LegacyFixtures.GROUPS_JSON), loaded.routes)
+        assertEquals(json.decodeFromString<List<FavoriteGroup>>(LegacyFixtures.FAVORITE_GROUPS_JSON), loaded.groups)
+        assertEquals(1, settingsNow()[SettingsKeys.LEGACY_MIGRATED])
+    }
+
     // ---- 只跑一次 / 来回切开关 ----
 
     @Test
@@ -348,7 +431,7 @@ class LegacyLibraryMigrationTest {
         val report = migrate(generation = 1)
 
         assertTrue(report.ran)
-        assertEquals(newFavs, RoomDataStoreTransitStore(db, settings).load().favorites)
+        assertEquals(newFavs, RoomFavoritesStore(db).load().stops)
         assertEquals("{\"cityId\":\"034\",\"cityName\":\"上海\"}", settingsNow()[SettingsKeys.SELECTED_CITY_JSON])
         // 旧文件里没有提醒 key：库里的提醒保持不变
         assertEquals(2, db.reminders().getAll().size)

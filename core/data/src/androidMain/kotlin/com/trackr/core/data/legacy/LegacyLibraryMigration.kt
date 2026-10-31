@@ -14,6 +14,7 @@ import com.trackr.core.database.entity.SearchHistoryEntity
 import com.trackr.core.database.entity.StoreMetaEntity
 import com.trackr.core.datastore.SettingsKeys
 import com.trackr.core.model.FavoriteGroup
+import com.trackr.core.model.FavoriteItemRecord
 import com.trackr.core.model.FavoriteStationLine
 import com.trackr.core.model.ScheduledReminder
 import com.trackr.core.model.TransitGroup
@@ -28,7 +29,7 @@ import java.io.File
  *
  * 规则：
  * 1. **旧文件一个 key 都不删、不改**。回退旧版本、或把 USE_NEW_STORE 关掉，都还能读到原样的数据。
- * 2. 列表类（收藏的车、搜索历史、路线、收藏分组、定时提醒 + 计划触发时刻）在**一个** Room 事务里写入，连同导入标记；
+ * 2. 列表类（收藏的车、搜索历史、路线、收藏分组、收藏合一索引、定时提醒 + 计划触发时刻）在**一个** Room 事务里写入，连同导入标记；
  *    中途失败什么都不变，下次启动重来。
  * 3. 设置和高德 Key 由 [LegacySettingsMigration]、[LegacyAmapKeyMigration] 在 DataStore 第一次读时导入；
  *    这里先读一次两个 DataStore，确保它们已经导完。
@@ -39,6 +40,9 @@ import java.io.File
  * 什么时候跑：库里的导入标记（store_meta `legacy_import_gen`）和当前代数（[generation]）不同时。
  * 第一次装新版、库文件丢了重建、或者中间用旧存储跑过（代数 +1，见 :androidApp 的 StoreSwitch），都会再导一次；
  * 再导时只替换旧文件里**有**的那几项，旧文件里没有的保持库里的。
+ *
+ * 收藏合一索引（第 14 步）：旧文件里只有用旧存储跑过第 14 步以后的版本才有 `favorite_items_json`，有就一起导入；
+ * 没有时不动库里的索引，启动时 DefaultFavoritesRepository 按车和路线对账补齐（车在前、路线在后，顺序和以前一样）。
  */
 class LegacyLibraryMigration(
     context: Context,
@@ -104,6 +108,9 @@ class LegacyLibraryMigration(
         val favoriteGroups = decode(
             LegacyPrefs.ROUTE_GROUPS, routeGroups, LegacyPrefs.KEY_FAVORITE_GROUPS, ListSerializer(FavoriteGroup.serializer())
         )
+        val favoriteItems = decode(
+            LegacyPrefs.ROUTE_GROUPS, routeGroups, LegacyPrefs.KEY_FAVORITE_ITEMS, ListSerializer(FavoriteItemRecord.serializer())
+        )
         val reminderList = decode(LegacyPrefs.REMINDERS, reminders, LegacyPrefs.KEY_REMINDERS, ListSerializer(ScheduledReminder.serializer()))
         val triggers = scheduleState.all.mapNotNull { (key, value) ->
             if (key.startsWith(LegacyPrefs.KEY_PREFIX_NEXT_TRIGGER) && value is Long) {
@@ -126,6 +133,7 @@ class LegacyLibraryMigration(
         history?.let { imported["searchHistory"] = it.size }
         groups?.let { imported["routes"] = it.size }
         favoriteGroups?.let { imported["favoriteGroups"] = it.size }
+        favoriteItems?.let { imported["favoriteItems"] = it.size }
         reminderList?.let { imported["reminders"] = it.size }
 
         db.legacyImport().importAll(
@@ -135,6 +143,7 @@ class LegacyLibraryMigration(
                 routes = groups?.mapIndexed { index, group -> group.toRows(index) },
                 favoriteGroups = favoriteGroups?.mapIndexed { index, group -> group.toEntity(index) },
                 reminders = reminderList?.mapIndexed { index, reminder -> reminder.toEntity(index, triggers[reminder.id]) },
+                favoriteItems = favoriteItems?.distinctBy { it.key }?.map { it.toEntity() },
                 meta = StoreMetaEntity(META_LEGACY_IMPORT_GEN, generation.toString())
             )
         )

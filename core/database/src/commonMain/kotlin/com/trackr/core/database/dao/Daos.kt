@@ -8,6 +8,7 @@ import androidx.room.Transaction
 import androidx.room.Upsert
 import com.trackr.core.database.entity.CandidateLineEntity
 import com.trackr.core.database.entity.FavoriteGroupEntity
+import com.trackr.core.database.entity.FavoriteItemEntity
 import com.trackr.core.database.entity.FavoriteLineEntity
 import com.trackr.core.database.entity.LineStopsCacheEntity
 import com.trackr.core.database.entity.ReminderEntity
@@ -19,7 +20,7 @@ import kotlinx.coroutines.flow.Flow
 
 /*
  * 第 9 步的写法：仓库在内存里算好整份列表，DAO 在一个事务里整份替换（和旧版每次整份写 JSON 的语义一样，最稳）。
- * 按行改（拖动排序、改分组）第 14 步再加。
+ * 第 14 步：收藏（车 + 路线 + 分组 + 合一索引）改由 [FavoritesDao] 读写，按行改（拖动排序、改分组）也在那里。
  */
 
 @Dao
@@ -140,6 +141,141 @@ interface RouteDao {
         replaceAll(rows)
         deleteAllFavoriteGroups()
         insertFavoriteGroups(groups)
+    }
+}
+
+/** 收藏合一要的全部行：车、路线（连同程和候选线）、收藏分组、合一索引。一个事务里读出 */
+data class FavoritesRows(
+    val stops: List<FavoriteLineEntity>,
+    val routes: List<RouteRows>,
+    val groups: List<FavoriteGroupEntity>,
+    val items: List<FavoriteItemEntity>
+)
+
+/**
+ * 收藏合一（第 14 步）：`favorite_item` 索引 + 车 / 路线 / 分组的组合写入。
+ *
+ * [write] 里为 null 的部分不动；给了的整份替换（和第 9 步一样），[FavoritesDao.write] 的 `itemUpdates` 只改那几行（拖动排序、改分组）。
+ * 所有部分在**一个**事务里写，删分组（分组 + 路线 + 索引）要么全成、要么全不变。
+ */
+@Dao
+interface FavoritesDao {
+    @Query("SELECT * FROM favorite_item ORDER BY sortOrder, id")
+    suspend fun getItems(): List<FavoriteItemEntity>
+
+    @Query("SELECT * FROM favorite_item ORDER BY sortOrder, id")
+    fun observeItems(): Flow<List<FavoriteItemEntity>>
+
+    @Query("UPDATE favorite_item SET groupId = :groupId WHERE id = :id")
+    suspend fun setGroup(id: String, groupId: String?)
+
+    @Query("UPDATE favorite_item SET sortOrder = :order WHERE id = :id")
+    suspend fun setSortOrder(id: String, order: Int)
+
+    /** 按给的顺序把 sortOrder 改成 0、1、2…（只动列出的行） */
+    @Transaction
+    suspend fun move(ids: List<String>) {
+        ids.forEachIndexed { index, id -> setSortOrder(id, index) }
+    }
+
+    @Query("DELETE FROM favorite_item")
+    suspend fun deleteAllItems()
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertItems(items: List<FavoriteItemEntity>)
+
+    @Upsert
+    suspend fun upsertItems(items: List<FavoriteItemEntity>)
+
+    @Query("SELECT * FROM favorite_line ORDER BY position")
+    suspend fun getStops(): List<FavoriteLineEntity>
+
+    @Query("DELETE FROM favorite_line")
+    suspend fun deleteAllStops()
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertStops(items: List<FavoriteLineEntity>)
+
+    @Query("SELECT * FROM route ORDER BY position")
+    suspend fun getRoutes(): List<RouteEntity>
+
+    @Query("SELECT * FROM route_leg ORDER BY routeId, position")
+    suspend fun getLegs(): List<RouteLegEntity>
+
+    @Query("SELECT * FROM route_candidate_line ORDER BY routeId, legPosition, position")
+    suspend fun getCandidates(): List<CandidateLineEntity>
+
+    @Query("DELETE FROM route_candidate_line")
+    suspend fun deleteAllCandidates()
+
+    @Query("DELETE FROM route_leg")
+    suspend fun deleteAllLegs()
+
+    @Query("DELETE FROM route")
+    suspend fun deleteAllRoutes()
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertRoutes(items: List<RouteEntity>)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertLegs(items: List<RouteLegEntity>)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertCandidates(items: List<CandidateLineEntity>)
+
+    @Query("SELECT * FROM favorite_group ORDER BY position")
+    suspend fun getGroups(): List<FavoriteGroupEntity>
+
+    @Query("DELETE FROM favorite_group")
+    suspend fun deleteAllGroups()
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertGroups(items: List<FavoriteGroupEntity>)
+
+    @Transaction
+    suspend fun loadAll(): FavoritesRows {
+        val legsByRoute = getLegs().groupBy { it.routeId }
+        val candidatesByRoute = getCandidates().groupBy { it.routeId }
+        val routes = getRoutes().map { route ->
+            RouteRows(
+                route = route,
+                legs = legsByRoute[route.id].orEmpty(),
+                candidates = candidatesByRoute[route.id].orEmpty()
+            )
+        }
+        return FavoritesRows(stops = getStops(), routes = routes, groups = getGroups(), items = getItems())
+    }
+
+    @Transaction
+    suspend fun write(
+        stops: List<FavoriteLineEntity>? = null,
+        routes: List<RouteRows>? = null,
+        groups: List<FavoriteGroupEntity>? = null,
+        items: List<FavoriteItemEntity>? = null,
+        itemUpdates: List<FavoriteItemEntity> = emptyList()
+    ) {
+        stops?.let {
+            deleteAllStops()
+            insertStops(it)
+        }
+        routes?.let { rows ->
+            // 不靠外键级联，三张表都显式清空
+            deleteAllCandidates()
+            deleteAllLegs()
+            deleteAllRoutes()
+            insertRoutes(rows.map { it.route })
+            insertLegs(rows.flatMap { it.legs })
+            insertCandidates(rows.flatMap { it.candidates })
+        }
+        groups?.let {
+            deleteAllGroups()
+            insertGroups(it)
+        }
+        items?.let {
+            deleteAllItems()
+            insertItems(it)
+        }
+        if (itemUpdates.isNotEmpty()) upsertItems(itemUpdates)
     }
 }
 

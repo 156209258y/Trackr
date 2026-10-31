@@ -1,10 +1,11 @@
 package com.trackr.di
 
+import com.trackr.core.data.local.FavoritesStore
 import com.trackr.core.data.local.ReminderStore
-import com.trackr.core.data.local.RouteGroupStore
 import com.trackr.core.data.local.TransitLocalStore
 import com.trackr.core.data.provider.TransitProviderCoordinator
 import com.trackr.core.data.repository.AmapKeyRepository
+import com.trackr.core.data.repository.DefaultFavoritesRepository
 import com.trackr.core.data.repository.DefaultLocationRepository
 import com.trackr.core.data.repository.FavoritesRepository
 import com.trackr.core.data.repository.LocationRepository
@@ -90,7 +91,7 @@ val appModule: Module = module {
     // 本地存储（第 9 步）：按 USE_NEW_STORE 选新（Room + DataStore，打开时先导入旧数据）或旧（SharedPreferences）
     single { StorageBackend.open(androidContext(), get(AppScopeQualifier)) } onClose { it?.close() }
     single<TransitLocalStore> { get<StorageBackend>().transitStore }
-    single<RouteGroupStore> { get<StorageBackend>().routeGroupStore }
+    single<FavoritesStore> { get<StorageBackend>().favoritesStore }
     single<ReminderStore> { get<StorageBackend>().reminderStore }
     single<ReminderScheduleState> { get<StorageBackend>().reminderScheduleState }
     single<AmapKeyRepository> { get<StorageBackend>().amapKeys }
@@ -100,19 +101,22 @@ val appModule: Module = module {
             context = androidContext(),
             coordinator = get(),
             store = get(),
+            favoritesRepository = get(),
             writeScope = get(AppScopeQualifier)
         )
     }
+    // 收藏合一（第 14 步）：唯一一份，TransitRepository 和 RouteGroupRepository 都转调它
+    single<DefaultFavoritesRepository> { RouteGroupRepository.openFavorites(get<FavoritesStore>()) }
     // 拆开的仓库接口（重构计划 §2.5）：第 9 步换存储之前都是同一个 TransitRepository
     single<SettingsRepository> { get<ITransitRepository>() }
-    single<FavoritesRepository> { get<ITransitRepository>() }
+    single<FavoritesRepository> { get<DefaultFavoritesRepository>() }
     single<RealtimeRepository> { get<ITransitRepository>() }
     single<SearchHistoryRepository> { get<ITransitRepository>() }
     single<IScheduledReminderRepository> {
         ScheduledReminderRepository(store = get(), alarms = get())
     }
     single<IRouteGroupRepository> {
-        RouteGroupRepository(store = get<RouteGroupStore>())
+        RouteGroupRepository(favorites = get<DefaultFavoritesRepository>())
     }
 
     // 应用级作用域：SupervisorJob，一个任务失败不影响别的；Koin 关闭时取消

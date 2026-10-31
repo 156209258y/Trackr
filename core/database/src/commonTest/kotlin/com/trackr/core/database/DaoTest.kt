@@ -3,6 +3,7 @@ package com.trackr.core.database
 import com.trackr.core.database.dao.RouteRows
 import com.trackr.core.database.entity.CandidateLineEntity
 import com.trackr.core.database.entity.FavoriteGroupEntity
+import com.trackr.core.database.entity.FavoriteItemEntity
 import com.trackr.core.database.entity.FavoriteLineEntity
 import com.trackr.core.database.entity.LineStopsCacheEntity
 import com.trackr.core.database.entity.ReminderEntity
@@ -184,5 +185,62 @@ class DaoTest : PlatformDatabaseTest() {
         dao.put(StoreMetaEntity("legacy_import_gen", "0"))
         dao.put(StoreMetaEntity("legacy_import_gen", "1"))
         assertEquals("1", dao.get("legacy_import_gen"))
+    }
+
+    // ---- 收藏合一（第 14 步） ----
+
+    private fun item(id: String, order: Int, groupId: String? = null) =
+        FavoriteItemEntity(id = id, type = if (id.startsWith("stop_")) "STOP" else "ROUTE", refId = id.substringAfter('_'), groupId = groupId, sortOrder = order)
+
+    @Test
+    fun favorites_write_replacesOnlyGivenParts() = runTest {
+        val dao = db.favorites()
+        dao.write(
+            stops = listOf(favorite("a", 0)),
+            routes = listOf(route("r1", 0)),
+            groups = listOf(FavoriteGroupEntity("home", 0, "回家线路", 0, true)),
+            items = listOf(item("stop_a", 0), item("route_r1", 1, "home"))
+        )
+        // 只给 stops：路线、分组、索引都不动
+        dao.write(stops = listOf(favorite("b", 0), favorite("a", 1)))
+        val all = dao.loadAll()
+        assertEquals(listOf("b", "a"), all.stops.map { it.id })
+        assertEquals(listOf("r1"), all.routes.map { it.route.id })
+        assertEquals(2, all.routes.single().legs.size)
+        assertEquals(4, all.routes.single().candidates.size)
+        assertEquals(listOf("home"), all.groups.map { it.id })
+        assertEquals(listOf("stop_a", "route_r1"), all.items.map { it.id })
+    }
+
+    @Test
+    fun favorites_itemUpdates_upsertOnlyThoseRows() = runTest {
+        val dao = db.favorites()
+        dao.write(items = listOf(item("stop_a", 0), item("stop_b", 1), item("route_r1", 2)))
+        dao.write(itemUpdates = listOf(item("route_r1", -1, "home"), item("stop_c", 5)))
+        assertEquals(
+            listOf(item("route_r1", -1, "home"), item("stop_a", 0), item("stop_b", 1), item("stop_c", 5)),
+            dao.getItems()
+        )
+    }
+
+    @Test
+    fun favorites_setGroupAndMove_updateRows() = runTest {
+        val dao = db.favorites()
+        dao.write(items = listOf(item("stop_a", 0), item("stop_b", 1), item("route_r1", 2)))
+        dao.setGroup("stop_b", "gym")
+        dao.move(listOf("route_r1", "stop_a", "stop_b"))
+        assertEquals(listOf("route_r1", "stop_a", "stop_b"), dao.getItems().map { it.id })
+        assertEquals("gym", dao.getItems().first { it.id == "stop_b" }.groupId)
+        assertEquals(listOf("route_r1", "stop_a", "stop_b"), dao.observeItems().first().map { it.id })
+    }
+
+    @Test
+    fun favorites_writeItemsNull_keepsItems_writeItemsEmpty_clears() = runTest {
+        val dao = db.favorites()
+        dao.write(items = listOf(item("stop_a", 0)))
+        dao.write(groups = emptyList())
+        assertEquals(1, dao.getItems().size)
+        dao.write(items = emptyList())
+        assertTrue(dao.getItems().isEmpty())
     }
 }

@@ -12,7 +12,10 @@ import androidx.room.PrimaryKey
  * 枚举存名字（字符串），读回时认不出的名字按模型默认值处理。
  */
 
-/** 收藏的车（站 + 线），对应 FavoriteStationLine。第 14 步和路线合进 favorite_item */
+/**
+ * 收藏的车（站 + 线）的内容，对应 FavoriteStationLine。
+ * 第 14 步起顺序和分组以 [FavoriteItemEntity] 为准；`position` 只是写入时的镜像，读的时候不用。
+ */
 @Entity(tableName = "favorite_line")
 data class FavoriteLineEntity(
     @PrimaryKey val id: String,
@@ -36,6 +39,28 @@ data class FavoriteLineEntity(
     val addedAtMillis: Long
 )
 
+/**
+ * 收藏合一（第 14 步，库版本 2）：车和路线排在一个列表里，每条收藏一行，记顺序和分组。
+ * 内容仍在 `favorite_line` / `route*` 表，这张表只是索引。
+ *
+ * - `id`：`stop_<收藏的车 id>` 或 `route_<路线 id>`（FavoriteItem.key），两种类型之间不重复。
+ * - `type`：`STOP` / `ROUTE`（FavoriteItemType 的名字）；`refId`：对应表里的 id。
+ * - `groupId`：收藏分组 id，null = 不分组。**不加外键**：`favorite_group` 是整份替换写的，外键的 SET NULL 会在每次改分组名时
+ *   把所有收藏都改成不分组；旧数据里也有指向已删分组的 id。删分组时由仓库在同一个事务里把它的收藏改成 null（§2.4）。
+ * - `sortOrder`：合一列表的顺序，小的在前，不要求连续。
+ */
+@Entity(
+    tableName = "favorite_item",
+    indices = [Index("groupId"), Index("sortOrder")]
+)
+data class FavoriteItemEntity(
+    @PrimaryKey val id: String,
+    val type: String,
+    val refId: String,
+    val groupId: String?,
+    val sortOrder: Int
+)
+
 /** 收藏分组，对应 FavoriteGroup */
 @Entity(tableName = "favorite_group")
 data class FavoriteGroupEntity(
@@ -51,6 +76,8 @@ data class FavoriteGroupEntity(
  *
  * `customGroupId` 不加外键：旧数据里可能指向已经不存在的分组（旧版也照样显示），加外键会让这种行写不进来。
  * 删分组时由仓库在同一个事务里把它改成 null（§2.4「删分组后收藏变不分组」）。
+ *
+ * 第 14 步起路线的分组和顺序以 [FavoriteItemEntity] 为准；`customGroupId`、`sortOrder`、`position` 只是写入时的镜像，读的时候不用。
  */
 @Entity(tableName = "route")
 data class RouteEntity(

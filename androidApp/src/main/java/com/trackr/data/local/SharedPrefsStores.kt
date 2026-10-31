@@ -5,11 +5,14 @@ import android.content.SharedPreferences
 import android.util.Log
 import com.trackr.core.data.legacy.LegacyDataSource
 import com.trackr.core.data.local.AmapKeyStore
+import com.trackr.core.data.local.FavoritesSnapshot
+import com.trackr.core.data.local.FavoritesStore
+import com.trackr.core.data.local.FavoritesWrite
 import com.trackr.core.data.local.ReminderStore
-import com.trackr.core.data.local.RouteGroupStore
 import com.trackr.core.data.local.TransitLocalSnapshot
 import com.trackr.core.data.local.TransitLocalStore
 import com.trackr.core.model.FavoriteGroup
+import com.trackr.core.model.FavoriteItemRecord
 import com.trackr.core.model.FavoriteStationLine
 import com.trackr.core.model.ScheduledReminder
 import com.trackr.core.model.TransitGroup
@@ -30,7 +33,17 @@ private val legacyJson = Json {
     encodeDefaults = true
 }
 
-/** `trackr_prefs`：设置、收藏的车、搜索历史、收藏页数据修复版本号 */
+/** 宽松解析：没存过、空串或解析失败都给空列表（旧版收藏的车、搜索历史都是这样读的） */
+private inline fun <reified T> decodeOrEmpty(raw: String?): List<T> {
+    if (raw.isNullOrBlank()) return emptyList()
+    return try {
+        legacyJson.decodeFromString<List<T>>(raw)
+    } catch (_: Exception) {
+        emptyList()
+    }
+}
+
+/** `trackr_prefs`：设置、搜索历史、收藏页数据修复版本号（收藏的车第 14 步由 [SharedPrefsFavoritesStore] 读写） */
 class SharedPrefsTransitStore(private val prefs: SharedPreferences) : TransitLocalStore {
 
     constructor(context: Context) : this(context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE))
@@ -47,18 +60,8 @@ class SharedPrefsTransitStore(private val prefs: SharedPreferences) : TransitLoc
         nearbyStopsCount = if (prefs.contains(KEY_NEARBY_STOPS_COUNT)) prefs.getInt(KEY_NEARBY_STOPS_COUNT, 4) else null,
         liveNotificationEnabled = if (prefs.contains(KEY_LIVE_NOTIFICATION)) prefs.getBoolean(KEY_LIVE_NOTIFICATION, true) else null,
         showOnLockScreen = if (prefs.contains(KEY_SHOW_ON_LOCK_SCREEN)) prefs.getBoolean(KEY_SHOW_ON_LOCK_SCREEN, true) else null,
-        favorites = decodeOrEmpty(prefs.getString(KEY_FAVORITES, null)),
         searchHistory = decodeOrEmpty(prefs.getString(KEY_SEARCH_HISTORY, null))
     )
-
-    private inline fun <reified T> decodeOrEmpty(raw: String?): List<T> {
-        if (raw.isNullOrBlank()) return emptyList()
-        return try {
-            legacyJson.decodeFromString<List<T>>(raw)
-        } catch (_: Exception) {
-            emptyList()
-        }
-    }
 
     override suspend fun saveSelectedCityJson(json: String) {
         prefs.edit().putString(KEY_SELECTED_CITY, json).apply()
@@ -84,10 +87,6 @@ class SharedPrefsTransitStore(private val prefs: SharedPreferences) : TransitLoc
         prefs.edit().putBoolean(KEY_SHOW_ON_LOCK_SCREEN, enabled).apply()
     }
 
-    override suspend fun saveFavorites(list: List<FavoriteStationLine>) {
-        prefs.edit().putString(KEY_FAVORITES, legacyJson.encodeToString(list)).apply()
-    }
-
     override suspend fun saveSearchHistory(list: List<String>) {
         prefs.edit().putString(KEY_SEARCH_HISTORY, legacyJson.encodeToString(list)).apply()
     }
@@ -111,18 +110,22 @@ class SharedPrefsTransitStore(private val prefs: SharedPreferences) : TransitLoc
         private const val KEY_NEARBY_STOPS_COUNT = "nearby_stops_count"
         private const val KEY_LIVE_NOTIFICATION = "is_live_notification_enabled"
         private const val KEY_SHOW_ON_LOCK_SCREEN = "show_on_lock_screen"
-        private const val KEY_FAVORITES = "favorites_json"
+        /** 收藏的车（[SharedPrefsFavoritesStore] 读写） */
+        const val KEY_FAVORITES = "favorites_json"
         private const val KEY_SEARCH_HISTORY = "search_history_json"
         const val KEY_FAVORITES_GROUP_MIGRATION_VERSION = "favorites_group_migration_version"
     }
 }
 
-/** `trackr_route_groups`：路线和收藏分组；JSON 损坏时先把原文存到 `<key>_corrupt_backup_<时间戳>`（只留最新一份） */
-class SharedPrefsRouteGroupStore(private val prefs: SharedPreferences) : RouteGroupStore {
+/**
+ * `trackr_route_groups`：路线、收藏分组、合一索引；JSON 损坏时先把原文存到 `<key>_corrupt_backup_<时间戳>`（只留最新一份）。
+ * 第 14 步起不再单独当存储用，由 [SharedPrefsFavoritesStore] 调用。
+ */
+class SharedPrefsRouteGroupStore(private val prefs: SharedPreferences) {
 
     constructor(context: Context) : this(context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE))
 
-    override suspend fun loadGroups(): List<TransitGroup>? {
+    fun loadGroups(): List<TransitGroup>? {
         val rawJson = prefs.getString(KEY_GROUPS_JSON, null)
         if (rawJson.isNullOrBlank()) return null
         return try {
@@ -135,7 +138,7 @@ class SharedPrefsRouteGroupStore(private val prefs: SharedPreferences) : RouteGr
         }
     }
 
-    override suspend fun loadFavoriteGroups(): List<FavoriteGroup>? {
+    fun loadFavoriteGroups(): List<FavoriteGroup>? {
         val rawJson = prefs.getString(KEY_FAVORITE_GROUPS_JSON, null)
         if (rawJson.isNullOrBlank()) return null
         return try {
@@ -148,24 +151,38 @@ class SharedPrefsRouteGroupStore(private val prefs: SharedPreferences) : RouteGr
         }
     }
 
-    override suspend fun saveGroups(list: List<TransitGroup>) {
+    /** 合一索引（第 14 步新增）；没存过为 null。损坏时先备份原文，也给 null（仓库按车和路线现有的顺序重新推出来） */
+    fun loadFavoriteItems(): List<FavoriteItemRecord>? {
+        val rawJson = prefs.getString(KEY_FAVORITE_ITEMS, null)
+        if (rawJson.isNullOrBlank()) return null
+        return try {
+            legacyJson.decodeFromString<List<FavoriteItemRecord>>(rawJson)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to parse favorite items json, backing up raw data", e)
+            backupCorruptJson(KEY_FAVORITE_ITEMS, rawJson)
+            null
+        }
+    }
+
+    fun saveGroups(list: List<TransitGroup>) {
         try {
             prefs.edit().putString(KEY_GROUPS_JSON, legacyJson.encodeToString(list)).apply()
         } catch (_: Exception) {
         }
     }
 
-    override suspend fun saveFavoriteGroups(list: List<FavoriteGroup>) {
+    fun saveFavoriteGroups(list: List<FavoriteGroup>) {
         try {
             prefs.edit().putString(KEY_FAVORITE_GROUPS_JSON, legacyJson.encodeToString(list)).apply()
         } catch (_: Exception) {
         }
     }
 
-    override suspend fun saveGroupsAndFavoriteGroups(groups: List<TransitGroup>, favoriteGroups: List<FavoriteGroup>) {
-        // 旧版就是先写收藏分组、再写路线，两次 apply
-        saveFavoriteGroups(favoriteGroups)
-        saveGroups(groups)
+    fun saveFavoriteItems(list: List<FavoriteItemRecord>) {
+        try {
+            prefs.edit().putString(KEY_FAVORITE_ITEMS, legacyJson.encodeToString(list)).apply()
+        } catch (_: Exception) {
+        }
     }
 
     /** 将无法解析的原始 JSON 备份到 `<key>_corrupt_backup_<时间戳>`，同一 key 只保留最近一份 */
@@ -185,6 +202,61 @@ class SharedPrefsRouteGroupStore(private val prefs: SharedPreferences) : RouteGr
         const val CORRUPT_BACKUP_SUFFIX = "_corrupt_backup_"
         private const val KEY_GROUPS_JSON = "groups_list_json"
         private const val KEY_FAVORITE_GROUPS_JSON = "favorite_groups_list_json"
+
+        /** 合一索引；和 :core:data 里 LegacyPrefs.KEY_FAVORITE_ITEMS 必须一致（新存储导入时读它） */
+        const val KEY_FAVORITE_ITEMS = "favorite_items_json"
+    }
+}
+
+/**
+ * 收藏合一的旧存储（第 14 步）：收藏的车在 `trackr_prefs` 的 `favorites_json`，路线、收藏分组、合一索引在
+ * `trackr_route_groups`（见 [SharedPrefsRouteGroupStore]）。读法和第 14 步之前一样；写入时只写给了的部分，各自 apply()。
+ */
+class SharedPrefsFavoritesStore(
+    private val transitPrefs: SharedPreferences,
+    routeGroupPrefs: SharedPreferences
+) : FavoritesStore {
+
+    constructor(context: Context) : this(
+        context.getSharedPreferences(SharedPrefsTransitStore.PREFS_NAME, Context.MODE_PRIVATE),
+        context.getSharedPreferences(SharedPrefsRouteGroupStore.PREFS_NAME, Context.MODE_PRIVATE)
+    )
+
+    private val routeGroups = SharedPrefsRouteGroupStore(routeGroupPrefs)
+
+    /** 最近一次读到或写下的合一索引；[FavoritesWrite.itemUpdates] 合并到它上面再整份写回 */
+    private var cachedItems: List<FavoriteItemRecord>? = null
+
+    override suspend fun load(): FavoritesSnapshot {
+        val items = routeGroups.loadFavoriteItems()
+        cachedItems = items
+        return FavoritesSnapshot(
+            stops = decodeOrEmpty<FavoriteStationLine>(transitPrefs.getString(SharedPrefsTransitStore.KEY_FAVORITES, null)),
+            routes = routeGroups.loadGroups(),
+            groups = routeGroups.loadFavoriteGroups(),
+            items = items
+        )
+    }
+
+    override suspend fun write(change: FavoritesWrite) {
+        change.stops?.let { stops ->
+            transitPrefs.edit().putString(SharedPrefsTransitStore.KEY_FAVORITES, legacyJson.encodeToString(stops)).apply()
+        }
+        // 旧版删收藏分组时就是先写收藏分组、再写路线
+        change.groups?.let { routeGroups.saveFavoriteGroups(it) }
+        change.routes?.let { routeGroups.saveGroups(it) }
+        if (change.items != null || change.itemUpdates.isNotEmpty()) {
+            val full = change.items ?: mergeByKey(cachedItems.orEmpty(), change.itemUpdates)
+            routeGroups.saveFavoriteItems(full)
+            cachedItems = full
+        }
+    }
+
+    /** 同 key 的换成新的，没有的加在后面 */
+    private fun mergeByKey(base: List<FavoriteItemRecord>, updates: List<FavoriteItemRecord>): List<FavoriteItemRecord> {
+        val updateByKey = updates.associateBy { it.key }
+        val baseKeys = base.mapTo(HashSet()) { it.key }
+        return base.map { updateByKey[it.key] ?: it } + updateByKey.values.filterNot { it.key in baseKeys }
     }
 }
 

@@ -6,7 +6,9 @@ import com.trackr.core.data.local.SerialWriter
 import com.trackr.core.data.local.TransitLocalSnapshot
 import com.trackr.core.data.local.TransitLocalStore
 import com.trackr.core.data.provider.TransitProviderCoordinator
+import com.trackr.core.data.repository.DefaultFavoritesRepository
 import com.trackr.core.data.repository.DefaultRealtimeRepository
+import com.trackr.core.data.repository.FavoritesRepository
 import com.trackr.core.data.repository.PlatformGeocoder
 import com.trackr.core.domain.platform.MonotonicClock
 import com.trackr.core.domain.platform.ProcessMonotonicClock
@@ -14,7 +16,6 @@ import com.trackr.core.model.BusLineDetail
 import com.trackr.core.model.BusLineDirection
 import com.trackr.core.model.DataSourceType
 import com.trackr.core.model.EngineMode
-import com.trackr.core.model.FavoriteStationLine
 import com.trackr.core.model.LineTimetable
 import com.trackr.core.model.NearbyStop
 import com.trackr.core.model.ProvinceCityCatalog
@@ -38,8 +39,9 @@ import kotlinx.serialization.json.Json
 /**
  * 统一实时公交数据仓库实现（过渡用）。
  *
- * 设置、收藏、搜索历史经 [TransitLocalStore] 存取（第 9 步）：USE_NEW_STORE 开时是 DataStore `trackr_settings` + Room，
+ * 设置、搜索历史经 [TransitLocalStore] 存取（第 9 步）：USE_NEW_STORE 开时是 DataStore `trackr_settings` + Room，
  * 关时是原来的 SharedPreferences `trackr_prefs`；这里的逻辑两边共用一份。
+ * 收藏（车、路线、分组）第 14 步整个转给 [DefaultFavoritesRepository]，和 RouteGroupRepository 用同一份。
  * 实时查询（附近、站点、线路、时刻表、搜索、定位城市）委托给 commonMain 的 [DefaultRealtimeRepository]。
  *
  * 构造时把存储整个读一次（和旧版一样是同步的，调用方在 IO 线程上读；见 StorageBackend）；之后的改动先改内存里的
@@ -49,6 +51,8 @@ class TransitRepository(
     private val context: Context,
     val coordinator: TransitProviderCoordinator,
     private val store: TransitLocalStore,
+    /** 收藏合一仓库（应用里是唯一一份，RouteGroupRepository 也转调它） */
+    private val favoritesRepository: DefaultFavoritesRepository,
     /** 写盘排队用的作用域（应用级）；测试可注入 */
     writeScope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
     /** 单调时钟，用于线路详情短缓存；测试可注入 */
@@ -57,7 +61,7 @@ class TransitRepository(
     fetchScope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
     /** 数据源逆地理拿不到城市时的兜底；默认用系统 Geocoder */
     geocoder: PlatformGeocoder = AndroidGeocoder(context)
-) : ITransitRepository {
+) : ITransitRepository, FavoritesRepository by favoritesRepository {
 
     private val json = Json {
         ignoreUnknownKeys = true
@@ -68,7 +72,7 @@ class TransitRepository(
         onError = { Log.e(TAG, "Failed to persist transit settings", it) }
     }
 
-    /** 收藏、搜索历史「读内存 -> 算新列表 -> 排队写盘」整体串行，并发调用也不会丢更新或乱序写盘 */
+    /** 搜索历史「读内存 -> 算新列表 -> 排队写盘」整体串行，并发调用也不会丢更新或乱序写盘 */
     private val libraryMutex = Mutex()
 
     private val initial: TransitLocalSnapshot = runBlocking { store.load() }
@@ -82,8 +86,6 @@ class TransitRepository(
     private val _engineMode = MutableStateFlow(loadInitialEngineMode())
     override val engineMode: StateFlow<EngineMode> = _engineMode.asStateFlow()
 
-    private val _favorites = MutableStateFlow(initial.favorites)
-    override val favorites: StateFlow<List<FavoriteStationLine>> = _favorites.asStateFlow()
 
     private val _searchHistory = MutableStateFlow(initial.searchHistory)
     override val searchHistory: StateFlow<List<String>> = _searchHistory.asStateFlow()
@@ -116,7 +118,7 @@ class TransitRepository(
     private val realtime = DefaultRealtimeRepository(
         coordinator = coordinator,
         settings = this,
-        favoritesRepository = this,
+        favoritesRepository = favoritesRepository,
         searchHistory = this,
         userLocation = { _userLocation.value },
         geocoder = geocoder,
@@ -241,35 +243,6 @@ class TransitRepository(
 
     override suspend fun refreshFavoritesRealtime(): Result<Map<String, NearbyStop>> =
         realtime.refreshFavoritesRealtime()
-
-    override suspend fun toggleFavorite(item: FavoriteStationLine): Boolean = libraryMutex.withLock {
-        val current = _favorites.value.toMutableList()
-        val index = current.indexOfFirst { it.id == item.id }
-        val isAdded: Boolean
-        if (index >= 0) {
-            current.removeAt(index)
-            isAdded = false
-        } else {
-            current.add(0, item)
-            isAdded = true
-        }
-        _favorites.value = current
-        persistFavorites(current)
-        isAdded
-    }
-
-    override suspend fun removeFavorite(id: String) = libraryMutex.withLock {
-        val current = _favorites.value.toMutableList()
-        val removed = current.removeAll { it.id == id }
-        if (removed) {
-            _favorites.value = current
-            persistFavorites(current)
-        }
-    }
-
-    private suspend fun persistFavorites(list: List<FavoriteStationLine>) {
-        writer.enqueue { store.saveFavorites(list) }.join()
-    }
 
     private suspend fun persistSearchHistory(list: List<String>) {
         writer.enqueue { store.saveSearchHistory(list) }.join()

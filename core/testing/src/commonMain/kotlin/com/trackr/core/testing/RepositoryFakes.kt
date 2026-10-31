@@ -10,11 +10,14 @@ import com.trackr.core.model.BusLineDetail
 import com.trackr.core.model.BusLineDirection
 import com.trackr.core.model.DataSourceType
 import com.trackr.core.model.EngineMode
+import com.trackr.core.model.FavoriteGroup
+import com.trackr.core.model.FavoriteItem
 import com.trackr.core.model.FavoriteStationLine
 import com.trackr.core.model.LineTimetable
 import com.trackr.core.model.NearbyStop
 import com.trackr.core.model.TransitCity
 import com.trackr.core.model.TransitCodeProvider
+import com.trackr.core.model.TransitGroup
 import com.trackr.core.model.TransitSearchResult
 import com.trackr.core.model.UserFix
 import kotlinx.coroutines.flow.Flow
@@ -90,27 +93,130 @@ class FakeSettingsRepository(
     }
 }
 
-/** 收藏 Fake：新收藏加在末尾（和原 FakeTransitRepository 一致） */
+/**
+ * 收藏 Fake：新收藏的车加在末尾（和原 FakeTransitRepository 一致），新路线也加在末尾。
+ * 合一列表（第 14 步）按 [favoriteItems] 的顺序：先车后路线，[move] 后按给的顺序。
+ */
 class FakeFavoritesRepository(
-    initialFavorites: List<FavoriteStationLine> = emptyList()
+    initialFavorites: List<FavoriteStationLine> = emptyList(),
+    initialRoutes: List<TransitGroup> = emptyList(),
+    initialGroups: List<FavoriteGroup> = emptyList()
 ) : FavoritesRepository {
 
     private val _favorites = MutableStateFlow(initialFavorites)
     override val favorites: StateFlow<List<FavoriteStationLine>> = _favorites.asStateFlow()
 
+    private val _routes = MutableStateFlow(initialRoutes)
+    override val routes: StateFlow<List<TransitGroup>> = _routes.asStateFlow()
+
+    private val _favoriteGroups = MutableStateFlow(initialGroups)
+    override val favoriteGroups: StateFlow<List<FavoriteGroup>> = _favoriteGroups.asStateFlow()
+
+    /** key -> 分组；没有的算不分组 */
+    private val groupOf = mutableMapOf<String, String?>()
+
+    /** 合一顺序（key）；没列出的排在后面 */
+    private var order: List<String> = emptyList()
+
+    private val _favoriteItems = MutableStateFlow(buildItems())
+    override val favoriteItems: StateFlow<List<FavoriteItem>> = _favoriteItems.asStateFlow()
+
+    private var nextGroupId = 1
+
+    private fun buildItems(): List<FavoriteItem> {
+        val all = _favorites.value.map { FavoriteItem.stopKey(it.id) to it } + _routes.value.map { FavoriteItem.routeKey(it.id) to it }
+        val rank = order.withIndex().associate { it.value to it.index }
+        return all.withIndex()
+            .sortedWith(compareBy({ rank[it.value.first] ?: (order.size + it.index) }, { it.index }))
+            .mapIndexed { index, entry ->
+                val (key, value) = entry.value
+                when (value) {
+                    is FavoriteStationLine -> FavoriteItem.Stop(value, groupOf[key], index)
+                    else -> {
+                        val route = value as TransitGroup
+                        FavoriteItem.Route(route.copy(customGroupId = groupOf[key] ?: route.customGroupId), groupOf[key] ?: route.customGroupId, index)
+                    }
+                }
+            }
+    }
+
+    private fun refresh() {
+        _favoriteItems.value = buildItems()
+    }
+
     override suspend fun toggleFavorite(item: FavoriteStationLine): Boolean {
         val exists = _favorites.value.any { it.id == item.id }
         return if (exists) {
             _favorites.update { list -> list.filterNot { it.id == item.id } }
+            refresh()
             false
         } else {
             _favorites.update { list -> list + item }
+            refresh()
             true
         }
     }
 
     override suspend fun removeFavorite(id: String) {
         _favorites.update { list -> list.filterNot { it.id == id } }
+        refresh()
+    }
+
+    override suspend fun move(keys: List<String>) {
+        val current = _favoriteItems.value.map { it.key }
+        val moving = keys.distinct().filter { it in current }
+        val slots = current.withIndex().filter { it.value in moving }.map { it.index }
+        val result = current.toMutableList()
+        slots.forEachIndexed { i, slot -> result[slot] = moving[i] }
+        order = result
+        refresh()
+    }
+
+    override suspend fun setGroup(key: String, groupId: String?): Boolean {
+        if (groupId != null && _favoriteGroups.value.none { it.id == groupId }) return false
+        if (_favoriteItems.value.none { it.key == key }) return false
+        groupOf[key] = groupId
+        if (key.startsWith(FavoriteItem.ROUTE_KEY_PREFIX)) {
+            val id = key.removePrefix(FavoriteItem.ROUTE_KEY_PREFIX)
+            _routes.update { list -> list.map { if (it.id == id) it.copy(customGroupId = groupId) else it } }
+        }
+        refresh()
+        return true
+    }
+
+    override suspend fun saveRoute(route: TransitGroup) {
+        _routes.update { list ->
+            if (list.any { it.id == route.id }) list.map { if (it.id == route.id) route else it } else list + route
+        }
+        refresh()
+    }
+
+    override suspend fun removeRoute(routeId: String) {
+        _routes.update { list -> list.filterNot { it.id == routeId } }
+        refresh()
+    }
+
+    override suspend fun createGroup(name: String): FavoriteGroup {
+        val group = FavoriteGroup(id = "fake_group_${nextGroupId++}", name = name.trim(), sortOrder = _favoriteGroups.value.size)
+        _favoriteGroups.update { it + group }
+        return group
+    }
+
+    override suspend fun renameGroup(groupId: String, newName: String) {
+        _favoriteGroups.update { list -> list.map { if (it.id == groupId) it.copy(name = newName.trim()) else it } }
+    }
+
+    override suspend fun deleteGroup(groupId: String) {
+        _favoriteGroups.update { list -> list.filterNot { it.id == groupId } }
+        groupOf.keys.filter { groupOf[it] == groupId }.forEach { groupOf[it] = null }
+        _routes.update { list -> list.map { if (it.customGroupId == groupId) it.copy(customGroupId = null) else it } }
+        refresh()
+    }
+
+    override suspend fun reorderGroups(groupIds: List<String>) {
+        val byId = _favoriteGroups.value.associateBy { it.id }
+        _favoriteGroups.value = (groupIds.mapNotNull { byId[it] } + _favoriteGroups.value.filterNot { it.id in groupIds })
+            .mapIndexed { index, group -> group.copy(sortOrder = index) }
     }
 }
 

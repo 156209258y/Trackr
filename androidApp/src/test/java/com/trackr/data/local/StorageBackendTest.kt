@@ -184,8 +184,9 @@ class StorageBackendTest {
     )
 
     private fun seen(backend: StorageBackend): Seen {
-        val transit = TransitRepository(context, TransitProviderCoordinator(emptyMap()), backend.transitStore, scope)
-        val groups = RouteGroupRepository(backend.routeGroupStore)
+        val library = RouteGroupRepository.openFavorites(backend.favoritesStore)
+        val transit = TransitRepository(context, TransitProviderCoordinator(emptyMap()), backend.transitStore, library, scope)
+        val groups = RouteGroupRepository(library)
         val rem = ScheduledReminderRepository(backend.reminderStore, ReminderAlarmScheduler(context, backend.reminderScheduleState))
         return Seen(
             city = transit.selectedCity.value,
@@ -260,7 +261,10 @@ class StorageBackendTest {
         writeLegacy()
         val before = legacySnapshot()
         val backend = open()
-        val transit = TransitRepository(context, TransitProviderCoordinator(emptyMap()), backend.transitStore, scope)
+        val transit = TransitRepository(
+            context, TransitProviderCoordinator(emptyMap()), backend.transitStore,
+            RouteGroupRepository.openFavorites(backend.favoritesStore), scope
+        )
         transit.removeFavorite("mg_1")
         transit.setEngineMode(EngineMode.CHELAILE)
         transit.addSearchHistory("万达")
@@ -291,7 +295,10 @@ class StorageBackendTest {
         val legacy = open()
         assertFalse(legacy.usesNewStore)
         assertEquals(1, StoreSwitch.generation(context))
-        val transit = TransitRepository(context, TransitProviderCoordinator(emptyMap()), legacy.transitStore, scope)
+        val transit = TransitRepository(
+            context, TransitProviderCoordinator(emptyMap()), legacy.transitStore,
+            RouteGroupRepository.openFavorites(legacy.favoritesStore), scope
+        )
         transit.removeFavorite("051_100_7")
         transit.setShowOnLockScreen(false)
         transit.flushWrites()

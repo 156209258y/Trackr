@@ -7,12 +7,12 @@ import com.trackr.core.data.legacy.LegacyAmapKeyMigration
 import com.trackr.core.data.legacy.LegacyLibraryMigration
 import com.trackr.core.data.legacy.LegacySettingsMigration
 import com.trackr.core.data.local.DataStoreAmapKeyStore
+import com.trackr.core.data.local.FavoritesStore
 import com.trackr.core.data.local.ReminderStore
 import com.trackr.core.data.local.RoomDataStoreTransitStore
+import com.trackr.core.data.local.RoomFavoritesStore
 import com.trackr.core.data.local.RoomReminderScheduleStateStore
 import com.trackr.core.data.local.RoomReminderStore
-import com.trackr.core.data.local.RoomRouteGroupStore
-import com.trackr.core.data.local.RouteGroupStore
 import com.trackr.core.data.local.SerialWriter
 import com.trackr.core.data.local.TransitLocalStore
 import com.trackr.core.data.repository.AmapKeyDefaults
@@ -46,7 +46,8 @@ class StorageBackend private constructor(
     /** true = 新存储 */
     val usesNewStore: Boolean,
     val transitStore: TransitLocalStore,
-    val routeGroupStore: RouteGroupStore,
+    /** 收藏合一（车、路线、收藏分组、合一索引；第 14 步） */
+    val favoritesStore: FavoritesStore,
     val reminderStore: ReminderStore,
     val reminderScheduleState: ReminderScheduleState,
     val amapKeys: AmapKeyRepository,
@@ -95,7 +96,7 @@ class StorageBackend private constructor(
             return StorageBackend(
                 usesNewStore = false,
                 transitStore = SharedPrefsTransitStore(context),
-                routeGroupStore = SharedPrefsRouteGroupStore(context),
+                favoritesStore = SharedPrefsFavoritesStore(context),
                 reminderStore = SharedPrefsReminderStore(context),
                 reminderScheduleState = SharedPrefsReminderScheduleState(context),
                 amapKeys = amapKeys,
@@ -134,7 +135,7 @@ class StorageBackend private constructor(
                     StorageBackend(
                         usesNewStore = true,
                         transitStore = RoomDataStoreTransitStore(database, settings),
-                        routeGroupStore = RoomRouteGroupStore(database),
+                        favoritesStore = RoomFavoritesStore(database),
                         reminderStore = RoomReminderStore(database),
                         reminderScheduleState = CachedReminderScheduleState.create(
                             RoomReminderScheduleStateStore(database),

@@ -2,7 +2,7 @@ package com.trackr.data.repository
 
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
-import com.trackr.core.data.local.RoomRouteGroupStore
+import com.trackr.core.data.local.RoomFavoritesStore
 import com.trackr.core.data.local.toRows
 import com.trackr.core.database.TrackrDatabase
 import com.trackr.core.database.createInMemoryTrackrDatabase
@@ -48,7 +48,7 @@ class RoomRouteGroupRepositoryTest {
         db.close()
     }
 
-    private fun newRepository() = RouteGroupRepository(RoomRouteGroupStore(db), Dispatchers.IO)
+    private fun newRepository() = RouteGroupRepository(RoomFavoritesStore(db), Dispatchers.IO)
 
     private fun transferRoute(id: String, groupId: String? = "home") = TransitGroup(
         id = id,

@@ -1,6 +1,7 @@
 package com.trackr.core.data.local
 
 import com.trackr.core.model.FavoriteGroup
+import com.trackr.core.model.FavoriteItemRecord
 import com.trackr.core.model.FavoriteStationLine
 import com.trackr.core.model.ScheduledReminder
 import com.trackr.core.model.TransitGroup
@@ -21,9 +22,10 @@ import kotlinx.coroutines.sync.withLock
  * - 旧：原来的 SharedPreferences + JSON，在 :androidApp 的 `SharedPrefs*Store`，开关关掉时用（风险 R1）。
  *
  * 所有方法都是挂起函数；仓库在构造时读一次（`load*`），之后每次改动整份写回。
+ * 第 14 步：收藏的车、路线、收藏分组、合一索引合到 [FavoritesStore]（之前分在 TransitLocalStore 和 RouteGroupStore）。
  */
 
-/** 首页设置 + 收藏的车 + 搜索历史一次读出的快照。字段为 null 表示没存过，由仓库套默认值 */
+/** 首页设置 + 搜索历史一次读出的快照。字段为 null 表示没存过，由仓库套默认值。收藏的车第 14 步挪到 [FavoritesStore] */
 data class TransitLocalSnapshot(
     /** 当前城市（TransitCity 的 JSON）；为 null 表示从没选过城市 */
     val selectedCityJson: String? = null,
@@ -37,7 +39,7 @@ data class TransitLocalSnapshot(
     val searchHistory: List<String> = emptyList()
 )
 
-/** TransitRepository 的存储：设置（旧 `trackr_prefs` / 新 `trackr_settings`）、收藏的车、搜索历史 */
+/** TransitRepository 的存储：设置（旧 `trackr_prefs` / 新 `trackr_settings`）、搜索历史 */
 interface TransitLocalStore {
     suspend fun load(): TransitLocalSnapshot
     suspend fun saveSelectedCityJson(json: String)
@@ -46,7 +48,6 @@ interface TransitLocalStore {
     suspend fun saveNearbyStopsCount(count: Int)
     suspend fun saveLiveNotificationEnabled(enabled: Boolean)
     suspend fun saveShowOnLockScreen(enabled: Boolean)
-    suspend fun saveFavorites(list: List<FavoriteStationLine>)
     suspend fun saveSearchHistory(list: List<String>)
     suspend fun clearSearchHistory()
 
@@ -55,19 +56,39 @@ interface TransitLocalStore {
     suspend fun saveFavoritesGroupMigrationVersion(version: Int)
 }
 
-/** RouteGroupRepository 的存储：路线（TransitGroup）和收藏分组 */
-interface RouteGroupStore {
-    /** 存过的路线，顺序同存入时；从没存过时为 null。旧实现里 JSON 损坏时先备份原文再返回空列表 */
-    suspend fun loadGroups(): List<TransitGroup>?
+/**
+ * 收藏合一一次读出的快照（第 14 步）。
+ *
+ * @param stops 收藏的车，按存的顺序
+ * @param routes 路线，按存的顺序；从没存过时为 null。旧实现里 JSON 损坏时先备份原文再给空列表
+ * @param groups 收藏分组；没存过或损坏时为 null（仓库会写入两个默认分组）
+ * @param items 合一索引（顺序 + 分组）；没存过时为 null（仓库按车和路线现有的顺序推出来，见 FavoriteItemOrder）
+ */
+data class FavoritesSnapshot(
+    val stops: List<FavoriteStationLine> = emptyList(),
+    val routes: List<TransitGroup>? = null,
+    val groups: List<FavoriteGroup>? = null,
+    val items: List<FavoriteItemRecord>? = null
+)
 
-    /** 存过的收藏分组；没存过或损坏时为 null（仓库会写入两个默认分组） */
-    suspend fun loadFavoriteGroups(): List<FavoriteGroup>?
+/**
+ * 一次写入。为 null 的部分不动，给了的整份替换；[itemUpdates] 只改（或补上）列出的那几行索引。
+ * 新实现（Room）所有部分在一个事务里写。
+ *
+ * 仓库保证：[stops]、[routes] 按合一顺序排好；[routes] 里每条的 `customGroupId` 和索引的分组一致。
+ */
+data class FavoritesWrite(
+    val stops: List<FavoriteStationLine>? = null,
+    val routes: List<TransitGroup>? = null,
+    val groups: List<FavoriteGroup>? = null,
+    val items: List<FavoriteItemRecord>? = null,
+    val itemUpdates: List<FavoriteItemRecord> = emptyList()
+)
 
-    suspend fun saveGroups(list: List<TransitGroup>)
-    suspend fun saveFavoriteGroups(list: List<FavoriteGroup>)
-
-    /** 两样一起写（删收藏分组时用）。新实现是一个事务 */
-    suspend fun saveGroupsAndFavoriteGroups(groups: List<TransitGroup>, favoriteGroups: List<FavoriteGroup>)
+/** DefaultFavoritesRepository 的存储：收藏的车、路线、收藏分组、合一索引 */
+interface FavoritesStore {
+    suspend fun load(): FavoritesSnapshot
+    suspend fun write(change: FavoritesWrite)
 }
 
 /** ScheduledReminderRepository 的存储 */

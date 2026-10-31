@@ -3,6 +3,7 @@ package com.trackr.core.data.local
 import com.trackr.core.database.dao.RouteRows
 import com.trackr.core.database.entity.CandidateLineEntity
 import com.trackr.core.database.entity.FavoriteGroupEntity
+import com.trackr.core.database.entity.FavoriteItemEntity
 import com.trackr.core.database.entity.FavoriteLineEntity
 import com.trackr.core.database.entity.ReminderEntity
 import com.trackr.core.database.entity.RouteEntity
@@ -10,6 +11,8 @@ import com.trackr.core.database.entity.RouteLegEntity
 import com.trackr.core.model.CandidateLine
 import com.trackr.core.model.DataSourceType
 import com.trackr.core.model.FavoriteGroup
+import com.trackr.core.model.FavoriteItemRecord
+import com.trackr.core.model.FavoriteItemType
 import com.trackr.core.model.FavoriteStationLine
 import com.trackr.core.model.GeoPoint
 import com.trackr.core.model.GroupCategory
@@ -98,6 +101,22 @@ fun FavoriteGroupEntity.toModel() = FavoriteGroup(
     sortOrder = sortOrder,
     isDefault = isDefault
 )
+
+// ---- 收藏合一索引（第 14 步） ----
+
+fun FavoriteItemRecord.toEntity() = FavoriteItemEntity(
+    id = key,
+    type = type.name,
+    refId = refId,
+    groupId = groupId,
+    sortOrder = sortOrder
+)
+
+/** 认不出的类型（以后的版本加了新类型又回退）返回 null，这一行跳过，启动对账时会按车和路线重新补 */
+fun FavoriteItemEntity.toRecordOrNull(): FavoriteItemRecord? {
+    val itemType = FavoriteItemType.entries.firstOrNull { it.name == type } ?: return null
+    return FavoriteItemRecord(type = itemType, refId = refId, groupId = groupId, sortOrder = sortOrder)
+}
 
 // ---- 路线 -> 程 -> 候选线 ----
 

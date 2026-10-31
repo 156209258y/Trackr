@@ -7,11 +7,14 @@ import com.trackr.core.model.BusLineDetail
 import com.trackr.core.model.BusLineDirection
 import com.trackr.core.model.DataSourceType
 import com.trackr.core.model.EngineMode
+import com.trackr.core.model.FavoriteGroup
+import com.trackr.core.model.FavoriteItem
 import com.trackr.core.model.FavoriteStationLine
 import com.trackr.core.model.LineTimetable
 import com.trackr.core.model.NearbyStop
 import com.trackr.core.model.TransitCity
 import com.trackr.core.model.TransitCodeProvider
+import com.trackr.core.model.TransitGroup
 import com.trackr.core.model.TransitSearchResult
 import com.trackr.core.model.UserFix
 import kotlinx.coroutines.flow.Flow
@@ -24,6 +27,7 @@ import kotlinx.coroutines.flow.StateFlow
  * （实时查询那部分委托给 commonMain 的 [DefaultRealtimeRepository]），定位由 [DefaultLocationRepository] 实现；
  * ViewModel 仍然拿 ITransitRepository，第 17 步搬进各 feature 时改成只拿要用的接口。
  * 第 9 步：存储换成 DataStore / Room（`local/` 下的 Store），由运行时开关 USE_NEW_STORE 选新旧实现，仓库逻辑只有一份。
+ * 第 14 步：收藏（车 + 路线 + 分组）合一，由 [DefaultFavoritesRepository] 实现；TransitRepository 和 RouteGroupRepository 都转调它。
  */
 
 /**
@@ -52,13 +56,50 @@ interface SettingsRepository {
     suspend fun setPreferredTransitCodeProvider(provider: TransitCodeProvider)
 }
 
-/** 收藏的车（站 + 线）。路线与分组合进来、`move` / `setGroup` 在第 14 步 */
+/**
+ * 收藏合一（第 14 步，重构计划 §2.5）：收藏的车（站 + 线）和路线排在一个列表里（[favoriteItems]），共用顺序和收藏分组。
+ *
+ * - 新收藏的车加到最前，新路线加到最后；[move] 拖动排序，[setGroup] 改分组。
+ * - 删分组（[deleteGroup]）不删收藏，组里的车和路线都变成不分组，一个事务。
+ * - [favorites] / [routes] 是同一份数据按类型分开的视图，顺序和 [favoriteItems] 一致（旧页面用）。
+ * - 路线的「场景」`GroupCategory` 不再给用户选，分组只看 groupId。
+ */
 interface FavoritesRepository {
+    /** 收藏的车，按合一顺序 */
     val favorites: StateFlow<List<FavoriteStationLine>>
+
+    /** 合一列表：车 + 路线，按 sortOrder */
+    val favoriteItems: StateFlow<List<FavoriteItem>>
+
+    /** 路线，按合一顺序；每条的 `customGroupId` 和它在 [favoriteItems] 里的分组一致（`sortOrder` 是路线之间的旧排序字段） */
+    val routes: StateFlow<List<TransitGroup>>
+
+    /** 收藏分组，按 sortOrder */
+    val favoriteGroups: StateFlow<List<FavoriteGroup>>
 
     /** 有就删、没有就加到最前；返回 true 表示这次是加 */
     suspend fun toggleFavorite(item: FavoriteStationLine): Boolean
     suspend fun removeFavorite(id: String)
+
+    /**
+     * 拖动排序：[keys]（[FavoriteItem.key]）按给的先后排，占用的还是这些收藏原来的位置，没列出的收藏不动。
+     * 所以只给某个分组里的几条也行。认不出的 key 忽略。
+     */
+    suspend fun move(keys: List<String>)
+
+    /** 改分组；[groupId] 为 null = 不分组。分组不存在或 key 认不出时什么都不做，返回 false */
+    suspend fun setGroup(key: String, groupId: String?): Boolean
+
+    /** 新路线加到最后；同 id 的路线已存在就替换内容（位置和分组按传进来的 sortOrder / customGroupId） */
+    suspend fun saveRoute(route: TransitGroup)
+    suspend fun removeRoute(routeId: String)
+
+    suspend fun createGroup(name: String): FavoriteGroup
+    suspend fun renameGroup(groupId: String, newName: String)
+
+    /** 删分组：组里的收藏（车和路线）都变不分组，不删 */
+    suspend fun deleteGroup(groupId: String)
+    suspend fun reorderGroups(groupIds: List<String>)
 }
 
 /** 搜索历史：最近的在前，最多 20 条，不分大小写去重 */
