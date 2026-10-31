@@ -40,6 +40,12 @@ android {
         versionName = "0.0.3"
 
         buildConfigField("String", "AMAP_WEB_KEY", "\"$amapWebServiceKey\"")
+        // 第 9 步存储开关 USE_NEW_STORE 的默认值（true = Room + DataStore）；运行时可用 files/store_switch 覆盖，见 StoreSwitch
+        buildConfigField(
+            "boolean",
+            "USE_NEW_STORE",
+            providers.gradleProperty("trackr.useNewStore").getOrElse("true").toBooleanStrict().toString()
+        )
         buildConfigField("String", "AMAP_ANDROID_KEY", "\"$amapAndroidKeyRelease\"")
         manifestPlaceholders["AMAP_ANDROID_KEY"] = amapAndroidKeyRelease
 

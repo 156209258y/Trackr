@@ -1,7 +1,10 @@
 package com.trackr.data.repository
 
 import android.content.Context
-import android.content.SharedPreferences
+import android.util.Log
+import com.trackr.core.data.local.SerialWriter
+import com.trackr.core.data.local.TransitLocalSnapshot
+import com.trackr.core.data.local.TransitLocalStore
 import com.trackr.core.data.provider.TransitProviderCoordinator
 import com.trackr.core.data.repository.DefaultRealtimeRepository
 import com.trackr.core.data.repository.PlatformGeocoder
@@ -26,20 +29,29 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
 /**
- * 统一实时公交数据仓库实现（过渡用，第 9 步换存储）。
+ * 统一实时公交数据仓库实现（过渡用）。
  *
- * 设置、收藏、搜索历史仍存在 SharedPreferences `trackr_prefs`；
+ * 设置、收藏、搜索历史经 [TransitLocalStore] 存取（第 9 步）：USE_NEW_STORE 开时是 DataStore `trackr_settings` + Room，
+ * 关时是原来的 SharedPreferences `trackr_prefs`；这里的逻辑两边共用一份。
  * 实时查询（附近、站点、线路、时刻表、搜索、定位城市）委托给 commonMain 的 [DefaultRealtimeRepository]。
+ *
+ * 构造时把存储整个读一次（和旧版一样是同步的，调用方在 IO 线程上读；见 StorageBackend）；之后的改动先改内存里的
+ * StateFlow，再按调用顺序排队写盘（[SerialWriter]）。挂起的写方法等写完才返回。
  */
 class TransitRepository(
     private val context: Context,
     val coordinator: TransitProviderCoordinator,
+    private val store: TransitLocalStore,
+    /** 写盘排队用的作用域（应用级）；测试可注入 */
+    writeScope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
     /** 单调时钟，用于线路详情短缓存；测试可注入 */
     clock: MonotonicClock = ProcessMonotonicClock,
     /** 线路详情合并请求的执行作用域；测试可注入 */
@@ -53,12 +65,20 @@ class TransitRepository(
         encodeDefaults = true
     }
 
-    private val prefs: SharedPreferences = context.getSharedPreferences("trackr_prefs", Context.MODE_PRIVATE)
+    private val writer = SerialWriter(writeScope).apply {
+        onError = { Log.e(TAG, "Failed to persist transit settings", it) }
+    }
+
+    /** 收藏、搜索历史「读内存 -> 算新列表 -> 排队写盘」整体串行，并发调用也不会丢更新或乱序写盘 */
+    private val libraryMutex = Mutex()
+
+    private val initial: TransitLocalSnapshot = runBlocking { store.load() }
 
     private val _selectedCity = MutableStateFlow(loadInitialCity())
     override val selectedCity: StateFlow<TransitCity> = _selectedCity.asStateFlow()
-    override val hasSavedCity: Boolean
-        get() = prefs.contains("selected_city_json")
+
+    private val _hasSavedCity = MutableStateFlow(initial.selectedCityJson != null)
+    override val hasSavedCity: StateFlow<Boolean> = _hasSavedCity.asStateFlow()
 
     private val _engineMode = MutableStateFlow(loadInitialEngineMode())
     override val engineMode: StateFlow<EngineMode> = _engineMode.asStateFlow()
@@ -66,19 +86,19 @@ class TransitRepository(
     private val _aggregatedPriority = MutableStateFlow(loadInitialAggregatedPriority())
     override val aggregatedPriority: StateFlow<AggregatedSourcePriority> = _aggregatedPriority.asStateFlow()
 
-    private val _favorites = MutableStateFlow(loadInitialFavorites())
+    private val _favorites = MutableStateFlow(initial.favorites)
     override val favorites: StateFlow<List<FavoriteStationLine>> = _favorites.asStateFlow()
 
-    private val _searchHistory = MutableStateFlow(loadInitialSearchHistory())
+    private val _searchHistory = MutableStateFlow(initial.searchHistory)
     override val searchHistory: StateFlow<List<String>> = _searchHistory.asStateFlow()
 
-    private val _preferredTransitCodeProvider = MutableStateFlow(loadInitialTransitCodeProvider())
+    private val _preferredTransitCodeProvider = MutableStateFlow(TransitCodeProvider.fromId(initial.transitCodeProvider ?: TransitCodeProvider.ASK_ALWAYS.id))
     override val preferredTransitCodeProvider: StateFlow<TransitCodeProvider> = _preferredTransitCodeProvider.asStateFlow()
 
-    private val _nearbyStopsCount = MutableStateFlow(loadInitialNearbyStopsCount())
+    private val _nearbyStopsCount = MutableStateFlow((initial.nearbyStopsCount ?: 4).coerceIn(1, 16))
     override val nearbyStopsCount: StateFlow<Int> = _nearbyStopsCount.asStateFlow()
 
-    private val _isLiveNotificationEnabled = MutableStateFlow(loadInitialLiveNotificationEnabled())
+    private val _isLiveNotificationEnabled = MutableStateFlow(initial.liveNotificationEnabled ?: true)
     override val isLiveNotificationEnabled: StateFlow<Boolean> = _isLiveNotificationEnabled.asStateFlow()
 
     private val _activeTrackingSession = MutableStateFlow(TrackingSessionState())
@@ -106,7 +126,7 @@ class TransitRepository(
     )
 
     private fun loadInitialCity(): TransitCity {
-        val cityJson = prefs.getString("selected_city_json", null)
+        val cityJson = initial.selectedCityJson
         if (!cityJson.isNullOrBlank()) {
             try {
                 val city = json.decodeFromString<TransitCity>(cityJson)
@@ -117,69 +137,36 @@ class TransitRepository(
         return TransitCity(cityId = "034", cityName = "上海", pinyin = "ShangHai", supportSubway = true, isHot = true, province = "直辖市")
     }
 
-    private fun loadInitialFavorites(): List<FavoriteStationLine> {
-        val favJson = prefs.getString("favorites_json", null)
-        if (!favJson.isNullOrBlank()) {
-            try {
-                return json.decodeFromString<List<FavoriteStationLine>>(favJson)
-            } catch (_: Exception) {}
-        }
-        return emptyList()
-    }
-
-    private fun loadInitialSearchHistory(): List<String> {
-        val historyJson = prefs.getString("search_history_json", null)
-        if (!historyJson.isNullOrBlank()) {
-            try {
-                return json.decodeFromString<List<String>>(historyJson)
-            } catch (_: Exception) {}
-        }
-        return emptyList()
-    }
-
-    private fun loadInitialTransitCodeProvider(): TransitCodeProvider {
-        val providerId = prefs.getString("preferred_transit_code_provider", TransitCodeProvider.ASK_ALWAYS.id)
-        return TransitCodeProvider.fromId(providerId)
-    }
-
-    private fun loadInitialNearbyStopsCount(): Int {
-        return prefs.getInt("nearby_stops_count", 4).coerceIn(1, 16)
-    }
-
     override fun setNearbyStopsCount(count: Int) {
         val clamped = count.coerceIn(1, 16)
         _nearbyStopsCount.value = clamped
-        prefs.edit().putInt("nearby_stops_count", clamped).apply()
-    }
-
-    private fun loadInitialLiveNotificationEnabled(): Boolean {
-        return prefs.getBoolean("is_live_notification_enabled", true)
+        writer.enqueue { store.saveNearbyStopsCount(clamped) }
     }
 
     override fun setLiveNotificationEnabled(enabled: Boolean) {
         _isLiveNotificationEnabled.value = enabled
-        prefs.edit().putBoolean("is_live_notification_enabled", enabled).apply()
+        writer.enqueue { store.saveLiveNotificationEnabled(enabled) }
     }
 
     private fun loadInitialEngineMode(): EngineMode {
-        val modeStr = prefs.getString("engine_mode", EngineMode.CHELAILE.name)
-        return runCatching { EngineMode.valueOf(modeStr ?: EngineMode.CHELAILE.name) }.getOrDefault(EngineMode.CHELAILE)
+        val modeStr = initial.engineMode ?: EngineMode.CHELAILE.name
+        return runCatching { EngineMode.valueOf(modeStr) }.getOrDefault(EngineMode.CHELAILE)
     }
 
     private fun loadInitialAggregatedPriority(): AggregatedSourcePriority {
-        val name = prefs.getString("aggregated_source_priority", AggregatedSourcePriority.CHELAILE_FIRST.name)
-        return runCatching { AggregatedSourcePriority.valueOf(name ?: AggregatedSourcePriority.CHELAILE_FIRST.name) }
+        val name = initial.aggregatedPriority ?: AggregatedSourcePriority.CHELAILE_FIRST.name
+        return runCatching { AggregatedSourcePriority.valueOf(name) }
             .getOrDefault(AggregatedSourcePriority.CHELAILE_FIRST)
     }
 
     override fun setAggregatedPriority(priority: AggregatedSourcePriority) {
         _aggregatedPriority.value = priority
-        prefs.edit().putString("aggregated_source_priority", priority.name).apply()
+        writer.enqueue { store.saveAggregatedPriority(priority.name) }
     }
 
     override fun setEngineMode(mode: EngineMode) {
         _engineMode.value = mode
-        prefs.edit().putString("engine_mode", mode.name).apply()
+        writer.enqueue { store.saveEngineMode(mode.name) }
         // 若当前城市缺少掌上公交编码，尝试从缓存城市列表中补齐
         val currCity = _selectedCity.value
         val cachedCities = realtime.cachedCities
@@ -193,16 +180,6 @@ class TransitRepository(
         }
     }
 
-    private fun saveFavorites(favs: List<FavoriteStationLine>) {
-        val str = json.encodeToString(favs)
-        prefs.edit().putString("favorites_json", str).apply()
-    }
-
-    private fun saveSearchHistory(history: List<String>) {
-        val str = json.encodeToString(history)
-        prefs.edit().putString("search_history_json", str).apply()
-    }
-
     override suspend fun selectCity(city: TransitCity) {
         val effectiveCity = if (city.province.isBlank()) {
             city.copy(province = ProvinceCityCatalog.inferProvince(city.cityName))
@@ -210,10 +187,9 @@ class TransitRepository(
             city
         }
         _selectedCity.value = effectiveCity
-        withContext(Dispatchers.IO) {
-            val str = json.encodeToString(effectiveCity)
-            prefs.edit().putString("selected_city_json", str).apply()
-        }
+        _hasSavedCity.value = true
+        val str = json.encodeToString(effectiveCity)
+        writer.enqueue { store.saveSelectedCityJson(str) }.join()
     }
 
     override suspend fun getSupportedCities(forceRefresh: Boolean): Result<List<TransitCity>> =
@@ -273,7 +249,7 @@ class TransitRepository(
     override suspend fun refreshFavoritesRealtime(): Result<Map<String, NearbyStop>> =
         realtime.refreshFavoritesRealtime()
 
-    override suspend fun toggleFavorite(item: FavoriteStationLine): Boolean {
+    override suspend fun toggleFavorite(item: FavoriteStationLine): Boolean = libraryMutex.withLock {
         val current = _favorites.value.toMutableList()
         val index = current.indexOfFirst { it.id == item.id }
         val isAdded: Boolean
@@ -285,67 +261,71 @@ class TransitRepository(
             isAdded = true
         }
         _favorites.value = current
-        withContext(Dispatchers.IO) {
-            saveFavorites(current)
-        }
-        return isAdded
+        persistFavorites(current)
+        isAdded
     }
 
-    override suspend fun removeFavorite(id: String) {
+    override suspend fun removeFavorite(id: String) = libraryMutex.withLock {
         val current = _favorites.value.toMutableList()
         val removed = current.removeAll { it.id == id }
         if (removed) {
             _favorites.value = current
-            withContext(Dispatchers.IO) {
-                saveFavorites(current)
-            }
+            persistFavorites(current)
         }
+    }
+
+    private suspend fun persistFavorites(list: List<FavoriteStationLine>) {
+        writer.enqueue { store.saveFavorites(list) }.join()
+    }
+
+    private suspend fun persistSearchHistory(list: List<String>) {
+        writer.enqueue { store.saveSearchHistory(list) }.join()
     }
 
     override suspend fun addSearchHistory(query: String) {
         val trimmed = query.trim()
         if (trimmed.isBlank()) return
+        libraryMutex.withLock { addSearchHistoryLocked(trimmed) }
+    }
+
+    private suspend fun addSearchHistoryLocked(trimmed: String) {
         val current = _searchHistory.value.toMutableList()
         current.removeAll { it.equals(trimmed, ignoreCase = true) }
         current.add(0, trimmed)
         val limited = if (current.size > MAX_SEARCH_HISTORY) current.take(MAX_SEARCH_HISTORY) else current
         _searchHistory.value = limited
-        withContext(Dispatchers.IO) {
-            saveSearchHistory(limited)
-        }
+        persistSearchHistory(limited)
     }
 
-    override suspend fun removeSearchHistory(query: String) {
+    override suspend fun removeSearchHistory(query: String) = libraryMutex.withLock {
         val trimmed = query.trim()
         val current = _searchHistory.value.toMutableList()
         val removed = current.removeAll { it.equals(trimmed, ignoreCase = true) }
         if (removed) {
             _searchHistory.value = current
-            withContext(Dispatchers.IO) {
-                saveSearchHistory(current)
-            }
+            persistSearchHistory(current)
         }
     }
 
-    override suspend fun clearSearchHistory() {
+    override suspend fun clearSearchHistory() = libraryMutex.withLock {
         _searchHistory.value = emptyList()
-        withContext(Dispatchers.IO) {
-            prefs.edit().remove("search_history_json").apply()
-        }
+        writer.enqueue { store.clearSearchHistory() }.join()
     }
 
     override suspend fun setPreferredTransitCodeProvider(provider: TransitCodeProvider) {
         _preferredTransitCodeProvider.value = provider
-        withContext(Dispatchers.IO) {
-            prefs.edit().putString("preferred_transit_code_provider", provider.id).apply()
-        }
+        writer.enqueue { store.saveTransitCodeProvider(provider.id) }.join()
     }
 
     override fun updateTrackingSession(state: TrackingSessionState) {
         _activeTrackingSession.value = state
     }
 
+    /** 等排队的写盘做完（测试用） */
+    suspend fun flushWrites() = writer.flush()
+
     companion object {
+        private const val TAG = "TransitRepository"
         const val MAX_SEARCH_HISTORY = 20
 
         /** 线路详情短缓存时长（实现搬到了 [DefaultRealtimeRepository]） */

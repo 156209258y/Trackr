@@ -35,9 +35,11 @@
 
 ## 3. 测试目录与套件清单
 
-`./gradlew test` 共跑 65 个测试类：`:androidApp` 37 个，`:core:designsystem` 2 个，`:core:domain` 6 个，`:core:navigation` 3 个，`:core:network` 12 个，`:core:data` 4 个，`:core:testing` 1 个（`:core:model` 没有测试）。KMP 模块的 `test` 由约定插件 `trackr.kmp.library` 补上，只跑 Android 主机测试（`testAndroidHostTest`）；iOS 另跑 `./gradlew :core:domain:iosSimulatorArm64Test`（`:core:network`、`:core:data` 同理，需要 Xcode 和 iOS 模拟器运行时），设计系统只做编译检查 `./gradlew :core:designsystem:compileKotlinIosSimulatorArm64`，导航做编译检查加测试链接 `./gradlew :core:navigation:linkDebugTestIosSimulatorArm64`。
+`./gradlew test` 共跑 73 个测试类：`:androidApp` 41 个，`:core:designsystem` 2 个，`:core:domain` 6 个，`:core:navigation` 3 个，`:core:network` 12 个，`:core:data` 6 个，`:core:database` 1 个，`:core:datastore` 1 个，`:core:testing` 1 个（`:core:model` 没有测试）。KMP 模块的 `test` 由约定插件 `trackr.kmp.library` 补上，只跑 Android 主机测试（`testAndroidHostTest`）；iOS 另跑 `./gradlew :core:domain:iosSimulatorArm64Test`（`:core:network`、`:core:data` 同理，需要 Xcode 和 iOS 模拟器运行时），`:core:database` 的 DAO 测试同样在 iOS 模拟器上跑（`./gradlew :core:database:iosSimulatorArm64Test`，用 BundledSQLiteDriver），设计系统只做编译检查 `./gradlew :core:designsystem:compileKotlinIosSimulatorArm64`，导航做编译检查加测试链接 `./gradlew :core:navigation:linkDebugTestIosSimulatorArm64`。
 
 Koin 由 `TrackrApp.onCreate` 启动，Robolectric 用例里每个用例都会重新启动一次。`TransferAutoSwitchManager`、`ArrivalAlertManager`、`LiveProgressNotificationHelper` 这三个旧 object 转发到 Koin 里的实例，只能在 Robolectric（带 `TrackrApp`）用例里调用；纯 JVM 用例里调用会因为 Koin 没启动而抛 `IllegalStateException`。`ReminderScheduler`、`AmapKeyStore` 转发到伴生对象，不受影响。
+
+第 9 步起 `TrackrApp.onCreate` 会打开本地存储（`StorageBackend`：默认 Room + DataStore，并把旧 SharedPreferences 导入一次）。带 `TrackrApp` 的 Robolectric 用例因此用的是新存储；要测旧存储，直接 new 仓库的旧构造函数（`RouteGroupRepository(context)`、`ScheduledReminderRepository(context)`），要单独测存储本身，用 `@Config(application = Application::class)` 不启动 `TrackrApp`（同一进程里同一个 DataStore 文件只能开一个）。
 
 `:androidApp` 的测试位于 `androidApp/src/test/java/com/trackr/`，下表按子目录列出全部测试类（辅助类 `FakeTransitRepository`、`FakeScheduledReminderRepository`、`MainDispatcherRule` 不含测试；`FakeTransitRepository` 由 `:core:testing` 里按接口拆开的 Fake 合成）。`:core:designsystem` 的测试位于 `core/designsystem/src/androidHostTest/kotlin/com/trackr/core/designsystem/`：`rail/RouteRailDrawUtilsTest`（走向条绘制工具常量与绘制不崩溃）、`theme/TrackrThemeTest`（v3 蓝浅 / 深两套且不用动态取色、`TrackrColors` 与旧名别名、`eta` / `item` 字号、圆角与尺寸、Compose 资源在 Android 上能读到），都是 Robolectric Compose UI。单跑：`./gradlew :core:designsystem:testAndroidHostTest`。
 
@@ -49,8 +51,12 @@ Koin 由 `TrackrApp.onCreate` 启动，Robolectric 用例里每个用例都会�
 | `data/remote/amap` | `AmapSdkManagerTest` | 高德 Key 优先级、隐私合规与 Key 注入 | Robolectric (JVM) |
 |  | `AmapSdkTransitServiceTest` | 高德 SDK 公交路径转换为方案、无 Key 时的提示 | Robolectric (JVM) |
 | `data/remote/update` | `GithubUpdateCheckerTest` | 更新检查多源回退、强制更新判定、下载地址 https 与域名白名单校验、取消后不再试剩下的源（Ktor `MockEngine`） | Robolectric (JVM) |
-| `data/repository` | `RouteGroupRepositoryTest` | 路线分组与收藏分组增删改排序、并发写入不丢更新、JSON 损坏备份 | Robolectric (JVM) |
-|  | `ScheduledReminderRepositoryTest` | 定时提醒增删改与持久化、并发写入不丢更新、JSON 损坏备份、计划触发时间记录 | Robolectric (JVM) |
+| `data/local` | `StorageBackendTest` | 整套存储端到端：同一份旧数据经新存储和旧存储读出来完全相同、旧文件不被改动、新存储写入重开读回、USE_NEW_STORE 关了再开能带回旧存储期间的改动、库打不开时退回旧存储 | Robolectric (JVM) |
+|  | `BackupRulesTest` | `backup_rules.xml` 和 `data_extraction_rules.xml` 两段：排除高德 Key（新旧两个文件）和追踪会话、不排除 `trackr.db` 和设置、没有 include、三段一样、Manifest 都接上了 | Robolectric (JVM) |
+| `data/repository` | `RouteGroupRepositoryTest` | 旧存储（SharedPreferences）上：路线分组与收藏分组增删改排序、并发写入不丢更新、JSON 损坏备份 | Robolectric (JVM) |
+|  | `RoomRouteGroupRepositoryTest` | 新存储（Room）上：读回逐字段一致（程、候选线、轨迹点）、清理假数据、删分组时路线一起改成不分组、排序和加候选线持久化、并发写入不丢更新 | Robolectric (JVM) |
+|  | `ScheduledReminderRepositoryTest` | 旧存储上：定时提醒增删改与持久化、并发写入不丢更新、JSON 损坏备份、计划触发时间记录 | Robolectric (JVM) |
+|  | `RoomScheduledReminderRepositoryTest` | 新存储上：增删改与重开读回、并发保存 / 开关不丢更新、计划触发时刻存进 `reminder.lastScheduledTriggerAt` 并且改别的提醒时不被冲掉 | Robolectric (JVM) |
 | `di` | `KoinGraphVerifyTest` | Koin 依赖图：每个模块 `verify()` 静态检查构造参数都有绑定；Robolectric 里把每个定义实际取一次（带参数的 ViewModel 用样例 key） | Robolectric (JVM) |
 | `receiver` | `ScheduledReminderReceiverTest` | 定时提醒触发、自动跟车需精确闹钟、前台服务启动失败降级 | Robolectric (JVM) |
 |  | `BootCompletedReceiverTest` | 开机禁用已错过的一次性提醒、时间变化重新调度、无关广播忽略 | Robolectric (JVM) |
@@ -112,6 +118,10 @@ Koin 由 `TrackrApp.onCreate` 启动，Robolectric 用例里每个用例都会�
 | `:core:data` `repository` | `RealtimeRepositoryLineDetailCacheTest` | 线路详情同 key 并发只请求一次上游、TTL 内复用与过期重拉、目标站顺序不同算不同 key、失败不缓存、取消的调用方不影响其他等待者 | commonTest（JVM + iOS 模拟器） |
 |  | `LocationRepositoryTest` | 首页取定位：够新够准直接用、强制刷新 10 秒 / 平时 60 秒、4.5 秒窗口取最准且 ≤100 m 提前结束、超过 10 分钟的旧定位不用、无权限不定位；规划页 lastKnown 取 10 分钟内最准的 | commonTest（JVM + iOS 模拟器） |
 |  | `CountyLevelCityMatchTest` | 县级市/县城匹配与省份校验 | commonTest（JVM + iOS 模拟器） |
+| `:core:data` `legacy` | `LegacyLibraryMigrationTest` | 旧 SharedPreferences -> Room / DataStore：每个旧 key 一条（收藏、搜索历史、路线、收藏分组、提醒 + 计划触发时刻、7 个设置、两个 Key 槽，含 0a4fdab 之前存在 `trackr_prefs` 的 Key 与「Key 文件优先」）；旧文件前后一字不差；损坏 JSON 不崩、只跳过那一项、原文复制到 `legacy_backup/`；已有 `_corrupt_backup_` 原样复制；同一代只跑一次、换代只替换旧文件里有的项；库重建后重新导入 | Robolectric（只 JVM） |
+|  | `SettingsMigrationTest` | 设置和 Key 的只读 DataMigration：按类型搬、类型不对跳过、旧 key 不删、同一代不重跑、再导只覆盖旧文件里有的 key、空的旧 Key 不清掉新 Key、Key 不进设置文件 | Robolectric（只 JVM） |
+| `:core:database` | `DaoTest` | 各 DAO 在内存库上：整份替换保序、路线连程和候选线读回、删路线不留孤儿行、路线和分组一个事务、提醒改列表时保留计划触发时刻、搜索历史、站表缓存过期清理、迁移标记 | commonTest（Robolectric + iOS 模拟器） |
+| `:core:datastore` | `TrackrDataStoresTest` | 设置文件读写重开、文件损坏换成空内容不崩、Key 和设置分两个文件、追踪会话 JSON 读写清空、会话文件损坏读成没有会话 | androidHostTest（只 JVM） |
 | `:core:testing` | `FakesTest` | `FakeClock` 墙钟和单调时钟一起走、改墙钟不动单调时钟；`FakeReminderAlarms`、`FakeTransitCodeLauncher`、`FakeLocationSource` 的行为 | commonTest（JVM + iOS 模拟器） |
 
 ---

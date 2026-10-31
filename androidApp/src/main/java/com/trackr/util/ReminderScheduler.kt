@@ -4,44 +4,45 @@ import android.app.AlarmManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
-import android.content.SharedPreferences
 import android.os.Build
 import android.util.Log
 import androidx.core.app.AlarmManagerCompat
+import com.trackr.core.data.local.ReminderScheduleStateStore
+import com.trackr.core.data.local.SerialWriter
 import com.trackr.core.domain.platform.ReminderAlarms
 import com.trackr.core.model.ScheduledReminder
 import com.trackr.receiver.ScheduledReminderReceiver
 import java.util.Calendar
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * 定时提醒硬件闹钟调度器 (AlarmManager)
  *
  * 第 4 步从 object 改成类，由 Koin 提供单例，接收器注入它；第 7 步起实现 `:core:domain` 的 [ReminderAlarms]。
- * 状态都在系统闹钟和 `trackr_reminder_schedule_state` 文件里，实现仍是伴生对象里的原函数，实例只绑定应用 Context。
- * 旧的 [ReminderScheduler] 暂时转发到伴生对象（第 12 步删）。
+ * 每个提醒上次排的触发时刻记在 [ReminderScheduleState] 里（第 9 步）：USE_NEW_STORE 开时在 Room
+ * `reminder.lastScheduledTriggerAt`，关时在原来的 `trackr_reminder_schedule_state` 文件。
+ * 旧的 [ReminderScheduler] 暂时转发到伴生对象（用旧文件，第 12 步删）。
  */
-class ReminderAlarmScheduler(context: Context) : ReminderAlarms {
+class ReminderAlarmScheduler(
+    context: Context,
+    private val scheduleState: ReminderScheduleState = SharedPrefsReminderScheduleState(context)
+) : ReminderAlarms {
 
     private val appContext: Context = context.applicationContext ?: context
 
     override fun canScheduleExact(): Boolean = canScheduleExact(appContext)
 
-    override fun lastScheduledTriggerMillis(reminderId: String): Long? =
-        getLastScheduledTriggerMillis(appContext, reminderId)
+    override fun lastScheduledTriggerMillis(reminderId: String): Long? = scheduleState.get(reminderId)
 
-    override fun schedule(reminder: ScheduledReminder) = scheduleReminder(appContext, reminder)
+    override fun schedule(reminder: ScheduledReminder) = scheduleReminder(appContext, reminder, scheduleState)
 
-    override fun cancel(reminderId: String) = cancelReminder(appContext, reminderId)
+    override fun cancel(reminderId: String) = cancelReminder(appContext, reminderId, scheduleState)
 
-    override fun rescheduleAll(reminders: List<ScheduledReminder>) = rescheduleAll(appContext, reminders)
+    override fun rescheduleAll(reminders: List<ScheduledReminder>) = rescheduleAll(appContext, reminders, scheduleState)
 
     companion object {
 
         private const val TAG = "ReminderScheduler"
-
-        /** 记录每个提醒最近一次计划触发时间的独立 SharedPreferences（不改动提醒数据模型） */
-        private const val SCHEDULE_STATE_PREFS = "trackr_reminder_schedule_state"
-        private const val KEY_PREFIX_NEXT_TRIGGER = "next_trigger_"
 
         /**
          * 当前是否可以设置精确闹钟。
@@ -57,11 +58,8 @@ class ReminderAlarmScheduler(context: Context) : ReminderAlarms {
         /**
          * 读取指定提醒最近一次计划的触发时间；从未调度或已取消时返回 null
          */
-        fun getLastScheduledTriggerMillis(context: Context, reminderId: String): Long? {
-            val prefs = scheduleStatePrefs(context)
-            val key = KEY_PREFIX_NEXT_TRIGGER + reminderId
-            return if (prefs.contains(key)) prefs.getLong(key, 0L) else null
-        }
+        fun getLastScheduledTriggerMillis(context: Context, reminderId: String): Long? =
+            SharedPrefsReminderScheduleState(context).get(reminderId)
 
         /**
          * 找出计划时间已过却未触发（如关机期间错过）的一次性提醒 ID。
@@ -161,9 +159,13 @@ class ReminderAlarmScheduler(context: Context) : ReminderAlarms {
         /**
          * 注册或更新单个提醒的系统闹钟
          */
-        fun scheduleReminder(context: Context, reminder: ScheduledReminder) {
+        fun scheduleReminder(
+            context: Context,
+            reminder: ScheduledReminder,
+            scheduleState: ReminderScheduleState = SharedPrefsReminderScheduleState(context)
+        ) {
             if (!reminder.enabled) {
-                cancelReminder(context, reminder.id)
+                cancelReminder(context, reminder.id, scheduleState)
                 return
             }
 
@@ -209,41 +211,40 @@ class ReminderAlarmScheduler(context: Context) : ReminderAlarms {
                     pendingIntent
                 )
             }
-            recordNextTrigger(context, reminder.id, nextTriggerMillis)
+            scheduleState.record(reminder.id, nextTriggerMillis)
         }
 
         /**
          * 取消指定提醒的系统闹钟
          */
-        fun cancelReminder(context: Context, reminderId: String) {
+        fun cancelReminder(
+            context: Context,
+            reminderId: String,
+            scheduleState: ReminderScheduleState = SharedPrefsReminderScheduleState(context)
+        ) {
             val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager ?: return
             val pendingIntent = createPendingIntent(context, reminderId)
             alarmManager.cancel(pendingIntent)
             pendingIntent.cancel()
-            scheduleStatePrefs(context).edit().remove(KEY_PREFIX_NEXT_TRIGGER + reminderId).apply()
+            scheduleState.remove(reminderId)
             Log.d(TAG, "Cancelled reminder $reminderId")
         }
 
         /**
          * 重新调度所有启用的提醒
          */
-        fun rescheduleAll(context: Context, reminders: List<ScheduledReminder>) {
+        fun rescheduleAll(
+            context: Context,
+            reminders: List<ScheduledReminder>,
+            scheduleState: ReminderScheduleState = SharedPrefsReminderScheduleState(context)
+        ) {
             reminders.forEach { reminder ->
                 if (reminder.enabled) {
-                    scheduleReminder(context, reminder)
+                    scheduleReminder(context, reminder, scheduleState)
                 } else {
-                    cancelReminder(context, reminder.id)
+                    cancelReminder(context, reminder.id, scheduleState)
                 }
             }
-        }
-
-        private fun scheduleStatePrefs(context: Context): SharedPreferences =
-            context.getSharedPreferences(SCHEDULE_STATE_PREFS, Context.MODE_PRIVATE)
-
-        private fun recordNextTrigger(context: Context, reminderId: String, triggerMillis: Long) {
-            scheduleStatePrefs(context).edit()
-                .putLong(KEY_PREFIX_NEXT_TRIGGER + reminderId, triggerMillis)
-                .apply()
         }
 
         private fun createPendingIntent(context: Context, reminderId: String): PendingIntent {
@@ -259,6 +260,73 @@ class ReminderAlarmScheduler(context: Context) : ReminderAlarms {
                 flags
             )
         }
+    }
+}
+
+/**
+ * 每个提醒上次给系统闹钟排的触发时刻。同步接口：开机接收器在 onReceive 里直接读。
+ */
+interface ReminderScheduleState {
+    fun get(reminderId: String): Long?
+    fun record(reminderId: String, triggerAtMillis: Long)
+    fun remove(reminderId: String)
+}
+
+/** 旧存储：`trackr_reminder_schedule_state` 里的 `next_trigger_<提醒 id>`（8e0c41e），写法和原来一样 */
+class SharedPrefsReminderScheduleState(context: Context) : ReminderScheduleState {
+
+    private val prefs = context.getSharedPreferences(SCHEDULE_STATE_PREFS, Context.MODE_PRIVATE)
+
+    override fun get(reminderId: String): Long? {
+        val key = KEY_PREFIX_NEXT_TRIGGER + reminderId
+        return if (prefs.contains(key)) prefs.getLong(key, 0L) else null
+    }
+
+    override fun record(reminderId: String, triggerAtMillis: Long) {
+        prefs.edit().putLong(KEY_PREFIX_NEXT_TRIGGER + reminderId, triggerAtMillis).apply()
+    }
+
+    override fun remove(reminderId: String) {
+        prefs.edit().remove(KEY_PREFIX_NEXT_TRIGGER + reminderId).apply()
+    }
+
+    companion object {
+        /** 记录每个提醒最近一次计划触发时间的独立 SharedPreferences（不改动提醒数据模型） */
+        const val SCHEDULE_STATE_PREFS = "trackr_reminder_schedule_state"
+        const val KEY_PREFIX_NEXT_TRIGGER = "next_trigger_"
+    }
+}
+
+/**
+ * 新存储：内存里一份（同步读），写入按调用顺序排队落到 [ReminderScheduleStateStore]（Room `reminder.lastScheduledTriggerAt`）。
+ * 用 [create] 建，建好时已从库里读出全部记录。进程在写盘前被杀，丢的只是这一条记录，效果等同「没记过」，开机时照常重排。
+ */
+class CachedReminderScheduleState private constructor(
+    private val store: ReminderScheduleStateStore,
+    private val writer: SerialWriter,
+    initial: Map<String, Long>
+) : ReminderScheduleState {
+
+    private val cache = ConcurrentHashMap(initial)
+
+    override fun get(reminderId: String): Long? = cache[reminderId]
+
+    override fun record(reminderId: String, triggerAtMillis: Long) {
+        cache[reminderId] = triggerAtMillis
+        writer.enqueue { store.set(reminderId, triggerAtMillis) }
+    }
+
+    override fun remove(reminderId: String) {
+        cache.remove(reminderId)
+        writer.enqueue { store.remove(reminderId) }
+    }
+
+    /** 等排队的写入做完（测试用） */
+    suspend fun flush() = writer.flush()
+
+    companion object {
+        suspend fun create(store: ReminderScheduleStateStore, writer: SerialWriter): CachedReminderScheduleState =
+            CachedReminderScheduleState(store, writer, store.loadAll())
     }
 }
 

@@ -490,7 +490,7 @@ class HomeViewModelTest {
     @Test
     fun testStartupLocate_switchesToLocatedCity_whenNoCitySavedYet() = runTest {
         grantFreshGpsLocation(30.2741, 120.1551)
-        fakeRepository.hasSavedCity = false
+        fakeRepository.setHasSavedCity(false)
         fakeRepository.resolveCityResult = Result.success(hangzhou)
 
         val viewModel = createViewModel()

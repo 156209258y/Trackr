@@ -1,12 +1,11 @@
 package com.trackr.receiver
 
-import android.content.Context
 import android.content.Intent
 import androidx.test.core.app.ApplicationProvider
 import com.trackr.TrackrApp
 import com.trackr.core.model.ScheduledReminder
 import com.trackr.data.repository.IScheduledReminderRepository
-import com.trackr.util.ReminderScheduler
+import com.trackr.util.ReminderScheduleState
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -49,12 +48,13 @@ class BootCompletedReceiverTest {
         targetOrder = 5
     )
 
+    /** App 启动时选定的计划触发时刻存储（第 9 步起默认是 Room 里的 reminder.lastScheduledTriggerAt） */
+    private val scheduleState: ReminderScheduleState
+        get() = GlobalContext.get().get()
+
     /** 模拟关机期间错过：把计划触发时间改写为过去 */
     private fun markPlannedInPast(id: String) {
-        app.getSharedPreferences("trackr_reminder_schedule_state", Context.MODE_PRIVATE)
-            .edit()
-            .putLong("next_trigger_$id", System.currentTimeMillis() - 60_000L)
-            .commit()
+        scheduleState.record(id, System.currentTimeMillis() - 60_000L)
     }
 
     private fun waitUntil(condition: () -> Boolean) {
@@ -77,7 +77,7 @@ class BootCompletedReceiverTest {
         assertFalse(reminderRepository.getReminderById("boot-once")!!.enabled)
         // 周期提醒不受影响，且被重新调度到未来
         assertTrue(reminderRepository.getReminderById("boot-repeat")!!.enabled)
-        val repeatPlanned = ReminderScheduler.getLastScheduledTriggerMillis(app, "boot-repeat")
+        val repeatPlanned = scheduleState.get("boot-repeat")
         assertTrue(repeatPlanned!! > System.currentTimeMillis())
     }
 
@@ -90,7 +90,7 @@ class BootCompletedReceiverTest {
 
         // 时间变化只重新计算触发时间，不置为未启用
         assertTrue(reminderRepository.getReminderById("time-once")!!.enabled)
-        val planned = ReminderScheduler.getLastScheduledTriggerMillis(app, "time-once")
+        val planned = scheduleState.get("time-once")
         assertTrue(planned!! > System.currentTimeMillis())
     }
 
@@ -103,7 +103,7 @@ class BootCompletedReceiverTest {
 
         assertTrue(reminderRepository.getReminderById("ignored-once")!!.enabled)
         // 未处理的广播不会重新调度，计划时间仍是之前写入的过去时间
-        val planned = ReminderScheduler.getLastScheduledTriggerMillis(app, "ignored-once")
+        val planned = scheduleState.get("ignored-once")
         assertTrue(planned!! < System.currentTimeMillis())
     }
 }

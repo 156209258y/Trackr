@@ -1,10 +1,11 @@
 package com.trackr.data.repository
 
 import android.content.Context
-import android.content.SharedPreferences
-import android.util.Log
+import com.trackr.core.data.local.ReminderStore
+import com.trackr.core.domain.platform.ReminderAlarms
 import com.trackr.core.model.ScheduledReminder
-import com.trackr.util.ReminderScheduler
+import com.trackr.data.local.SharedPrefsReminderStore
+import com.trackr.util.ReminderAlarmScheduler
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -12,58 +13,31 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
-import kotlinx.serialization.decodeFromString
-import kotlinx.serialization.encodeToString
-import kotlinx.serialization.json.Json
 
 /**
- * 基于 SharedPreferences 与 JSON 的定时提醒持久化仓库实现
+ * 定时提醒仓库。
+ *
+ * 读写经 [ReminderStore]（第 9 步）：USE_NEW_STORE 开时是 Room `reminder` 表，关时是原来的 SharedPreferences
+ * `trackr_scheduled_reminders`（JSON 损坏先备份原文，148d67c）。系统闹钟经 [ReminderAlarms]。
+ * 「写库 + 排闹钟」在同一把锁里，先写库、再排闹钟（P4）；排闹钟失败时开机 / 改时间的接收器会再排一次。
  */
 class ScheduledReminderRepository(
-    private val context: Context,
+    private val store: ReminderStore,
+    private val alarms: ReminderAlarms,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
 ) : IScheduledReminderRepository {
 
-    private val json = Json {
-        ignoreUnknownKeys = true
-        encodeDefaults = true
-    }
-
-    private val prefs: SharedPreferences = context.getSharedPreferences(
-        PREFS_NAME,
-        Context.MODE_PRIVATE
-    )
+    /** 旧存储（SharedPreferences）+ 旧的闹钟状态文件；现有测试和 USE_NEW_STORE 关闭时用 */
+    constructor(context: Context, ioDispatcher: CoroutineDispatcher = Dispatchers.IO) :
+        this(SharedPrefsReminderStore(context), ReminderAlarmScheduler(context), ioDispatcher)
 
     /** 串行化所有读改写，避免 UI 与提醒接收器并发调用时丢失更新 */
     private val mutex = Mutex()
 
-    private val _reminders = MutableStateFlow<List<ScheduledReminder>>(loadInitialReminders())
+    private val _reminders = MutableStateFlow<List<ScheduledReminder>>(runBlocking { store.load() })
     override val reminders: StateFlow<List<ScheduledReminder>> = _reminders.asStateFlow()
-
-    private fun loadInitialReminders(): List<ScheduledReminder> {
-        val rawJson = prefs.getString(KEY_REMINDERS_JSON, null) ?: return emptyList()
-        return try {
-            json.decodeFromString<List<ScheduledReminder>>(rawJson)
-        } catch (e: Exception) {
-            // 解析失败时先备份原始数据，避免下次写入无声覆盖
-            Log.e(TAG, "Failed to parse reminders json, backing up raw data", e)
-            backupCorruptJson(rawJson)
-            emptyList()
-        }
-    }
-
-    /**
-     * 将无法解析的原始 JSON 备份到 [KEY_CORRUPT_BACKUP_PREFIX]<时间戳>，只保留最近一份
-     */
-    private fun backupCorruptJson(rawJson: String) {
-        val editor = prefs.edit()
-        prefs.all.keys
-            .filter { it.startsWith(KEY_CORRUPT_BACKUP_PREFIX) }
-            .forEach { editor.remove(it) }
-        editor.putString(KEY_CORRUPT_BACKUP_PREFIX + System.currentTimeMillis(), rawJson)
-        editor.apply()
-    }
 
     override suspend fun saveReminder(reminder: ScheduledReminder) = withContext(ioDispatcher) {
         mutex.withLock {
@@ -75,7 +49,7 @@ class ScheduledReminderRepository(
                 current.add(reminder)
             }
             persistReminders(current)
-            ReminderScheduler.scheduleReminder(context, reminder)
+            alarms.schedule(reminder)
         }
     }
 
@@ -83,7 +57,7 @@ class ScheduledReminderRepository(
         mutex.withLock {
             val current = _reminders.value.filterNot { it.id == id }
             persistReminders(current)
-            ReminderScheduler.cancelReminder(context, id)
+            alarms.cancel(id)
         }
     }
 
@@ -96,9 +70,9 @@ class ScheduledReminderRepository(
             val updated = current.find { it.id == id }
             if (updated != null) {
                 if (enabled) {
-                    ReminderScheduler.scheduleReminder(context, updated)
+                    alarms.schedule(updated)
                 } else {
-                    ReminderScheduler.cancelReminder(context, id)
+                    alarms.cancel(id)
                 }
             }
         }
@@ -108,18 +82,13 @@ class ScheduledReminderRepository(
         return _reminders.value.find { it.id == id }
     }
 
-    private fun persistReminders(list: List<ScheduledReminder>) {
+    private suspend fun persistReminders(list: List<ScheduledReminder>) {
         _reminders.value = list
-        try {
-            val rawJson = json.encodeToString(list)
-            prefs.edit().putString(KEY_REMINDERS_JSON, rawJson).apply()
-        } catch (_: Exception) {}
+        store.save(list)
     }
 
     companion object {
-        private const val TAG = "ScheduledReminderRepo"
-        private const val PREFS_NAME = "trackr_scheduled_reminders"
-        private const val KEY_REMINDERS_JSON = "reminders_list_json"
-        internal const val KEY_CORRUPT_BACKUP_PREFIX = "reminders_list_json_corrupt_backup_"
+        /** 旧存储里损坏 JSON 的备份 key 前缀（实现在 [SharedPrefsReminderStore]） */
+        internal const val KEY_CORRUPT_BACKUP_PREFIX = SharedPrefsReminderStore.KEY_CORRUPT_BACKUP_PREFIX
     }
 }

@@ -1,10 +1,11 @@
 package com.trackr.ui.screens.favoritesgroup
 
 import android.content.Context
-import android.content.SharedPreferences
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.trackr.core.data.local.LocalMigrationFlags
 import com.trackr.core.data.provider.TransitProviderCoordinator
+import com.trackr.core.data.repository.AmapKeyRepository
 import com.trackr.core.data.repository.AmapRouteGateway
 import com.trackr.core.data.repository.DefaultLocationRepository
 import com.trackr.core.data.repository.LocationRepository
@@ -78,8 +79,8 @@ class FavoritesGroupViewModel(
     /** 高德 Web 服务客户端；为 null 时 Web 通道不可用（测试一般注入 [AmapRouteGateway] 替身） */
     private val amapApiClient: AmapTransitApiClient? = null,
     private val amapSdkService: AmapSdkTransitService? = null,
-    /** `trackr_prefs`，只用来记一次性数据迁移的版本号；为 null 时每次都跑迁移 */
-    private val prefs: SharedPreferences? = null,
+    /** 一次性数据迁移的版本号（存在设置里，第 9 步起不再直接读写 SharedPreferences）；为 null 时每次都跑迁移 */
+    private val migrationFlags: LocalMigrationFlags? = null,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
     enableAutoRefresh: Boolean = true,
     private val enableAutoMigration: Boolean = true,
@@ -87,8 +88,8 @@ class FavoritesGroupViewModel(
     amapGatewayOverride: AmapRouteGateway? = null,
     /** 墙钟（毫秒），用于算路缓存时间桶与对齐缓存过期；测试可替换 */
     private val wallClockMillis: () -> Long = { System.currentTimeMillis() },
-    /** 高德 Key 专用存储（与普通设置分文件，备份时排除）；测试可注入 */
-    private val amapKeyPrefs: SharedPreferences? = null,
+    /** 高德 Key 两槽（单独文件，备份时排除）；为 null 时两个 Key 都当没填、保存只改内存（测试用） */
+    private val amapKeys: AmapKeyRepository? = null,
     /** 把 Android Key 注入高德 SDK；测试默认不注入 */
     private val amapSdkKeyApplier: AmapSdkKeyApplier = AmapSdkKeyApplier { },
     /** 「我的位置」兜底用的系统 lastKnown 定位；为 null 时没有兜底 */
@@ -274,11 +275,11 @@ class FavoritesGroupViewModel(
     }
 
     /** 高德 Android 平台 Key（地图渲染 / 搜索 / 定位 SDK），与包名 + SHA-1 绑定；严格分槽，不回落 Web 槽位 */
-    private val _customAmapApiKey = MutableStateFlow(AmapKeyStore.readAndroidKey(amapKeyPrefs))
+    private val _customAmapApiKey = MutableStateFlow(amapKeys?.androidKey?.value)
     val customAmapApiKey: StateFlow<String?> = _customAmapApiKey.asStateFlow()
 
     /** 高德 Web 服务 Key（restapi.amap.com 公交算路 / 输入提示），不绑定包名 */
-    private val _customAmapWebApiKey = MutableStateFlow(AmapKeyStore.readWebKey(amapKeyPrefs))
+    private val _customAmapWebApiKey = MutableStateFlow(amapKeys?.webKey?.value)
     val customAmapWebApiKey: StateFlow<String?> = _customAmapWebApiKey.asStateFlow()
 
     /** 当前生效的 Web 服务 Key：判断可用与实际发请求统一用它（用户配置 > BuildConfig） */
@@ -314,8 +315,8 @@ class FavoritesGroupViewModel(
      * 合成线路的实时对齐不在此处持久化，交由 [refreshRealtimeEta] 在运行时完成。
      */
     fun runDataMigrationIfNeeded(): Job = viewModelScope.launch(ioDispatcher) {
-        // prefs 为空（例如测试环境）时退化为每次都执行，不做版本短路
-        val migratedVersion = prefs?.getInt(PREF_KEY_MIGRATION_VERSION, 0) ?: 0
+        // migrationFlags 为空（例如测试环境）时退化为每次都执行，不做版本短路
+        val migratedVersion = migrationFlags?.favoritesGroupMigrationVersion() ?: 0
         if (migratedVersion >= CURRENT_MIGRATION_VERSION) return@launch
 
         // 1. 补齐遗留通勤分组的 customGroupId（纯本地判定，无网络请求）
@@ -342,7 +343,7 @@ class FavoritesGroupViewModel(
             }
         }
 
-        prefs?.edit()?.putInt(PREF_KEY_MIGRATION_VERSION, CURRENT_MIGRATION_VERSION)?.apply()
+        migrationFlags?.setFavoritesGroupMigrationVersion(CURRENT_MIGRATION_VERSION)
     }
 
     fun selectCategory(category: GroupCategory?) {
@@ -412,7 +413,7 @@ class FavoritesGroupViewModel(
      */
     fun saveCustomAmapApiKey(key: String) {
         val trimmed = key.trim().ifBlank { null }
-        AmapKeyStore.writeAndroidKey(amapKeyPrefs, trimmed)
+        amapKeys?.setAndroidKey(trimmed)
         _customAmapApiKey.value = trimmed
         runCatching {
             amapSdkKeyApplier.apply(trimmed)
@@ -424,7 +425,7 @@ class FavoritesGroupViewModel(
      */
     fun saveCustomAmapWebApiKey(key: String) {
         val trimmed = key.trim().ifBlank { null }
-        AmapKeyStore.writeWebKey(amapKeyPrefs, trimmed)
+        amapKeys?.setWebKey(trimmed)
         _customAmapWebApiKey.value = trimmed
     }
 

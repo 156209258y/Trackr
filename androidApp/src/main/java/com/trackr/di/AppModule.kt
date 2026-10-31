@@ -1,7 +1,10 @@
 package com.trackr.di
 
-import android.content.Context
+import com.trackr.core.data.local.ReminderStore
+import com.trackr.core.data.local.RouteGroupStore
+import com.trackr.core.data.local.TransitLocalStore
 import com.trackr.core.data.provider.TransitProviderCoordinator
+import com.trackr.core.data.repository.AmapKeyRepository
 import com.trackr.core.data.repository.DefaultLocationRepository
 import com.trackr.core.data.repository.FavoritesRepository
 import com.trackr.core.data.repository.LocationRepository
@@ -19,9 +22,10 @@ import com.trackr.core.network.remote.amap.AmapTransitApiClient
 import com.trackr.core.network.remote.chelaile.ChelaileApiClient
 import com.trackr.core.network.remote.common.createTrackrHttpClient
 import com.trackr.core.network.remote.mygolbs.MygolbsApiClient
+import com.trackr.data.local.StorageBackend
+import com.trackr.core.data.local.StoreMigrationFlags
 import com.trackr.data.location.AndroidLocationSource
 import com.trackr.data.location.AndroidMonotonicClock
-import com.trackr.data.remote.amap.AmapKeyStorage
 import com.trackr.data.remote.amap.AmapSdkKeyApplier
 import com.trackr.data.remote.amap.AmapSdkTransitService
 import com.trackr.data.remote.amap.AndroidAmapSdkKeyApplier
@@ -43,6 +47,7 @@ import com.trackr.ui.screens.more.AboutViewModel
 import com.trackr.ui.screens.more.MoreViewModel
 import com.trackr.ui.screens.stopdetail.StopDetailViewModel
 import com.trackr.util.ReminderAlarmScheduler
+import com.trackr.util.ReminderScheduleState
 import com.trackr.widget.FavoritesShortcutWidgetSync
 import io.ktor.client.HttpClient
 import kotlinx.coroutines.CoroutineScope
@@ -64,7 +69,7 @@ val AppScopeQualifier = named("app")
  * 应用级依赖。
  *
  * 网络客户端、数据源和三个仓库原来在 TrackrApp.onCreate 里直接 new，现在由 Koin 构建。
- * 三个仓库仍由 TrackrApp.onCreate 按原顺序取一次（startKoin 之后），读盘时机和顺序都和原来一样。
+ * TrackrApp.onCreate 先取 [StorageBackend]（打开存储、导入旧数据），再按原顺序取三个仓库。
  */
 val appModule: Module = module {
     // Ktor（OkHttp 引擎）：总超时 20 秒，连接 12 秒、读 15 秒、写 12 秒，和原来的 OkHttpClient 一样
@@ -80,8 +85,22 @@ val appModule: Module = module {
         )
     }
     single { AmapTransitApiClient(get()) }
+
+    // 本地存储（第 9 步）：按 USE_NEW_STORE 选新（Room + DataStore，打开时先导入旧数据）或旧（SharedPreferences）
+    single { StorageBackend.open(androidContext(), get(AppScopeQualifier)) } onClose { it?.close() }
+    single<TransitLocalStore> { get<StorageBackend>().transitStore }
+    single<RouteGroupStore> { get<StorageBackend>().routeGroupStore }
+    single<ReminderStore> { get<StorageBackend>().reminderStore }
+    single<ReminderScheduleState> { get<StorageBackend>().reminderScheduleState }
+    single<AmapKeyRepository> { get<StorageBackend>().amapKeys }
+
     single<ITransitRepository> {
-        TransitRepository(context = androidContext(), coordinator = get())
+        TransitRepository(
+            context = androidContext(),
+            coordinator = get(),
+            store = get(),
+            writeScope = get(AppScopeQualifier)
+        )
     }
     // 拆开的仓库接口（重构计划 §2.5）：第 9 步换存储之前都是同一个 TransitRepository
     single<SettingsRepository> { get<ITransitRepository>() }
@@ -89,10 +108,10 @@ val appModule: Module = module {
     single<RealtimeRepository> { get<ITransitRepository>() }
     single<SearchHistoryRepository> { get<ITransitRepository>() }
     single<IScheduledReminderRepository> {
-        ScheduledReminderRepository(context = androidContext())
+        ScheduledReminderRepository(store = get(), alarms = get())
     }
     single<IRouteGroupRepository> {
-        RouteGroupRepository(context = androidContext())
+        RouteGroupRepository(store = get<RouteGroupStore>())
     }
 
     // 应用级作用域：SupervisorJob，一个任务失败不影响别的；Koin 关闭时取消
@@ -110,8 +129,7 @@ val appModule: Module = module {
     }
     single { ArrivalAlertNotifier(get()) }
     single { TransferAutoSwitcher(get()) }
-    single<ReminderAlarms> { ReminderAlarmScheduler(androidContext()) }
-    single { AmapKeyStorage(androidContext()) }
+    single<ReminderAlarms> { ReminderAlarmScheduler(androidContext(), get()) }
 
     // 平台能力：ViewModel 不再直接拿 Context
     single<LocationSource> { AndroidLocationSource(androidContext()) }
@@ -140,8 +158,8 @@ val viewModelModule: Module = module {
             coordinator = get(),
             amapApiClient = get(),
             amapSdkService = runCatching { AmapSdkTransitService(context) }.getOrNull(),
-            prefs = runCatching { context.getSharedPreferences(TRACKR_PREFS, Context.MODE_PRIVATE) }.getOrNull(),
-            amapKeyPrefs = get<AmapKeyStorage>().prefs(),
+            migrationFlags = StoreMigrationFlags(get()),
+            amapKeys = get(),
             amapSdkKeyApplier = get(),
             locationRepository = get()
         )
@@ -176,5 +194,3 @@ val viewModelModule: Module = module {
 
 /** 启动时装载的全部 Koin 模块；`KoinGraphVerifyTest` 逐个校验 */
 val appModules: List<Module> = listOf(appModule, viewModelModule)
-
-private const val TRACKR_PREFS = "trackr_prefs"

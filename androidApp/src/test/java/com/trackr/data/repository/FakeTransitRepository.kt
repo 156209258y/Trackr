@@ -56,8 +56,8 @@ class FakeTransitRepository private constructor(
         realtime = FakeRealtimeRepository(currentCity = { settings.selectedCity.value })
     )
 
-    /** 可在测试中设为 false 模拟首次安装（从未存过城市） */
-    override var hasSavedCity: Boolean by settings::hasSavedCity
+    /** 测试里设为 false 模拟首次安装（从未存过城市） */
+    fun setHasSavedCity(saved: Boolean) = settings.setHasSavedCity(saved)
 
     // 可配置的测试数据钩子（转发到 FakeRealtimeRepository）
     var supportedCitiesResult: Result<List<TransitCity>> by realtime::supportedCitiesResult

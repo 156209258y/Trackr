@@ -1,0 +1,98 @@
+package com.trackr.core.datastore
+
+import androidx.datastore.core.DataMigration
+import androidx.datastore.core.DataStore
+import androidx.datastore.core.DataStoreFactory
+import androidx.datastore.core.handlers.ReplaceFileCorruptionHandler
+import androidx.datastore.core.okio.OkioStorage
+import androidx.datastore.preferences.core.PreferenceDataStoreFactory
+import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
+import androidx.datastore.preferences.core.emptyPreferences
+import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.core.stringSetPreferencesKey
+import kotlinx.coroutines.CoroutineScope
+import okio.FileSystem
+import okio.Path.Companion.toPath
+
+/**
+ * 三个 DataStore 文件（重构计划 §2.4）。Android 上都在 `files/datastore/` 下，备份规则按这里的文件名写：
+ *
+ * | 文件 | 内容 | 备份 |
+ * | --- | --- | --- |
+ * | `trackr_settings.preferences_pb` | 城市、数据源、乘车码、开关、迁移标记 | 参与 |
+ * | `trackr_amap_keys.preferences_pb` | 高德 Key（Android 槽、Web 槽） | 排除 |
+ * | `tracking_session.json` | 追踪会话（第 12 步接入） | 排除 |
+ */
+object TrackrDataStoreFiles {
+    const val DIRECTORY = "datastore"
+    const val SETTINGS = "trackr_settings.preferences_pb"
+    const val AMAP_KEYS = "trackr_amap_keys.preferences_pb"
+    const val TRACKING_SESSION = "tracking_session.json"
+}
+
+/**
+ * `trackr_settings` 的键。名字沿用旧 `trackr_prefs` 里的键名，排查时好对照。
+ */
+object SettingsKeys {
+    val SELECTED_CITY_JSON = stringPreferencesKey("selected_city_json")
+    val ENGINE_MODE = stringPreferencesKey("engine_mode")
+    val AGGREGATED_SOURCE_PRIORITY = stringPreferencesKey("aggregated_source_priority")
+    val PREFERRED_TRANSIT_CODE_PROVIDER = stringPreferencesKey("preferred_transit_code_provider")
+    val NEARBY_STOPS_COUNT = intPreferencesKey("nearby_stops_count")
+    val LIVE_NOTIFICATION_ENABLED = booleanPreferencesKey("is_live_notification_enabled")
+    val FAVORITES_GROUP_MIGRATION_VERSION = intPreferencesKey("favorites_group_migration_version")
+
+    /** 旧 SharedPreferences 的设置导入到第几代（见 LegacySettingsMigration）；没有 = 还没导入 */
+    val LEGACY_IMPORT_GEN = intPreferencesKey("legacy_import_gen")
+
+    /** 旧数据全部导入完成后记 1（计划 §2.4 的 legacyMigrated） */
+    val LEGACY_MIGRATED = intPreferencesKey("legacy_migrated")
+
+    /** 导入时解析失败的旧 key，格式 `<文件>/<key>`，原文在 `files/legacy_backup/` */
+    val LEGACY_CORRUPT_KEYS = stringSetPreferencesKey("legacy_corrupt_keys")
+}
+
+/** `trackr_amap_keys` 的键，和旧 SharedPreferences `trackr_amap_keys` 同名 */
+object AmapKeyKeys {
+    val ANDROID = stringPreferencesKey("custom_amap_android_key")
+    val WEB = stringPreferencesKey("custom_amap_web_key")
+
+    /** 旧 Key 导入到第几代；没有 = 还没导入 */
+    val LEGACY_IMPORT_GEN = intPreferencesKey("legacy_import_gen")
+}
+
+/** 各平台的系统文件系统（Android / iOS 都是 FileSystem.SYSTEM） */
+expect fun systemFileSystem(): FileSystem
+
+/**
+ * 建一个 Preferences DataStore。
+ *
+ * 文件损坏时换成空内容继续（不崩）：迁移标记也在同一个文件里，跟着没了，下次读会重新从旧 SharedPreferences 导入。
+ * 同一进程里同一个文件只能有一个实例（DataStore 自己会检查）；[scope] 取消后才能再建。
+ */
+fun createPreferencesDataStore(
+    path: String,
+    scope: CoroutineScope,
+    migrations: List<DataMigration<Preferences>> = emptyList()
+): DataStore<Preferences> = PreferenceDataStoreFactory.createWithPath(
+    corruptionHandler = ReplaceFileCorruptionHandler { emptyPreferences() },
+    migrations = migrations,
+    scope = scope,
+    produceFile = { path.toPath() }
+)
+
+/** 建追踪会话的 DataStore（JSON 单对象，没有会话时是 null） */
+fun createTrackingSessionDataStore(
+    path: String,
+    scope: CoroutineScope
+): DataStore<com.trackr.core.model.TrackingSessionState?> = DataStoreFactory.create(
+    storage = OkioStorage(
+        fileSystem = systemFileSystem(),
+        serializer = TrackingSessionSerializer,
+        producePath = { path.toPath() }
+    ),
+    corruptionHandler = ReplaceFileCorruptionHandler { null },
+    scope = scope
+)

@@ -1,7 +1,7 @@
 package com.trackr
 
 import android.app.Application
-import com.trackr.data.remote.amap.AmapKeyStore
+import com.trackr.data.local.StorageBackend
 import com.trackr.data.remote.amap.AmapSdkManager
 import com.trackr.data.repository.IRouteGroupRepository
 import com.trackr.data.repository.IScheduledReminderRepository
@@ -19,15 +19,19 @@ class TrackrApp : Application() {
     override fun onCreate() {
         super.onCreate()
 
+        // 网络客户端、数据源、存储和三个仓库由 Koin 构建。startKoin 只登记定义，不建任何实例
+        startKoinOnce()
+
+        // 打开本地存储（第 9 步：USE_NEW_STORE 开时先把旧 SharedPreferences 导入 Room / DataStore，只读不删）
+        val storage = get<StorageBackend>()
+
         // 高德 SDK 必须在任何地图/搜索/定位实例创建之前完成隐私合规与 Key 注入，
-        // 否则首次进入路线规划页会因未鉴权而只显示空白底图。
+        // 否则首次进入路线规划页会因未鉴权而只显示空白底图。Key 从存储读，所以放在存储打开之后
         runCatching {
-            AmapSdkManager.initialize(applicationContext, AmapKeyStore.readAndroidKey(applicationContext))
+            AmapSdkManager.initialize(applicationContext, storage.amapKeys.androidKey.value)
         }
 
-        // 网络客户端、数据源和三个仓库由 Koin 构建。startKoin 只登记定义；
-        // 三个仓库按原来的顺序在这里取一次，构建（含读盘）的时机和顺序都和改造前一样
-        startKoinOnce()
+        // 三个仓库按原来的顺序在这里取一次（构建时读盘）
         get<ITransitRepository>()
         get<IScheduledReminderRepository>()
         get<IRouteGroupRepository>()

@@ -1,6 +1,8 @@
 package com.trackr.ui.screens.favoritesgroup
 
 import android.content.Context
+import com.trackr.core.data.local.StoreMigrationFlags
+import com.trackr.data.local.SharedPrefsTransitStore
 import androidx.test.core.app.ApplicationProvider
 import com.trackr.core.data.repository.AmapRouteGateway
 import com.trackr.core.model.AmapTipItem
@@ -298,8 +300,8 @@ class FavoritesGroupViewModelTest {
             groupRepository = groupRepository,
             transitRepository = fakeTransitRepository,
             amapSdkService = null,
-            prefs = sharedPrefs,
-            amapKeyPrefs = sharedPrefs,
+            migrationFlags = StoreMigrationFlags(SharedPrefsTransitStore(sharedPrefs)),
+            amapKeys = sharedPrefsAmapKeys(sharedPrefs),
             enableAutoRefresh = false
         )
 
@@ -583,8 +585,8 @@ class FavoritesGroupViewModelTest {
         val viewModel = FavoritesGroupViewModel(
             groupRepository = groupRepository,
             transitRepository = fakeTransitRepository,
-            prefs = sharedPrefs,
-            amapKeyPrefs = sharedPrefs,
+            migrationFlags = StoreMigrationFlags(SharedPrefsTransitStore(sharedPrefs)),
+            amapKeys = sharedPrefsAmapKeys(sharedPrefs),
             enableAutoRefresh = false
         )
 
@@ -602,8 +604,8 @@ class FavoritesGroupViewModelTest {
         val viewModel = FavoritesGroupViewModel(
             groupRepository = groupRepository,
             transitRepository = fakeTransitRepository,
-            prefs = sharedPrefs,
-            amapKeyPrefs = sharedPrefs,
+            migrationFlags = StoreMigrationFlags(SharedPrefsTransitStore(sharedPrefs)),
+            amapKeys = sharedPrefsAmapKeys(sharedPrefs),
             enableAutoRefresh = false
         )
 
@@ -800,7 +802,7 @@ class FavoritesGroupViewModelTest {
             groupRepository = groupRepository,
             transitRepository = fakeTransitRepository,
             coordinator = null,
-            prefs = migrationPrefs,
+            migrationFlags = StoreMigrationFlags(SharedPrefsTransitStore(migrationPrefs)),
             ioDispatcher = mainDispatcherRule.testDispatcher,
             enableAutoRefresh = false,
             enableAutoMigration = false
@@ -865,5 +867,13 @@ class FavoritesGroupViewModelTest {
         testScheduler.advanceUntilIdle()
         assertTrue(viewModel.groups.value.any { it.id == "planned_temp" })
         assertNull(viewModel.temporaryTrackingGroup.value)
+    }
+
+    /** 高德 Key 存在给定的 SharedPreferences 里（旧存储写法），写入立刻生效，测试里能马上读到 */
+    private fun sharedPrefsAmapKeys(prefs: android.content.SharedPreferences) = kotlinx.coroutines.runBlocking {
+        com.trackr.core.data.repository.DefaultAmapKeyRepository.create(
+            com.trackr.data.local.SharedPrefsAmapKeyStore(prefs),
+            com.trackr.core.data.local.SerialWriter(kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Unconfined))
+        )
     }
 }

@@ -1,0 +1,158 @@
+package com.trackr.core.data.local
+
+import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.edit
+import com.trackr.core.database.TrackrDatabase
+import com.trackr.core.database.entity.SearchHistoryEntity
+import com.trackr.core.datastore.AmapKeyKeys
+import com.trackr.core.datastore.SettingsKeys
+import com.trackr.core.model.FavoriteGroup
+import com.trackr.core.model.FavoriteStationLine
+import com.trackr.core.model.ScheduledReminder
+import com.trackr.core.model.TransitGroup
+import kotlinx.coroutines.flow.first
+
+/*
+ * 新存储（USE_NEW_STORE 打开时用）：列表类进 Room，设置和高德 Key 进 DataStore（重构计划 §2.4）。
+ */
+
+/** 设置在 `trackr_settings`，收藏的车和搜索历史在 Room */
+class RoomDataStoreTransitStore(
+    private val db: TrackrDatabase,
+    private val settings: DataStore<Preferences>
+) : TransitLocalStore {
+
+    override suspend fun load(): TransitLocalSnapshot {
+        val prefs = settings.data.first()
+        return TransitLocalSnapshot(
+            selectedCityJson = prefs[SettingsKeys.SELECTED_CITY_JSON],
+            engineMode = prefs[SettingsKeys.ENGINE_MODE],
+            aggregatedPriority = prefs[SettingsKeys.AGGREGATED_SOURCE_PRIORITY],
+            transitCodeProvider = prefs[SettingsKeys.PREFERRED_TRANSIT_CODE_PROVIDER],
+            nearbyStopsCount = prefs[SettingsKeys.NEARBY_STOPS_COUNT],
+            liveNotificationEnabled = prefs[SettingsKeys.LIVE_NOTIFICATION_ENABLED],
+            favorites = db.favoriteLines().getAll().map { it.toModel() },
+            searchHistory = db.searchHistory().getAll().map { it.query }
+        )
+    }
+
+    override suspend fun saveSelectedCityJson(json: String) {
+        settings.edit { it[SettingsKeys.SELECTED_CITY_JSON] = json }
+    }
+
+    override suspend fun saveEngineMode(name: String) {
+        settings.edit { it[SettingsKeys.ENGINE_MODE] = name }
+    }
+
+    override suspend fun saveAggregatedPriority(name: String) {
+        settings.edit { it[SettingsKeys.AGGREGATED_SOURCE_PRIORITY] = name }
+    }
+
+    override suspend fun saveTransitCodeProvider(id: String) {
+        settings.edit { it[SettingsKeys.PREFERRED_TRANSIT_CODE_PROVIDER] = id }
+    }
+
+    override suspend fun saveNearbyStopsCount(count: Int) {
+        settings.edit { it[SettingsKeys.NEARBY_STOPS_COUNT] = count }
+    }
+
+    override suspend fun saveLiveNotificationEnabled(enabled: Boolean) {
+        settings.edit { it[SettingsKeys.LIVE_NOTIFICATION_ENABLED] = enabled }
+    }
+
+    override suspend fun saveFavorites(list: List<FavoriteStationLine>) {
+        db.favoriteLines().replaceAll(list.mapIndexed { index, item -> item.toEntity(index) })
+    }
+
+    override suspend fun saveSearchHistory(list: List<String>) {
+        // 旧版按不分大小写去重，主键是原文，这里再按原文去一次重，防止主键冲突时后面的覆盖前面的位置
+        db.searchHistory().replaceAll(list.distinct().mapIndexed { index, query -> SearchHistoryEntity(query, index) })
+    }
+
+    override suspend fun clearSearchHistory() {
+        db.searchHistory().deleteAll()
+    }
+
+    override suspend fun favoritesGroupMigrationVersion(): Int =
+        settings.data.first()[SettingsKeys.FAVORITES_GROUP_MIGRATION_VERSION] ?: 0
+
+    override suspend fun saveFavoritesGroupMigrationVersion(version: Int) {
+        settings.edit { it[SettingsKeys.FAVORITES_GROUP_MIGRATION_VERSION] = version }
+    }
+}
+
+/** 路线（route / route_leg / route_candidate_line）和收藏分组（favorite_group） */
+class RoomRouteGroupStore(private val db: TrackrDatabase) : RouteGroupStore {
+
+    override suspend fun loadGroups(): List<TransitGroup>? {
+        val rows = db.routes().getAll()
+        return if (rows.isEmpty()) null else rows.map { it.toModel() }
+    }
+
+    override suspend fun loadFavoriteGroups(): List<FavoriteGroup>? {
+        val rows = db.favoriteGroups().getAll()
+        return if (rows.isEmpty()) null else rows.map { it.toModel() }
+    }
+
+    override suspend fun saveGroups(list: List<TransitGroup>) {
+        db.routes().replaceAll(list.mapIndexed { index, group -> group.toRows(index) })
+    }
+
+    override suspend fun saveFavoriteGroups(list: List<FavoriteGroup>) {
+        db.favoriteGroups().replaceAll(list.mapIndexed { index, group -> group.toEntity(index) })
+    }
+
+    override suspend fun saveGroupsAndFavoriteGroups(groups: List<TransitGroup>, favoriteGroups: List<FavoriteGroup>) {
+        db.routes().replaceRoutesAndGroups(
+            rows = groups.mapIndexed { index, group -> group.toRows(index) },
+            groups = favoriteGroups.mapIndexed { index, group -> group.toEntity(index) }
+        )
+    }
+}
+
+/** 定时提醒（reminder 表）；改列表时保留 lastScheduledTriggerAt */
+class RoomReminderStore(private val db: TrackrDatabase) : ReminderStore {
+
+    override suspend fun load(): List<ScheduledReminder> = db.reminders().getAll().map { it.toModel() }
+
+    override suspend fun save(list: List<ScheduledReminder>) {
+        db.reminders().replaceAllKeepingTriggers(list.mapIndexed { index, reminder -> reminder.toEntity(index) })
+    }
+}
+
+/**
+ * 计划触发时刻存在 `reminder.lastScheduledTriggerAt`。
+ * 提醒行还不存在时（理论上不会：仓库先写提醒、再排闹钟）这次记录会被丢掉，效果等同「没记过」，开机时照常重排。
+ */
+class RoomReminderScheduleStateStore(private val db: TrackrDatabase) : ReminderScheduleStateStore {
+
+    override suspend fun loadAll(): Map<String, Long> =
+        db.reminders().getTriggers().mapNotNull { row -> row.lastScheduledTriggerAt?.let { row.id to it } }.toMap()
+
+    override suspend fun set(reminderId: String, triggerAtMillis: Long) {
+        db.reminders().setLastScheduledTriggerAt(reminderId, triggerAtMillis)
+    }
+
+    override suspend fun remove(reminderId: String) {
+        db.reminders().setLastScheduledTriggerAt(reminderId, null)
+    }
+}
+
+/** 高德 Key 在单独的 `trackr_amap_keys`（备份排除）。空串按没填处理，存的时候也不写空串 */
+class DataStoreAmapKeyStore(private val keys: DataStore<Preferences>) : AmapKeyStore {
+
+    override suspend fun loadAndroidKey(): String? = keys.data.first()[AmapKeyKeys.ANDROID]?.trim()?.ifBlank { null }
+
+    override suspend fun loadWebKey(): String? = keys.data.first()[AmapKeyKeys.WEB]?.trim()?.ifBlank { null }
+
+    override suspend fun saveAndroidKey(key: String?) {
+        val value = key?.trim()?.ifBlank { null }
+        keys.edit { if (value == null) it.remove(AmapKeyKeys.ANDROID) else it[AmapKeyKeys.ANDROID] = value }
+    }
+
+    override suspend fun saveWebKey(key: String?) {
+        val value = key?.trim()?.ifBlank { null }
+        keys.edit { if (value == null) it.remove(AmapKeyKeys.WEB) else it[AmapKeyKeys.WEB] = value }
+    }
+}

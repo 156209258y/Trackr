@@ -321,7 +321,7 @@ class HomeViewModel(
                         null
                     }
 
-                    val shouldSwitchCity = switchCity || !repository.hasSavedCity
+                    val shouldSwitchCity = switchCity || !repository.hasSavedCity.value
                     if (resolvedCity != null && shouldSwitchCity) {
                         repository.selectCity(resolvedCity)
                         _uiState.update {

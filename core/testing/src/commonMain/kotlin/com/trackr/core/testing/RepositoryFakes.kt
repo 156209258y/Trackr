@@ -42,8 +42,13 @@ class FakeSettingsRepository(
     private val _selectedCity = MutableStateFlow(initialCity)
     override val selectedCity: StateFlow<TransitCity> = _selectedCity.asStateFlow()
 
-    /** 可在测试中设为 false 模拟首次安装（从未存过城市） */
-    override var hasSavedCity: Boolean = true
+    private val _hasSavedCity = MutableStateFlow(true)
+    override val hasSavedCity: StateFlow<Boolean> = _hasSavedCity.asStateFlow()
+
+    /** 测试里设为 false 模拟首次安装（从未存过城市） */
+    fun setHasSavedCity(saved: Boolean) {
+        _hasSavedCity.value = saved
+    }
 
     private val _engineMode = MutableStateFlow(EngineMode.CHELAILE)
     override val engineMode: StateFlow<EngineMode> = _engineMode.asStateFlow()
@@ -78,7 +83,7 @@ class FakeSettingsRepository(
 
     override suspend fun selectCity(city: TransitCity) {
         _selectedCity.value = city
-        hasSavedCity = true
+        _hasSavedCity.value = true
     }
 
     override suspend fun setPreferredTransitCodeProvider(provider: TransitCodeProvider) {

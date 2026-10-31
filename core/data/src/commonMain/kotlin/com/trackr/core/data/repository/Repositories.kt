@@ -24,18 +24,18 @@ import kotlinx.coroutines.flow.StateFlow
  * 第 8 步：:androidApp 的 TransitRepository 先同时实现设置 / 收藏 / 实时查询 / 搜索历史四个接口
  * （实时查询那部分委托给 commonMain 的 [DefaultRealtimeRepository]），定位由 [DefaultLocationRepository] 实现；
  * ViewModel 仍然拿 ITransitRepository，第 17 步搬进各 feature 时改成只拿要用的接口。
- * 第 9 步把设置、收藏、搜索历史换成 DataStore / Room 的实现。
+ * 第 9 步：存储换成 DataStore / Room（`local/` 下的 Store），由运行时开关 USE_NEW_STORE 选新旧实现，仓库逻辑只有一份。
  */
 
 /**
  * 设置：城市、数据源、乘车码渠道、附近站数量、实时通知开关。
- * 高德 Key 两槽和 `hasMapKey` / `canShowMap`（§2.5）第 9、11 步加。
+ * 高德 Key 两槽在 [AmapKeyRepository]（第 9 步）；`hasMapKey` / `canShowMap`（§2.5）第 11 步加。
  */
 interface SettingsRepository {
     val selectedCity: StateFlow<TransitCity>
 
-    /** 用户是否曾经选过/存过城市（首次安装为 false，此时才允许定位自动切换城市） */
-    val hasSavedCity: Boolean
+    /** 用户是否曾经选过/存过城市（首次安装为 false，此时才允许定位自动切换城市）。第 9 步起是 Flow */
+    val hasSavedCity: StateFlow<Boolean>
     val engineMode: StateFlow<EngineMode>
     val aggregatedPriority: StateFlow<AggregatedSourcePriority>
     val preferredTransitCodeProvider: StateFlow<TransitCodeProvider>

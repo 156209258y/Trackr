@@ -1,8 +1,8 @@
 package com.trackr.data.repository
 
 import android.content.Context
-import android.content.SharedPreferences
-import android.util.Log
+import com.trackr.core.data.local.RouteGroupStore
+import com.trackr.data.local.SharedPrefsRouteGroupStore
 import com.trackr.core.model.CandidateLine
 import com.trackr.core.model.FavoriteGroup
 import com.trackr.core.model.GroupCategory
@@ -14,84 +14,67 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
-import kotlinx.serialization.decodeFromString
-import kotlinx.serialization.encodeToString
-import kotlinx.serialization.json.Json
 import java.util.UUID
 
 /**
- * 基于 SharedPreferences 与 JSON 的路线分组与自定义收藏持久化仓库实现
+ * 路线分组与自定义收藏的仓库实现。
+ *
+ * 读写经 [RouteGroupStore]（第 9 步）：USE_NEW_STORE 开时是 Room（route / route_leg / route_candidate_line / favorite_group），
+ * 关时是原来的 SharedPreferences `trackr_route_groups`（JSON 损坏先备份原文，148d67c）。业务逻辑两边共用这一份。
+ * 构造时同步读一次（StorageBackend 在 IO 线程上建它）；之后每次改动都在 [mutex] 里「改内存 -> 整份写盘」。
  */
 class RouteGroupRepository(
-    private val context: Context,
+    private val store: RouteGroupStore,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
 ) : IRouteGroupRepository {
 
-    private val json = Json {
-        ignoreUnknownKeys = true
-        encodeDefaults = true
-    }
-
-    private val prefs: SharedPreferences = context.getSharedPreferences(
-        PREFS_NAME,
-        Context.MODE_PRIVATE
-    )
+    /** 旧存储（SharedPreferences `trackr_route_groups`）；现有测试和 USE_NEW_STORE 关闭时用 */
+    constructor(context: Context, ioDispatcher: CoroutineDispatcher = Dispatchers.IO) :
+        this(SharedPrefsRouteGroupStore(context), ioDispatcher)
 
     /** 串行化路线分组与收藏分组的所有读改写（deleteFavoriteGroup 同时修改两者，共用一把锁） */
     private val mutex = Mutex()
 
-    private val _groups = MutableStateFlow<List<TransitGroup>>(loadInitialGroups())
+    private val _groups = MutableStateFlow<List<TransitGroup>>(emptyList())
     override val groups: StateFlow<List<TransitGroup>> = _groups.asStateFlow()
 
-    private val _favoriteGroups = MutableStateFlow<List<FavoriteGroup>>(loadInitialFavoriteGroups())
+    private val _favoriteGroups = MutableStateFlow<List<FavoriteGroup>>(emptyList())
     override val favoriteGroups: StateFlow<List<FavoriteGroup>> = _favoriteGroups.asStateFlow()
 
-    private fun loadInitialGroups(): List<TransitGroup> {
-        val rawJson = prefs.getString(KEY_GROUPS_JSON, null)
-        if (rawJson.isNullOrBlank()) {
-            return emptyList()
-        }
-        return try {
-            val loaded = json.decodeFromString<List<TransitGroup>>(rawJson)
-            // 彻底清理历史测试注入的假数据（如 sample_commute_group 或含 sample_line_ 伪造标识的分组）
-            val sanitized = loaded.filterNot { group ->
-                group.id == "sample_commute_group" ||
-                    group.legs.any { leg ->
-                        leg.candidateLines.any { it.lineId.startsWith("sample_") }
-                    }
-            }
-            if (sanitized.size != loaded.size) {
-                persistGroupsInternal(sanitized)
-            }
-            sanitized.sortedBy { it.sortOrder }
-        } catch (e: Exception) {
-            // 解析失败时先备份原始数据，避免下次写入无声覆盖
-            Log.e(TAG, "Failed to parse groups json, backing up raw data", e)
-            backupCorruptJson(KEY_GROUPS_JSON, rawJson)
-            emptyList()
+    init {
+        runBlocking {
+            _groups.value = loadInitialGroups()
+            _favoriteGroups.value = loadInitialFavoriteGroups()
         }
     }
 
-    private fun loadInitialFavoriteGroups(): List<FavoriteGroup> {
-        val rawJson = prefs.getString(KEY_FAVORITE_GROUPS_JSON, null)
-        if (!rawJson.isNullOrBlank()) {
-            try {
-                val loaded = json.decodeFromString<List<FavoriteGroup>>(rawJson)
-                if (loaded.isNotEmpty()) {
-                    return loaded.sortedBy { it.sortOrder }
+    private suspend fun loadInitialGroups(): List<TransitGroup> {
+        val loaded = store.loadGroups() ?: return emptyList()
+        // 彻底清理历史测试注入的假数据（如 sample_commute_group 或含 sample_line_ 伪造标识的分组）
+        val sanitized = loaded.filterNot { group ->
+            group.id == "sample_commute_group" ||
+                group.legs.any { leg ->
+                    leg.candidateLines.any { it.lineId.startsWith("sample_") }
                 }
-            } catch (e: Exception) {
-                // 解析失败时先备份原始数据，再写入默认分组
-                Log.e(TAG, "Failed to parse favorite groups json, backing up raw data", e)
-                backupCorruptJson(KEY_FAVORITE_GROUPS_JSON, rawJson)
-            }
+        }
+        if (sanitized.size != loaded.size) {
+            store.saveGroups(sanitized)
+        }
+        return sanitized.sortedBy { it.sortOrder }
+    }
+
+    private suspend fun loadInitialFavoriteGroups(): List<FavoriteGroup> {
+        val loaded = store.loadFavoriteGroups()
+        if (!loaded.isNullOrEmpty()) {
+            return loaded.sortedBy { it.sortOrder }
         }
         val defaultGroups = listOf(
             FavoriteGroup(id = "commute", name = "上班通勤", sortOrder = 0, isDefault = true),
             FavoriteGroup(id = "home", name = "回家线路", sortOrder = 1, isDefault = true)
         )
-        persistFavoriteGroupsInternal(defaultGroups)
+        store.saveFavoriteGroups(defaultGroups)
         return defaultGroups
     }
 
@@ -203,7 +186,6 @@ class RouteGroupRepository(
         mutex.withLock {
             // 1. 从收藏分组列表中移除
             val updatedFavoriteGroups = _favoriteGroups.value.filterNot { it.id == groupId }
-            persistFavoriteGroups(updatedFavoriteGroups)
 
             // 2. 属于该分组的路线不删除，仅解除 customGroupId 关联归入未分组
             val currentGroups = _groups.value.toMutableList()
@@ -217,8 +199,13 @@ class RouteGroupRepository(
                     changed = true
                 }
             }
+            // 两样一起写：新存储里是一个事务（§2.4「多步改动用 Room 事务」）
+            _favoriteGroups.value = updatedFavoriteGroups
             if (changed) {
-                persistGroups(currentGroups)
+                _groups.value = currentGroups
+                store.saveGroupsAndFavoriteGroups(currentGroups, updatedFavoriteGroups)
+            } else {
+                store.saveFavoriteGroups(updatedFavoriteGroups)
             }
         }
     }
@@ -270,48 +257,18 @@ class RouteGroupRepository(
         }
     }
 
-    /**
-     * 将无法解析的原始 JSON 备份到 `<key>_corrupt_backup_<时间戳>`，同一 key 只保留最近一份
-     */
-    private fun backupCorruptJson(key: String, rawJson: String) {
-        val backupPrefix = key + CORRUPT_BACKUP_SUFFIX
-        val editor = prefs.edit()
-        prefs.all.keys
-            .filter { it.startsWith(backupPrefix) }
-            .forEach { editor.remove(it) }
-        editor.putString(backupPrefix + System.currentTimeMillis(), rawJson)
-        editor.apply()
-    }
-
-    private fun persistGroups(list: List<TransitGroup>) {
+    private suspend fun persistGroups(list: List<TransitGroup>) {
         _groups.value = list
-        persistGroupsInternal(list)
+        store.saveGroups(list)
     }
 
-    private fun persistGroupsInternal(list: List<TransitGroup>) {
-        try {
-            val rawJson = json.encodeToString(list)
-            prefs.edit().putString(KEY_GROUPS_JSON, rawJson).apply()
-        } catch (_: Exception) {}
-    }
-
-    private fun persistFavoriteGroups(list: List<FavoriteGroup>) {
+    private suspend fun persistFavoriteGroups(list: List<FavoriteGroup>) {
         _favoriteGroups.value = list
-        persistFavoriteGroupsInternal(list)
-    }
-
-    private fun persistFavoriteGroupsInternal(list: List<FavoriteGroup>) {
-        try {
-            val rawJson = json.encodeToString(list)
-            prefs.edit().putString(KEY_FAVORITE_GROUPS_JSON, rawJson).apply()
-        } catch (_: Exception) {}
+        store.saveFavoriteGroups(list)
     }
 
     companion object {
-        private const val TAG = "RouteGroupRepository"
-        private const val PREFS_NAME = "trackr_route_groups"
-        internal const val CORRUPT_BACKUP_SUFFIX = "_corrupt_backup_"
-        private const val KEY_GROUPS_JSON = "groups_list_json"
-        private const val KEY_FAVORITE_GROUPS_JSON = "favorite_groups_list_json"
+        /** 旧存储里损坏 JSON 的备份 key 后缀（实现在 [SharedPrefsRouteGroupStore]） */
+        internal const val CORRUPT_BACKUP_SUFFIX = SharedPrefsRouteGroupStore.CORRUPT_BACKUP_SUFFIX
     }
 }
