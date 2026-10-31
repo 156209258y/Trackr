@@ -95,6 +95,8 @@ jetbrains-lifecycle-viewmodel-navigation3 = { group = "org.jetbrains.androidx.li
 jetbrains-lifecycle-viewmodel = { group = "org.jetbrains.androidx.lifecycle", name = "lifecycle-viewmodel", version.ref = "lifecycleMultiplatform" }
 jetbrains-lifecycle-viewmodel-compose = { group = "org.jetbrains.androidx.lifecycle", name = "lifecycle-viewmodel-compose", version.ref = "lifecycleMultiplatform" }
 jetbrains-lifecycle-runtime-compose = { group = "org.jetbrains.androidx.lifecycle", name = "lifecycle-runtime-compose", version.ref = "lifecycleMultiplatform" }
+# 第 23 步：页内输入存 SavedStateHandle（重构计划 §3.8）
+jetbrains-lifecycle-viewmodel-savedstate = { group = "org.jetbrains.androidx.lifecycle", name = "lifecycle-viewmodel-savedstate", version.ref = "lifecycleMultiplatform" }
 
 # ---- 预留：重构计划后续步骤使用，暂不应用 ----
 # Koin（第 3 步起）

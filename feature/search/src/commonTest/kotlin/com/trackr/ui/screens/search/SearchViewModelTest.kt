@@ -1,5 +1,6 @@
 package com.trackr.ui.screens.search
 
+import androidx.lifecycle.SavedStateHandle
 import com.trackr.core.data.repository.HomeCoordinates
 import com.trackr.core.model.BusLineDirection
 import com.trackr.core.model.BusLineSummary
@@ -52,12 +53,13 @@ class SearchViewModelTest {
         main.reset()
     }
 
-    private fun TestScope.createViewModel(): SearchViewModel {
+    private fun TestScope.createViewModel(savedStateHandle: SavedStateHandle = SavedStateHandle()): SearchViewModel {
         val vm = SearchViewModel(
             settings = settings,
             realtime = realtime,
             searchHistoryRepository = history,
-            userLocationStore = userLocation
+            userLocationStore = userLocation,
+            savedStateHandle = savedStateHandle
         )
         testScheduler.runCurrent()
         return vm
@@ -329,6 +331,22 @@ class SearchViewModelTest {
     }
 
     @Test
+    fun engineModeSwitchedBack_researchesAgain() = runTest(main.dispatcher) {
+        val viewModel = createViewModel()
+        searchAndWait(viewModel, "49")
+
+        // 切过去再切回建 VM 时的数据源：两次都算「变了」
+        for (mode in listOf(EngineMode.MYGOLBS, EngineMode.CHELAILE)) {
+            settings.setEngineMode(mode)
+            testScheduler.runCurrent()
+            testScheduler.advanceTimeBy(SearchViewModel.SEARCH_DEBOUNCE_MS)
+            testScheduler.runCurrent()
+        }
+
+        assertEquals(3, realtime.searchCalls.size)
+    }
+
+    @Test
     fun engineModeChange_withoutQuery_doesNotSearch() = runTest(main.dispatcher) {
         createViewModel()
 
@@ -387,6 +405,46 @@ class SearchViewModelTest {
         assertEquals(beijing, call.city)
         assertEquals(center.first, call.userLat)
         assertEquals(center.second, call.userLng)
+    }
+
+    // ---- 第 23 步：输入存 SavedStateHandle（重构计划 §3.4、§3.8） ----
+
+    @Test
+    fun query_isWrittenToSavedStateHandle() = runTest(main.dispatcher) {
+        val handle = SavedStateHandle()
+        val viewModel = createViewModel(handle)
+
+        viewModel.updateSearchQuery("49")
+        assertEquals("49", handle.get<String>(SearchViewModel.KEY_QUERY))
+
+        viewModel.updateSearchQuery("")
+        assertEquals("", handle.get<String>(SearchViewModel.KEY_QUERY))
+    }
+
+    @Test
+    fun restoredQuery_isShownAndSearchedOnce() = runTest(main.dispatcher) {
+        // 进程重建：新 VM 拿到存着「49」的 SavedStateHandle
+        val viewModel = createViewModel(SavedStateHandle(mapOf(SearchViewModel.KEY_QUERY to "49")))
+
+        assertEquals("49", viewModel.uiState.value.searchQuery)
+        testScheduler.advanceTimeBy(SearchViewModel.SEARCH_DEBOUNCE_MS)
+        testScheduler.runCurrent()
+        testScheduler.advanceTimeBy(10_000L)
+        testScheduler.runCurrent()
+
+        assertEquals(listOf("49"), realtime.searchCalls.map { it.keyword }, "按恢复的词搜一次，不重复")
+        assertEquals("49", viewModel.uiState.value.searchResult?.keyword)
+    }
+
+    @Test
+    fun noSavedQuery_startsEmptyWithoutSearching() = runTest(main.dispatcher) {
+        val viewModel = createViewModel(SavedStateHandle())
+
+        testScheduler.advanceTimeBy(1_000L)
+        testScheduler.runCurrent()
+
+        assertEquals("", viewModel.uiState.value.searchQuery)
+        assertTrue(realtime.searchCalls.isEmpty())
     }
 
     @Test

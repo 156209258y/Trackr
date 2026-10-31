@@ -8,11 +8,14 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.StateRestorationTester
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTextInput
 import androidx.test.core.app.ApplicationProvider
 import com.trackr.app.TrackrRoot
 import com.trackr.core.model.DataSourceType
@@ -25,11 +28,13 @@ import com.trackr.core.model.FavoriteStationLine
 import com.trackr.core.testing.FakeFavoritesRepository
 import com.trackr.core.testing.FakeLocationRepository
 import com.trackr.core.testing.FakeRealtimeRepository
+import com.trackr.core.testing.FakeSearchHistoryRepository
 import com.trackr.core.testing.FakeSettingsRepository
 import com.trackr.core.testing.FakeUserLocationStore
 import com.trackr.data.repository.FakeScheduledReminderRepository
 import com.trackr.feature.bus.home.BusHomeViewModel
 import com.trackr.ui.screens.linedetail.LineDetailViewModel
+import com.trackr.ui.screens.search.SearchViewModel
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -116,6 +121,16 @@ class TrackrAppNavigationTest {
                         enableAutoPolling = false
                     )
                 }
+                // 搜索页也接 Fake，免得测试里真发网络请求；SavedStateHandle 由 koinViewModel() 从导航 entry 带进来
+                viewModel {
+                    SearchViewModel(
+                        settings = settings,
+                        realtime = realtime,
+                        searchHistoryRepository = FakeSearchHistoryRepository(),
+                        userLocationStore = FakeUserLocationStore(),
+                        savedStateHandle = get()
+                    )
+                }
             }
         )
     }
@@ -123,6 +138,13 @@ class TrackrAppNavigationTest {
     /** 和 MainActivity 一样：链接放进一个状态，TrackrRoot 落完回调清掉 */
     private var deepLink by mutableStateOf<DeepLink?>(null)
     private var consumedLinks = 0
+
+    private fun openSearch() {
+        composeTestRule.onNodeWithText("搜线路、车站").performClick()
+        composeTestRule.waitForIdle()
+    }
+
+    private fun searchField() = composeTestRule.onNode(hasSetTextAction())
 
     @Composable
     private fun Content() {
@@ -327,6 +349,39 @@ class TrackrAppNavigationTest {
         assertEquals(1, consumedLinks)
         assertOnHomeRoot()
         assertTrue(openedLines.isEmpty())
+    }
+
+    // ---- 第 23 步：搜索 ViewModel 改 entry 级，输入存 SavedStateHandle（重构计划 §3.4、§3.8） ----
+
+    @Test
+    fun searchQuery_survivesProcessRecreation() {
+        val restorationTester = StateRestorationTester(composeTestRule)
+        restorationTester.setContent { Content() }
+        composeTestRule.waitForIdle()
+        openSearch()
+        searchField().performTextInput("49")
+        composeTestRule.waitForIdle()
+
+        // 进程重建：ViewModel 全没了（entry 级的也挂在 Activity 的 ViewModelStore 下），只剩保存的状态
+        composeTestRule.runOnIdle { composeTestRule.activity.viewModelStore.clear() }
+        restorationTester.emulateSavedInstanceStateRestore()
+        composeTestRule.waitForIdle()
+
+        searchField().assert(hasText("49"))
+    }
+
+    @Test
+    fun leavingSearch_andComingBack_startsEmpty() {
+        launch()
+        openSearch()
+        searchField().performTextInput("49")
+        composeTestRule.waitForIdle()
+
+        pressBack()
+        openSearch()
+
+        searchField().assert(hasText("49").not())
+        composeTestRule.onNodeWithText("搜索 上海 公交线路、车站").assertExists()
     }
 
     private companion object {

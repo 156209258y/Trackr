@@ -42,7 +42,7 @@
 - `:core:ui`（目录 `core/ui/`）：业务通用组件，KMP + CMP。两个以上 feature 用的东西放这里：`commonMain` 放纯逻辑（`PollingCoordinator`、`PendingScreen`、导航工具）和 v3 共享组件（第 19 步：`transitcode/TransitCodeFab`、`TransitCodeChooserSheet`，`arrival/ArrivalUi`、`ArrivalTrailing`、`LineBadge`、`arrivalToneColor`）；第 17 步搬来的旧组件（`BusArrivalBadge`、分组卡片文案）和 `LiveUpdateSettings` 接口先放 `androidMain`。只依赖 `:core:*`。
 - `:feature:*`（目录 `feature/<名字>/`）：功能模块，都用 `trackr.kmp.feature`。包名沿用搬来前的（`com.trackr.ui.screens.*`），模块入口在 `com.trackr.feature.<名字>`。
   - `:feature:bus`：v3 公交首页（第 19 步，全在 `commonMain`，包 `com.trackr.feature.bus`）：`BusHomeRoute` + 无状态 `BusHomeScreen(state, onEvent)`、`BusHomeViewModel`、城市选择。
-  - `:feature:search`：搜索（`SearchViewModel`）。
+  - `:feature:search`：搜索（`SearchViewModel`，entry 级，输入存 `SavedStateHandle`）。第 23 步起页面全在 commonMain：`SearchRoute` + 无状态 `SearchScreen(state, onEvent)`，结果行由 `searchRows()` 摊平；另依赖 `lifecycle-viewmodel-savedstate` 和 CMP 资源（用 `:core:designsystem` 的图标）。
   - `:feature:stop`：站点详情（`StopDetailViewModel`）。
   - `:feature:line`：线路详情（`LineDetailViewModel`）、时刻表、走向条、定时提醒入口、乘车码弹层（`androidMain/res` 中英文案）。
   - `:feature:route`：路线规划（`RoutePlanViewModel`）、路线详情（`RouteDetailViewModel`）；高德 Android SDK 封装（`AmapSdkManager`、`AmapSdkKeyApplier`、`AndroidAmapRouteGateway`、地图会话）放 `androidMain`，Koin 在 `routeAndroidModule`。另依赖 `:core:network`。

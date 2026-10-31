@@ -45,7 +45,7 @@
 | `:core:database` | 1 | `:feature:line` | 6 |
 | `:core:datastore` | 1 | `:feature:me` | 2 |
 | `:core:designsystem` | 2 | `:feature:route` | 5 |
-| `:core:domain` | 4 | `:feature:search` | 1 |
+| `:core:domain` | 4 | `:feature:search` | 3 |
 | `:core:navigation` | 5 | `:feature:stop` | 1 |
 | `:core:network` | 12 | `:core:testing` | 1 |
 
@@ -71,7 +71,7 @@ Koin 由 `TrackrApp.onCreate` 启动，Robolectric 用例里每个用例都会�
 | 目录 | 测试类 | 覆盖范围 | 运行方式 |
 | :--- | :--- | :--- | :--- |
 | 根目录 | `TransitUnitTest` | 核心算法（`RouteProjectionMath` 坐标插值与站名纠错、线路与城市模型；车来了加解密第 8 步搬到 `:core:network` 的 `ChelaileCryptoTest`） | 本地 JVM |
-|  | `TrackrAppNavigationTest` | 用真实的 `TrackrRoot` 走一遍（首页 ViewModel 换成接 Fake 的）：首页根页在轮询；切到「更多」后停轮询，超过一个周期（15 秒）再回来立即补刷；进搜索后停轮询，15 秒内回来不补刷；收藏页是首页栈的子页，返回回首页；进程重建后恢复到「更多」时新建的首页 ViewModel 不轮询、切回首页才开始；第 18 步 deep link（线路详情 ViewModel 也接 Fake）：冷启动带链接 → `[首页, 线路详情]`、首页停轮询、返回回首页根页；热启动在「更多」或首页子页（搜索）上收到链接 → 首页栈重置为 `[首页, 线路详情]`，返回直接回首页根页；同一条链接重放不叠第二页；「上了哪辆？」链接现在不动栈 | Robolectric Compose UI |
+|  | `TrackrAppNavigationTest` | 用真实的 `TrackrRoot` 走一遍（首页 ViewModel 换成接 Fake 的）：首页根页在轮询；切到「更多」后停轮询，超过一个周期（15 秒）再回来立即补刷；进搜索后停轮询，15 秒内回来不补刷；收藏页是首页栈的子页，返回回首页；进程重建后恢复到「更多」时新建的首页 ViewModel 不轮询、切回首页才开始；第 18 步 deep link（线路详情 ViewModel 也接 Fake）：冷启动带链接 → `[首页, 线路详情]`、首页停轮询、返回回首页根页；热启动在「更多」或首页子页（搜索）上收到链接 → 首页栈重置为 `[首页, 线路详情]`，返回直接回首页根页；同一条链接重放不叠第二页；「上了哪辆？」链接现在不动栈；搜索页（第 23 步，entry 级 + `SavedStateHandle`）：输入的词进程重建后还在，离开再进来是空的 | Robolectric Compose UI |
 |  | `MainActivityDeepLinkTest` | 真实的 `MainActivity`（第 18 步）：冷启动带 `trackr://line` 打开对应线路详情、Intent 里的链接被清掉、返回回首页根页；旧版 6 个 extra 仍能打开；热启动 `onNewIntent` 同样；带保存状态重建时不重放；`trackr://transit-code` 直接拉起支付宝乘车码、不动栈；坏链接忽略 | Robolectric Compose UI |
 | `deeplink` | `DeepLinkIntentsTest` | Intent ↔ `trackr://` 链接（第 18 步）：data 里的新链接；旧版 6 个 extra、两种拼法的旧 `OPEN_TRANSIT_CODE` action 兼容（只有 alipay 是支付宝）；`consume` 后同一个 Intent 不重放、不碰非 `trackr` 的 data；别的 App 传来的坏 Intent 忽略；动态快捷方式发的是 `ACTION_VIEW` + `trackr://line` | Robolectric (JVM) |
 | `data/remote/amap` | `AmapSdkManagerTest` | 高德 Key 本地持久化（`AmapKeyStorage`）：Android / Web 两槽分开存、读 Android Key 不回落到 Web 槽、旧 Key 从 `trackr_prefs` 挪出只做一次、新文件里已有的 Key 不被旧值覆盖（SDK 封装的用例第 17 步搬到 `:feature:route`） | Robolectric (JVM) |
@@ -83,7 +83,7 @@ Koin 由 `TrackrApp.onCreate` 启动，Robolectric 用例里每个用例都会�
 |  | `RoomRouteGroupRepositoryTest` | 新存储（Room）上：读回逐字段一致（程、候选线、轨迹点）、清理假数据、删分组时路线一起改成不分组、排序和加候选线持久化、并发写入不丢更新 | Robolectric (JVM) |
 |  | `ScheduledReminderRepositoryTest` | 旧存储上：定时提醒增删改与持久化、并发写入不丢更新、JSON 损坏备份、计划触发时间记录 | Robolectric (JVM) |
 |  | `RoomScheduledReminderRepositoryTest` | 新存储上：增删改与重开读回、并发保存 / 开关不丢更新、计划触发时刻存进 `reminder.lastScheduledTriggerAt` 并且改别的提醒时不被冲掉 | Robolectric (JVM) |
-| `di` | `KoinGraphVerifyTest` | Koin 依赖图：`appModule`、`platformBridgeModule`、`routeDataModule`、各 feature 的 `xxxModule` 和 `routeAndroidModule` 各自 `verify()`，静态检查构造参数都有绑定；`appModules` 就是这些模块按顺序拼起来；Robolectric 里把每个定义实际取一次（带参数的 ViewModel 用样例 key） | Robolectric (JVM) |
+| `di` | `KoinGraphVerifyTest` | Koin 依赖图：`appModule`、`platformBridgeModule`、`routeDataModule`、各 feature 的 `xxxModule` 和 `routeAndroidModule` 各自 `verify()`，静态检查构造参数都有绑定；`appModules` 就是这些模块按顺序拼起来；Robolectric 里把每个定义实际取一次（带参数的 ViewModel 用样例 key；`SearchViewModel` 给一个 `SavedStateHandle`） | Robolectric (JVM) |
 | `receiver` | `ScheduledReminderReceiverTest` | 定时提醒触发、自动跟车需精确闹钟、传给 `TrackingController` 的单线路目标；降级：非精确闹钟或启动被拒时改发通知并追加「系统限制未能自动开启跟车」提示，点「开启实时追踪」仍失败时保留通知、成功才关掉；点通知发 `trackr://line` 链接、解析出同一条线路详情（第 18 步） | Robolectric (JVM) |
 |  | `BootCompletedReceiverTest` | 开机禁用已错过的一次性提醒、时间变化重新调度、无关广播忽略 | Robolectric (JVM) |
 | `service` | `ArrivalAlertManagerTest` | 到站/临近提醒与实时通知并存时的去重 | Robolectric (JVM) |
@@ -108,7 +108,9 @@ Koin 由 `TrackrApp.onCreate` 启动，Robolectric 用例里每个用例都会�
 | `:feature:bus` `feature/bus/home` | `BusHomeViewModelTest` | 公交首页（第 19 步由 `HomeViewModelTest` 改名，原用例全部保留）：初始加载已选城市、切城市、城市汉字与拼音过滤、按数据源过滤城市、收藏监听；切数据源立即刷新附近站、附近站固定 6 个（「附近站数」设置不再影响首页）；启动定位（没存城市切到定位城市、存过就保留、离开已存城市回到城市中心）、下拉刷新保留城市、城市选择器里重新定位；结束追踪（追踪卡消失、路线状态清掉）；轮询暂停恢复，`setPollingActive` 恢复时离上次刷新 ≥15 秒立即补刷、不到不补；没可用定位时报错并保留位置；收藏合一（车和路线一个列表、分组 chips 筛选、分组删了回到「全部」）、没车时写下一班发车时间、数据没变沿用旧实例；乘车码（选了平台直接开、「每次询问」弹选择、勾「以后都用这个」才记成默认）；附近站请求失败发一次性消息 | commonTest（JVM；iOS 未验） |
 | `:feature:bus` `feature/bus/home` | `BusHomeScreenTest` | 无状态 `BusHomeScreen`：标题是城市名、没有乘车码卡、悬浮按钮发事件；收藏行写上车站和「始发 → 终点」、点开线路页、「编辑」；有分组才显示 chips；没收藏一句话、没有「编辑」；一起等卡最先到的放大、多于 3 条折叠成「还有 N 条」点开展开、「结束」；附近站线路行进线路页、站名进站点页 | Robolectric Compose UI |
 | `:feature:bus` `feature/bus/citypicker` | `CityPickerItemRowTest` | 城市选择列表项渲染与点击、没省份标签时不显示省份 | Robolectric Compose UI |
-| `:feature:search` `ui/screens/search` | `SearchViewModelTest` | 搜索（第 17 步从首页拆出来）：搜索历史加入去重排序、删一条、清空、容量上限；输入防抖 300 ms 后只搜一次、关键字去首尾空格、防抖内换词取消旧的、新词取消进行中的请求、「搜索中」状态；空查询清结果并取消待发的搜索；换城市清结果保留查询词、换数据源有词才重搜；用选中城市和首页当前坐标搜（拆分前读首页的 currentLat / currentLng，经 `HomeCoordinates` 传过来），没有首页坐标时用 GPS、再没有用城市中心 | commonTest（JVM；iOS 只编译和链接测试，不跑） |
+| `:feature:search` `ui/screens/search` | `SearchViewModelTest` | 搜索（第 17 步从首页拆出来）：搜索历史加入去重排序、删一条、清空、容量上限；输入防抖 300 ms 后只搜一次、关键字去首尾空格、防抖内换词取消旧的、新词取消进行中的请求、「搜索中」状态；空查询清结果并取消待发的搜索；换城市清结果保留查询词、换数据源有词才重搜；用选中城市和首页当前坐标搜（拆分前读首页的 currentLat / currentLng，经 `HomeCoordinates` 传过来），没有首页坐标时用 GPS、再没有用城市中心；输入写进 `SavedStateHandle`，带着词重建时显示并只搜一次（第 23 步） | commonTest（JVM；iOS 只编译和链接测试，不跑） |
+|  | `SearchRowsTest` | 搜索结果摊成列表行（第 23 步）：每个方向一行「始发 → 终点」、小字只写已知的（地铁 · 运营时间 · 票价）、缺站名的退路、车站行途经线去重 / 退回地铁线名、距离、段内首中末位置、先线路后车站、重复线路 / 站 key 也唯一 | commonTest（JVM；iOS 只编译和链接测试，不跑） |
+|  | `SearchScreenTest` | v3 搜索页（第 23 步，无状态 `SearchScreen(state, onEvent)`）：没输入只显示最近搜过的词、没有推荐词和双引擎卡；点词 / 点字最右边都是搜这个词、点 × 才删；全清先确认；每个方向一行、点哪行进哪个方向；车站行显示途经线和距离、点了进站点；没结果的提示、搜索中不提示；输入 / 键盘搜索 / 清空 / 返回发对事件 | Robolectric Compose UI |
 | `:feature:stop` `ui/screens/stopdetail` | `StopDetailViewModelTest` | 站点详情：初次加载站台并解析站名、切物理站台后用那个站台刷新、收藏切换、轮询暂停恢复、上一轮没回来跳过本轮、回到页面只在数据过时时刷新（关了自动轮询不刷） | commonTest（JVM；iOS 只编译和链接测试，不跑） |
 | `:feature:line` `ui/screens/linedetail` | `LineDetailViewModelTest` | 线路详情（第 20 步 v3）：初次加载拆成静态 / 实时两半（带目标站序只请求一次、不带时为默认站补一次）；选站 / 手动刷新后下一轮从那一刻起再等 10 秒；下拉刷新只在下拉时画圈；站表先读磁盘缓存（网络没回来先显示、不挡请求、站表变了才写回、静态部分沿用旧实例、缓存上点过的站不被初次结果改掉）；跟车；收藏切换及提示条（有分组时带「换分组」、换分组后提示）；定时提醒保存并提示；换向找同名站；乘车码弹层与偏好；追踪当前站（提前 2 站）和「追踪本站」判断；车都过了用时刻表补下一班（快来的车不用）；上一轮没回来跳过；回到页面只在过时时刷新 | commonTest（JVM；iOS 只编译和链接测试，不跑） |
 |  | `BusFollowContentTest` | 跟车内容渲染与空车辆处理 | Robolectric Compose UI |

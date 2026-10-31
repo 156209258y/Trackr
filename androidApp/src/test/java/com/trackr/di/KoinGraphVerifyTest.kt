@@ -2,11 +2,13 @@ package com.trackr.di
 
 import android.app.Application
 import android.content.Context
+import androidx.lifecycle.SavedStateHandle
 import com.trackr.core.model.DataSourceType
 import com.trackr.app.di.routeDataModule
 import com.trackr.core.navigation.ScreenKey
 import com.trackr.core.network.provider.ITransitProvider
 import com.trackr.ui.screens.linedetail.LineDetailViewModel
+import com.trackr.ui.screens.search.SearchViewModel
 import com.trackr.ui.screens.stopdetail.StopDetailViewModel
 import com.trackr.feature.bus.busModule
 import com.trackr.feature.favorites.favoritesModule
@@ -65,7 +67,9 @@ class KoinGraphVerifyTest {
         // AndroidTrackingController 收一个启动前台服务的 lambda（测试替换用，Koin 里用默认值）
         Function2::class,
         // 第 17 步拆出来的 ViewModel / 数据层对象：IO 调度器用构造参数默认值
-        CoroutineDispatcher::class
+        CoroutineDispatcher::class,
+        // 第 23 步：entry 级 ViewModel 的 SavedStateHandle 由 koinViewModel() 从导航 entry 取
+        SavedStateHandle::class
     )
 
     /** 静态校验某个模块：别的模块的定义也算可用绑定 */
@@ -143,6 +147,8 @@ class KoinGraphVerifyTest {
                 lng = 121.47
             )
         )
+        // 页面里由 koinViewModel() 从导航 entry 带进来；这里手动给一个
+        SearchViewModel::class -> parametersOf(SavedStateHandle())
         else -> emptyParametersHolder()
     }
 

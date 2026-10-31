@@ -1,5 +1,6 @@
 package com.trackr.ui.screens.search
 
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.trackr.core.data.repository.HomeCoordinates
@@ -30,7 +31,8 @@ data class SearchUiState(
 /**
  * 线路 / 站点搜索（第 17 步从 HomeViewModel 拆出来，逻辑照搬）。
  *
- * 取 Activity 级实例（`LocalAppViewModelStoreOwner`），退出搜索页再进来关键词和结果还在，和拆分前一样。
+ * 第 23 步起是 entry 级（重构计划 §3.4）：离开搜索页就清掉，再进来是空的。
+ * 输入框文字存 [SavedStateHandle]，进程被杀后回到搜索页，词还在，并按它重搜一次。
  */
 class SearchViewModel(
     private val settings: SettingsRepository,
@@ -39,7 +41,8 @@ class SearchViewModel(
     /** 首页定位写入的最近 GPS 坐标，作为搜索结果的距离 / 排序参考 */
     private val userLocationStore: UserLocationStore,
     /** 首页当前坐标（拆分前搜索读的就是它）；为 null（测试）时按 GPS → 城市中心点 */
-    private val homeCoordinates: HomeCoordinates? = null
+    private val homeCoordinates: HomeCoordinates? = null,
+    private val savedStateHandle: SavedStateHandle = SavedStateHandle()
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(SearchUiState(currentCity = settings.selectedCity.value))
@@ -48,6 +51,10 @@ class SearchViewModel(
     private var searchJob: Job? = null
 
     init {
+        // 进程重建后恢复输入框文字，并按它重搜（结果不存，太大）
+        val restoredQuery = savedStateHandle.get<String>(KEY_QUERY).orEmpty()
+        if (restoredQuery.isNotEmpty()) updateSearchQuery(restoredQuery)
+
         // 观察已选城市：城市变了就清掉旧结果（原 HomeViewModel.selectCity 里清 searchResult）
         viewModelScope.launch {
             settings.selectedCity.collect { city ->
@@ -64,9 +71,14 @@ class SearchViewModel(
             }
         }
 
-        // 数据源变了：有关键词就按新数据源重搜
+        // 数据源变了：有关键词就按新数据源重搜。
+        // 跳过初值：它不是「变了」（原来建 VM 时词总是空的，初值本来就不搜；恢复的词上面已经搜了）。
+        // 和上一次的值比，不用 drop(1)：测试调度器下若在收集开始前就切了，drop(1) 会把新值当初值丢掉
+        var lastMode = settings.engineMode.value
         viewModelScope.launch {
-            settings.engineMode.collect {
+            settings.engineMode.collect { mode ->
+                if (mode == lastMode) return@collect
+                lastMode = mode
                 val currentQuery = _uiState.value.searchQuery
                 if (currentQuery.isNotBlank()) {
                     updateSearchQuery(currentQuery)
@@ -77,6 +89,7 @@ class SearchViewModel(
 
     fun updateSearchQuery(query: String) {
         _uiState.update { it.copy(searchQuery = query) }
+        savedStateHandle[KEY_QUERY] = query
         searchJob?.cancel()
         if (query.isBlank()) {
             _uiState.update { it.copy(searchResult = null, isSearching = false) }
@@ -137,5 +150,8 @@ class SearchViewModel(
 
     companion object {
         const val SEARCH_DEBOUNCE_MS = 300L
+
+        /** [SavedStateHandle] 里输入框文字的 key */
+        const val KEY_QUERY = "search_query"
     }
 }

@@ -778,12 +778,8 @@ class ScreenshotGeneratorTest {
         composeTestRule.setContent {
             TrackrTheme(darkTheme = false) {
                 Surface(modifier = Modifier.fillMaxSize()) {
-                    SearchScreen(
-                        viewModel = vm,
-                        onNavigateBack = {},
-                        onNavigateToLineDetail = { _, _, _, _, _, _ -> },
-                        onNavigateToStopDetail = { _, _, _, _, _, _, _ -> }
-                    )
+                    // 第 23 步：无状态 SearchScreen(state, onEvent)
+                    SearchScreen(state = vm.uiState.value, onEvent = {})
                 }
             }
         }
