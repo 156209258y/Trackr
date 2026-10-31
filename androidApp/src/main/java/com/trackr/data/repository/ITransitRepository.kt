@@ -4,7 +4,6 @@ import com.trackr.core.data.repository.FavoritesRepository
 import com.trackr.core.data.repository.RealtimeRepository
 import com.trackr.core.data.repository.SearchHistoryRepository
 import com.trackr.core.data.repository.SettingsRepository
-import com.trackr.core.model.TrackingSessionState
 import kotlinx.coroutines.flow.StateFlow
 
 /**
@@ -16,9 +15,6 @@ import kotlinx.coroutines.flow.StateFlow
  */
 interface ITransitRepository : SettingsRepository, FavoritesRepository, RealtimeRepository, SearchHistoryRepository {
 
-    /** 追踪会话（第 12 步换成 `TrackingRepository`） */
-    val activeTrackingSession: StateFlow<TrackingSessionState>
-
     /**
      * 首页定位写入的最近坐标（WGS-84），站点详情 / 搜索 / 规划页「我的位置」没传坐标时用。
      * 第 17 步 ViewModel 改读 `LocationRepository.latest` 后删掉。
@@ -26,6 +22,4 @@ interface ITransitRepository : SettingsRepository, FavoritesRepository, Realtime
     val userLocation: StateFlow<Pair<Double, Double>?>
 
     fun updateUserLocation(lat: Double, lng: Double)
-
-    fun updateTrackingSession(state: TrackingSessionState)
 }

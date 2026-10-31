@@ -22,7 +22,7 @@ import android.content.SharedPreferences
  * 不再拿 Web 槽位的值去喂 SDK（否则只填了 Web Key 的用户会"SDK 必败 + Web 重试"）。
  *
  * 第 4 步从 object 改成类，由 Koin 提供单例。状态都在 [PREFS_NAME] 文件里，实现仍是伴生对象里的原函数，
- * 实例只绑定应用 Context；旧的 [AmapKeyStore] 暂时转发到伴生对象（第 12 步删）。
+ * 实例只绑定应用 Context。
  */
 class AmapKeyStorage(context: Context) {
 
@@ -113,32 +113,3 @@ class AmapKeyStorage(context: Context) {
     }
 }
 
-/** 旧入口：第 4 步起实现在 [AmapKeyStorage]，这里只转发，第 12 步删 */
-object AmapKeyStore {
-    const val PREFS_NAME = AmapKeyStorage.PREFS_NAME
-    const val LEGACY_PREFS_NAME = AmapKeyStorage.LEGACY_PREFS_NAME
-    const val KEY_ANDROID = AmapKeyStorage.KEY_ANDROID
-    const val KEY_WEB = AmapKeyStorage.KEY_WEB
-    internal const val KEY_MIGRATED_FROM_LEGACY = AmapKeyStorage.KEY_MIGRATED_FROM_LEGACY
-
-    fun prefs(context: Context): SharedPreferences? = AmapKeyStorage.prefs(context)
-
-    internal fun migrateFromLegacy(legacy: SharedPreferences, target: SharedPreferences) =
-        AmapKeyStorage.migrateFromLegacy(legacy, target)
-
-    fun readAndroidKey(context: Context): String? = AmapKeyStorage.readAndroidKey(context)
-
-    fun readAndroidKey(prefs: SharedPreferences?): String? = AmapKeyStorage.readAndroidKey(prefs)
-
-    fun readWebKey(context: Context): String? = AmapKeyStorage.readWebKey(context)
-
-    fun readWebKey(prefs: SharedPreferences?): String? = AmapKeyStorage.readWebKey(prefs)
-
-    fun writeAndroidKey(context: Context, key: String?) = AmapKeyStorage.writeAndroidKey(context, key)
-
-    fun writeAndroidKey(prefs: SharedPreferences?, key: String?) = AmapKeyStorage.writeAndroidKey(prefs, key)
-
-    fun writeWebKey(context: Context, key: String?) = AmapKeyStorage.writeWebKey(context, key)
-
-    fun writeWebKey(prefs: SharedPreferences?, key: String?) = AmapKeyStorage.writeWebKey(prefs, key)
-}

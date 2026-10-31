@@ -63,7 +63,6 @@ import com.trackr.core.designsystem.theme.busColors
 import com.trackr.core.designsystem.theme.expressiveRotateSpringSpec
 import com.trackr.core.model.ScheduledReminder
 import com.trackr.core.model.TransitCodeProvider
-import com.trackr.service.BusTrackingService
 import com.trackr.service.vendor.LiveUpdatePromotion
 import com.trackr.service.vendor.OppoFluidCloudAdapter
 import com.trackr.service.vendor.XiaomiFocusAdapter
@@ -119,9 +118,7 @@ fun LineDetailScreen(
 
     val startCurrentTracking: () -> Unit = {
         if (selectedStop != null && lineDetail != null) {
-            BusTrackingService.startTracking(
-                context = context,
-                cityId = viewModel.cityId,
+            viewModel.startTracking(
                 line = lineDetail.line,
                 targetStop = selectedStop,
                 totalStops = lineDetail.stops.size,
@@ -259,7 +256,7 @@ fun LineDetailScreen(
                                     onOpenBusList = { viewModel.openBusList() },
                                     onToggleTracking = {
                                         if (isCurrentStationTracking) {
-                                            BusTrackingService.stopTracking(context)
+                                            viewModel.stopTracking()
                                         } else if (selectedStop != null) {
                                             val xiaomiFocusBlocked = XiaomiFocusAdapter.isXiaomiRom() &&
                                                     !XiaomiFocusAdapter.canShowFocus(context)

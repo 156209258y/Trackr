@@ -5,7 +5,7 @@ import androidx.core.app.NotificationCompat
 import androidx.test.core.app.ApplicationProvider
 import com.trackr.R
 import com.trackr.core.model.TrackingSessionState
-import com.trackr.service.LiveProgressNotificationHelper
+import com.trackr.service.LiveProgressNotifier
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -13,10 +13,14 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.koin.core.context.GlobalContext
 import org.robolectric.RobolectricTestRunner
 
 @RunWith(RobolectricTestRunner::class)
 class LiveUpdatePromotionTest {
+
+    /** App 启动时 Koin 建好的实例（原来经 object 转发） */
+    private val liveNotifier: LiveProgressNotifier get() = GlobalContext.get().get()
 
     private lateinit var context: Application
 
@@ -54,7 +58,7 @@ class LiveUpdatePromotionTest {
             stopsRemaining = 1
         )
 
-        val notification = LiveProgressNotificationHelper.buildNotification(context, state)
+        val notification = liveNotifier.buildNotification(context, state)
         assertEquals(R.drawable.ic_stat_trackr, notification.smallIcon.resId)
     }
 
@@ -71,7 +75,7 @@ class LiveUpdatePromotionTest {
             stopsRemaining = 1
         )
 
-        val notification = LiveProgressNotificationHelper.buildNotification(context, state)
+        val notification = liveNotifier.buildNotification(context, state)
         assertTrue(NotificationCompat.isRequestPromotedOngoing(notification))
 
         val shortCriticalText = NotificationCompat.getShortCriticalText(notification)
@@ -93,7 +97,7 @@ class LiveUpdatePromotionTest {
             stopsRemaining = 1
         )
 
-        val notification = LiveProgressNotificationHelper.buildNotification(context, state)
+        val notification = liveNotifier.buildNotification(context, state)
         val template = notification.extras.getString(NotificationCompat.EXTRA_COMPAT_TEMPLATE)
         assertEquals(NotificationCompat.ProgressStyle::class.java.name, template)
     }

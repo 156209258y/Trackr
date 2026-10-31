@@ -19,7 +19,7 @@ import com.trackr.core.model.TransitGroup
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
-import com.trackr.data.remote.amap.AmapKeyStore as LegacyAmapKeyStore
+import com.trackr.data.remote.amap.AmapKeyStorage as LegacyAmapKeyStore
 
 /*
  * 旧存储：原来的 SharedPreferences + JSON（USE_NEW_STORE 关掉时用，风险 R1）。
@@ -302,7 +302,7 @@ class SharedPrefsReminderStore(private val prefs: SharedPreferences) : ReminderS
 }
 
 /**
- * 高德 Key 的旧存储：`trackr_amap_keys`（SharedPreferences）。读写走原来的 `AmapKeyStore` 函数，
+ * 高德 Key 的旧存储：`trackr_amap_keys`（SharedPreferences）。读写走原来的 `AmapKeyStorage` 函数，
  * 打开时照旧把 0a4fdab 之前存在 `trackr_prefs` 里的 Key 搬过来（[LegacyAmapKeyStore.prefs]）。
  */
 class SharedPrefsAmapKeyStore(private val prefs: SharedPreferences?) : AmapKeyStore {

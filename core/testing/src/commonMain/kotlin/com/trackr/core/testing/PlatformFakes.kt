@@ -1,5 +1,6 @@
 package com.trackr.core.testing
 
+import com.trackr.core.data.repository.TrackingRepository
 import com.trackr.core.domain.platform.Announcer
 import com.trackr.core.domain.platform.AppSigningInfo
 import com.trackr.core.domain.platform.LocationSource
@@ -10,6 +11,7 @@ import com.trackr.core.domain.platform.TransitCodeLauncher
 import com.trackr.core.domain.platform.UpdateChecker
 import com.trackr.core.domain.tracking.LocationCadence
 import com.trackr.core.model.ScheduledReminder
+import com.trackr.core.model.TrackingTarget
 import com.trackr.core.model.TransitCodeProvider
 import com.trackr.core.model.UpdateCheckResult
 import com.trackr.core.model.UserFix
@@ -23,17 +25,57 @@ import kotlinx.coroutines.flow.emptyFlow
  * 都不是线程安全的，只在单线程测试（runTest）里用。
  */
 
-class FakeTrackingController : TrackingController {
+/**
+ * 记下所有命令。传了 [repository] 时命令同时转给它（和 Android 实现一样，只是不启动服务），
+ * 测试就能从仓库读到追踪状态。
+ */
+class FakeTrackingController(
+    private val repository: TrackingRepository? = null
+) : TrackingController {
     var stopCount: Int = 0
         private set
+    var boardedCount: Int = 0
+        private set
+    var nextLegCount: Int = 0
+        private set
+    var cycleThresholdCount: Int = 0
+        private set
+    val started: MutableList<TrackingTarget> = mutableListOf()
     val fixes: MutableList<UserFix> = mutableListOf()
+
+    /** [start] 的返回值（模拟后台不允许启动前台服务时设成 false） */
+    var startResult: Boolean = true
+
+    override fun start(target: TrackingTarget): Boolean {
+        started += target
+        if (!startResult) return false
+        repository?.start(target)
+        return true
+    }
 
     override fun stopTracking() {
         stopCount++
+        repository?.stop()
+    }
+
+    override fun confirmBoarded() {
+        boardedCount++
+        repository?.confirmBoarded()
+    }
+
+    override fun switchToNextLeg() {
+        nextLegCount++
+        repository?.switchToNextLeg()
+    }
+
+    override fun cycleThreshold() {
+        cycleThresholdCount++
+        repository?.cycleThreshold()
     }
 
     override fun updateUserFix(fix: UserFix) {
         fixes += fix
+        repository?.updateUserFix(fix)
     }
 }
 
@@ -80,6 +122,10 @@ class FakeLocationSource(
         requestedTiers += tier
         return if (tier == LocationCadence.Tier.OFF) emptyFlow() else live
     }
+
+    /** 正在收集 [fixes] 的数量（断言定位已关掉时看它是不是 0） */
+    val activeCollectors: Int
+        get() = live.subscriptionCount.value
 
     /** 发出一个定位，同时更新 [lastKnownFix]；没人收集时只更新 [lastKnownFix] */
     fun emit(fix: UserFix) {

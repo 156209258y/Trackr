@@ -23,7 +23,7 @@ import okio.Path.Companion.toPath
  * | --- | --- | --- |
  * | `trackr_settings.preferences_pb` | 城市、数据源、乘车码、开关、迁移标记 | 参与 |
  * | `trackr_amap_keys.preferences_pb` | 高德 Key（Android 槽、Web 槽） | 排除 |
- * | `tracking_session.json` | 追踪会话（第 12 步接入） | 排除 |
+ * | `tracking_session.json` | 追踪会话（`TrackingRepository`） | 排除 |
  */
 object TrackrDataStoreFiles {
     const val DIRECTORY = "datastore"
@@ -89,7 +89,7 @@ fun createPreferencesDataStore(
 fun createTrackingSessionDataStore(
     path: String,
     scope: CoroutineScope
-): DataStore<com.trackr.core.model.TrackingSessionState?> = DataStoreFactory.create(
+): DataStore<com.trackr.core.model.TrackingSession?> = DataStoreFactory.create(
     storage = OkioStorage(
         fileSystem = systemFileSystem(),
         serializer = TrackingSessionSerializer,

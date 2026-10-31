@@ -1,14 +1,20 @@
 package com.trackr.data.location
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.content.Context
 import android.content.pm.PackageManager
 import android.location.Location
 import android.location.LocationListener
 import android.location.LocationManager
+import android.os.Build
 import android.os.Looper
 import android.os.SystemClock
+import android.util.Log
 import androidx.core.content.ContextCompat
+import androidx.core.location.LocationListenerCompat
+import androidx.core.location.LocationManagerCompat
+import androidx.core.location.LocationRequestCompat
 import com.trackr.core.domain.platform.LocationSource
 import com.trackr.core.domain.platform.MonotonicClock
 import com.trackr.core.domain.tracking.LocationCadence
@@ -26,7 +32,7 @@ val AndroidMonotonicClock: MonotonicClock = MonotonicClock { SystemClock.elapsed
  *
  * 原来的 `AndroidDeviceLocationProvider` 拆成两半：取 lastKnown、开监听这些系统调用留在这里，
  * 「够新够准就直接用、否则窗口内取最准」的算法搬进 `:core:data` 的 `DefaultLocationRepository`（第 8 步）。
- * 追踪服务的 `ServiceLocationSource` 第 12 步并进来（届时 [fixes] 换成它的多源合并写法）。
+ * 追踪服务的定位（原 `ServiceLocationSource`）第 12 步并进 [fixes]。
  */
 class AndroidLocationSource(context: Context) : LocationSource {
 
@@ -63,17 +69,58 @@ class AndroidLocationSource(context: Context) : LocationSource {
     override fun currentFixes(): Flow<UserFix> = listen(ACTIVE_PROVIDERS, minTimeMillis = 0L)
 
     /**
-     * 按档位持续定位：高精度档位同时听 gps 和 network，省电档只听 network。
-     * 第 12 步换成 `ServiceLocationSource` 的写法（多源同时回调时差的不顶掉好的）。
+     * 按档位持续定位（追踪服务判上车 / 下车用，原 `ServiceLocationSource`，第 12 步并进来）。
+     *
+     * 只在有精确定位权限时出数据：模糊定位精度在公里级，判断不了人在不在车上。
+     * Android 12+ 有 fused 就只用 fused；否则高精度档同时听 gps 和 network，省电档只听 network（都没有时退回 gps）。
+     * 多个来源同时回调时「差的不顶掉好的」由调用方按 `TrackingEngine.shouldAcceptServiceFix` 过滤。
+     * 收集结束即注销监听。
      */
+    @SuppressLint("MissingPermission") // 权限在 hasPrecisePermission() 中检查
     override fun fixes(tier: LocationCadence.Tier): Flow<UserFix> {
         if (tier == LocationCadence.Tier.OFF) return emptyFlow()
-        val providers = if (tier.highAccuracy) {
-            listOf(LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER)
-        } else {
-            listOf(LocationManager.NETWORK_PROVIDER)
+        return callbackFlow {
+            val lm = locationManager
+            if (lm == null || !hasPrecisePermission()) {
+                close()
+                return@callbackFlow
+            }
+            val request = LocationRequestCompat.Builder(tier.intervalMillis)
+                .setQuality(
+                    if (tier.highAccuracy) LocationRequestCompat.QUALITY_HIGH_ACCURACY
+                    else LocationRequestCompat.QUALITY_BALANCED_POWER_ACCURACY
+                )
+                .setMinUpdateIntervalMillis(tier.intervalMillis / 2)
+                .build()
+            val executor = ContextCompat.getMainExecutor(appContext)
+            // 每个 provider 一个监听器：同一个监听器重复注册会替换掉前一个 provider
+            val listeners = mutableListOf<LocationListenerCompat>()
+            pickTrackingProviders(lm, tier).forEach { provider ->
+                val listener = LocationListenerCompat { location -> trySend(location.toUserFix()) }
+                try {
+                    LocationManagerCompat.requestLocationUpdates(lm, provider, request, executor, listener)
+                    listeners += listener
+                } catch (e: Exception) {
+                    Log.w(TAG, "Cannot request location updates from $provider", e)
+                }
+            }
+            if (listeners.isEmpty()) close()
+            awaitClose {
+                listeners.forEach { listener -> runCatching { LocationManagerCompat.removeUpdates(lm, listener) } }
+            }
         }
-        return listen(providers, minTimeMillis = tier.intervalMillis)
+    }
+
+    private fun pickTrackingProviders(lm: LocationManager, tier: LocationCadence.Tier): List<String> {
+        val enabled = runCatching { lm.getProviders(true) }.getOrDefault(emptyList())
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && LocationManager.FUSED_PROVIDER in enabled) {
+            return listOf(LocationManager.FUSED_PROVIDER)
+        }
+        return buildList {
+            if (tier.highAccuracy && LocationManager.GPS_PROVIDER in enabled) add(LocationManager.GPS_PROVIDER)
+            if (LocationManager.NETWORK_PROVIDER in enabled) add(LocationManager.NETWORK_PROVIDER)
+            if (isEmpty() && LocationManager.GPS_PROVIDER in enabled) add(LocationManager.GPS_PROVIDER)
+        }
     }
 
     private fun listen(providers: List<String>, minTimeMillis: Long): Flow<UserFix> = callbackFlow {
@@ -120,6 +167,7 @@ class AndroidLocationSource(context: Context) : LocationSource {
     }
 
     private companion object {
+        const val TAG = "AndroidLocationSource"
         val LAST_KNOWN_PROVIDERS = listOf(
             "fused",
             LocationManager.NETWORK_PROVIDER,

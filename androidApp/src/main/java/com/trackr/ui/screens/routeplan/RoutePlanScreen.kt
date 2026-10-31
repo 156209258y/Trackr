@@ -776,10 +776,10 @@ fun RoutePlanScreen(
                             onSaveFavorite = { showSaveGroupDialog = true },
                             onStartTracking = { scheme ->
                                 // 只做一次临时追踪：不加入收藏 / 路线组，留在规划页
-                                viewModel.startGroupTracking(context, scheme.group)
+                                viewModel.startGroupTracking(scheme.group)
                             },
-                            onConfirmBoarded = { viewModel.confirmBoarded(context) },
-                            onStopTracking = { viewModel.stopGroupTracking(context) }
+                            onConfirmBoarded = { viewModel.confirmBoarded() },
+                            onStopTracking = { viewModel.stopGroupTracking() }
                         )
                     }
 

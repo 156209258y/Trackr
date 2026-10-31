@@ -5,6 +5,8 @@ import com.trackr.core.data.local.StoreMigrationFlags
 import com.trackr.data.local.SharedPrefsTransitStore
 import androidx.test.core.app.ApplicationProvider
 import com.trackr.core.data.repository.AmapRouteGateway
+import com.trackr.core.data.repository.DefaultTrackingRepository
+import com.trackr.core.data.repository.InMemoryTrackingSessionStore
 import com.trackr.core.model.AmapTipItem
 import com.trackr.core.model.AmapTransitSchemeResult
 import com.trackr.core.model.BusLineDetail
@@ -16,15 +18,17 @@ import com.trackr.core.model.LiveBus
 import com.trackr.core.model.TransitCity
 import com.trackr.core.model.TransitGroup
 import com.trackr.core.model.TransitLeg
+import com.trackr.core.testing.FakeTrackingController
 import com.trackr.data.repository.FakeTransitRepository
 import com.trackr.data.repository.RouteGroupRepository
-import com.trackr.service.TransferAutoSwitchManager
 import com.trackr.util.MainDispatcherRule
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.runTest
-import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -46,6 +50,8 @@ class FavoritesGroupViewModelTest {
     private lateinit var context: Context
     private lateinit var groupRepository: RouteGroupRepository
     private lateinit var fakeTransitRepository: FakeTransitRepository
+    private lateinit var trackingRepository: DefaultTrackingRepository
+    private lateinit var trackingController: FakeTrackingController
 
     @Before
     fun setup() {
@@ -58,17 +64,20 @@ class FavoritesGroupViewModelTest {
         fakeTransitRepository = FakeTransitRepository(
             initialCity = TransitCity(cityId = "033", cityName = "杭州")
         )
-    }
-
-    @After
-    fun tearDown() {
-        TransferAutoSwitchManager.stopGroupTracking(context)
+        // 每个测试自己一份追踪会话，不会串状态
+        trackingRepository = DefaultTrackingRepository(
+            InMemoryTrackingSessionStore(),
+            CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
+        )
+        trackingController = FakeTrackingController(trackingRepository)
     }
 
     private fun createViewModel(): FavoritesGroupViewModel {
         return FavoritesGroupViewModel(
             groupRepository = groupRepository,
             transitRepository = fakeTransitRepository,
+            trackingRepository = trackingRepository,
+            trackingController = trackingController,
             coordinator = null,
             ioDispatcher = mainDispatcherRule.testDispatcher,
             enableAutoRefresh = false
@@ -118,6 +127,8 @@ class FavoritesGroupViewModelTest {
         return FavoritesGroupViewModel(
             groupRepository = groupRepository,
             transitRepository = fakeTransitRepository,
+            trackingRepository = trackingRepository,
+            trackingController = trackingController,
             coordinator = null,
             amapSdkService = null,
             ioDispatcher = mainDispatcherRule.testDispatcher,
@@ -302,6 +313,8 @@ class FavoritesGroupViewModelTest {
         val viewModel = FavoritesGroupViewModel(
             groupRepository = groupRepository,
             transitRepository = fakeTransitRepository,
+            trackingRepository = trackingRepository,
+            trackingController = trackingController,
             amapSdkService = null,
             migrationFlags = StoreMigrationFlags(SharedPrefsTransitStore(sharedPrefs)),
             amapKeys = amapKeys,
@@ -774,6 +787,8 @@ class FavoritesGroupViewModelTest {
         fun newViewModel() = FavoritesGroupViewModel(
             groupRepository = groupRepository,
             transitRepository = fakeTransitRepository,
+            trackingRepository = trackingRepository,
+            trackingController = trackingController,
             coordinator = null,
             migrationFlags = StoreMigrationFlags(SharedPrefsTransitStore(migrationPrefs)),
             ioDispatcher = mainDispatcherRule.testDispatcher,
@@ -827,7 +842,7 @@ class FavoritesGroupViewModelTest {
             )
         )
 
-        viewModel.startGroupTracking(context, plannedGroup)
+        viewModel.startGroupTracking(plannedGroup)
         testScheduler.runCurrent()
 
         // 只做临时追踪：仓库里没有这条路线，收藏页显示为"临时追踪"

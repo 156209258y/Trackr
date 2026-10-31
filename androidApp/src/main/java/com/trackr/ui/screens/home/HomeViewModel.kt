@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.trackr.core.data.repository.DefaultLocationRepository
 import com.trackr.core.data.repository.LocationRepository
+import com.trackr.core.data.repository.TrackingRepository
 import com.trackr.core.domain.platform.TrackingController
 import com.trackr.core.model.EngineMode
 import com.trackr.core.model.FavoriteStationLine
@@ -70,6 +71,8 @@ class HomeViewModel(
     private val locationRepository: LocationRepository,
     /** 追踪服务控制（「结束追踪」、把定位喂给换乘引擎） */
     private val trackingController: TrackingController,
+    /** 追踪会话（首页追踪卡读当前这一程的状态） */
+    private val trackingRepository: TrackingRepository,
     private val enableAutoPolling: Boolean = true,
     /** 单调时钟（毫秒），用于判断恢复轮询时距上次刷新是否已超过一个周期；测试可替换 */
     private val elapsedRealtimeMillis: () -> Long = { SystemClock.elapsedRealtime() }
@@ -159,7 +162,7 @@ class HomeViewModel(
 
         // 观察实时通知栏追踪会话
         viewModelScope.launch {
-            repository.activeTrackingSession.collect { session ->
+            trackingRepository.legState.collect { session ->
                 _uiState.update { it.copy(activeTracking = session) }
             }
         }
@@ -536,13 +539,10 @@ class HomeViewModel(
     }
 
     fun stopTracking() {
-        viewModelScope.launch {
-            repository.updateTrackingSession(TrackingSessionState(isActive = false))
-            try {
-                // 直接停止追踪服务；分组追踪时同时清掉换乘组状态
-                trackingController.stopTracking()
-            } catch (_: Exception) {
-            }
+        // 停止追踪（单线路和分组一样）；仓库会立刻变成未追踪，追踪卡随之消失
+        try {
+            trackingController.stopTracking()
+        } catch (_: Exception) {
         }
     }
 

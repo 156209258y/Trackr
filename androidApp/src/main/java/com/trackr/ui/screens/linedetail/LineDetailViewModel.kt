@@ -2,7 +2,9 @@ package com.trackr.ui.screens.linedetail
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.trackr.core.data.repository.TrackingRepository
 import com.trackr.core.domain.math.RouteProjectionMath
+import com.trackr.core.domain.platform.TrackingController
 import com.trackr.core.model.BusLineDetail
 import com.trackr.core.model.BusLineDirection
 import com.trackr.core.model.BusStop
@@ -12,6 +14,7 @@ import com.trackr.core.model.LineTimetable
 import com.trackr.core.model.LiveBus
 import com.trackr.core.model.ScheduledReminder
 import com.trackr.core.model.TrackingSessionState
+import com.trackr.core.model.TrackingTarget
 import com.trackr.core.model.TransitCity
 import com.trackr.core.model.TransitCodeProvider
 import com.trackr.data.repository.IScheduledReminderRepository
@@ -78,6 +81,10 @@ class LineDetailViewModel(
     private val repository: ITransitRepository,
     /** 定时提醒仓库（页面里「定时提醒」弹窗保存用） */
     private val reminderRepository: IScheduledReminderRepository,
+    /** 追踪会话（页面据此判断「本站是否正在追踪」） */
+    private val trackingRepository: TrackingRepository,
+    /** 追踪命令入口（开始 / 结束追踪本站） */
+    private val trackingController: TrackingController,
     private val enableAutoPolling: Boolean = true,
     private val nowHHmm: () -> String = {
         ZonedDateTime.now(ZoneId.of("Asia/Shanghai")).format(DateTimeFormatter.ofPattern("HH:mm"))
@@ -122,8 +129,40 @@ class LineDetailViewModel(
     val isPollingActive: Boolean
         get() = pollingCoordinator.isPollingActive
 
-    /** 当前追踪会话（页面据此判断「本站是否正在追踪」）；原来由页面直接读仓库 */
-    val activeTrackingSession: StateFlow<TrackingSessionState> = repository.activeTrackingSession
+    /** 当前追踪会话（页面据此判断「本站是否正在追踪」） */
+    val activeTrackingSession: StateFlow<TrackingSessionState> = trackingRepository.legState
+
+    /**
+     * 开始追踪 [line] 上的 [targetStop]（替换掉正在进行的追踪）；原来由页面直接调 BusTrackingService.startTracking。
+     * @return 是否启动成功（后台不允许启动前台服务时为 false）
+     */
+    fun startTracking(
+        line: BusLineDirection,
+        targetStop: BusStop,
+        totalStops: Int,
+        alertThresholdStops: Int
+    ): Boolean = trackingController.start(
+        TrackingTarget.SingleLine(
+            cityId = cityId,
+            lineId = line.lineId,
+            lineName = line.name,
+            lineNo = line.lineNo,
+            endStopName = line.endStop,
+            targetStopId = targetStop.stopId,
+            targetStopName = targetStop.name,
+            targetOrder = targetStop.order,
+            totalStops = totalStops,
+            alertThresholdStops = alertThresholdStops,
+            source = line.source,
+            mygolbsCityCode = line.mygolbsCityCode,
+            direction = line.direction
+        )
+    )
+
+    /** 结束追踪；原来由页面直接调 BusTrackingService.stopTracking */
+    fun stopTracking() {
+        trackingController.stopTracking()
+    }
 
     /** 当前所选城市名（保存定时提醒时写进提醒）；原来由页面直接读仓库 */
     fun selectedCityName(): String = repository.selectedCity.value.cityName

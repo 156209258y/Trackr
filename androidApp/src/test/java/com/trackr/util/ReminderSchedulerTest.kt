@@ -18,7 +18,7 @@ class ReminderSchedulerTest {
         val nowMillis = baseCal.timeInMillis
 
         // 设为 08:00 单次（已过）
-        val triggerMillis = ReminderScheduler.calculateNextTriggerMillis(
+        val triggerMillis = ReminderAlarmScheduler.calculateNextTriggerMillis(
             hour = 8,
             minute = 0,
             daysOfWeek = emptySet(),
@@ -47,7 +47,7 @@ class ReminderSchedulerTest {
         val nowMillis = baseCal.timeInMillis
 
         // 设为 08:30 单次（今天还未到）
-        val triggerMillis = ReminderScheduler.calculateNextTriggerMillis(
+        val triggerMillis = ReminderAlarmScheduler.calculateNextTriggerMillis(
             hour = 8,
             minute = 30,
             daysOfWeek = emptySet(),
@@ -74,7 +74,7 @@ class ReminderSchedulerTest {
         assertEquals(Calendar.FRIDAY, fridayCal.get(Calendar.DAY_OF_WEEK))
 
         // 设为 08:00 工作日（周一至周五：1, 2, 3, 4, 5）
-        val triggerMillis = ReminderScheduler.calculateNextTriggerMillis(
+        val triggerMillis = ReminderAlarmScheduler.calculateNextTriggerMillis(
             hour = 8,
             minute = 0,
             daysOfWeek = setOf(1, 2, 3, 4, 5),
@@ -104,7 +104,7 @@ class ReminderSchedulerTest {
         assertEquals(Calendar.MONDAY, mondayCal.get(Calendar.DAY_OF_WEEK))
 
         // 设定为周末（6=周六, 7=周日）09:30
-        val triggerMillis = ReminderScheduler.calculateNextTriggerMillis(
+        val triggerMillis = ReminderAlarmScheduler.calculateNextTriggerMillis(
             hour = 9,
             minute = 30,
             daysOfWeek = setOf(6, 7),
@@ -155,7 +155,7 @@ class ReminderSchedulerTest {
             "repeat-expired" to now - 60_000L
         )
 
-        val expired = ReminderScheduler.findExpiredOneTimeReminderIds(reminders, now) { planned[it] }
+        val expired = ReminderAlarmScheduler.findExpiredOneTimeReminderIds(reminders, now) { planned[it] }
 
         // 只有「已启用 + 一次性 + 有计划记录且已过期」的提醒会被判定过期
         assertEquals(setOf("one-expired"), expired)

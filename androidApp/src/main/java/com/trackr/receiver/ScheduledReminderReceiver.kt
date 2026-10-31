@@ -1,6 +1,5 @@
 package com.trackr.receiver
 
-import android.app.ForegroundServiceStartNotAllowedException
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -9,19 +8,18 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.util.Log
+import androidx.annotation.VisibleForTesting
 import androidx.core.app.NotificationCompat
-import androidx.core.content.ContextCompat
 import com.trackr.MainActivity
 import com.trackr.core.domain.platform.ReminderAlarms
-import com.trackr.core.model.BusLineDirection
-import com.trackr.core.model.BusStop
+import com.trackr.core.domain.platform.TrackingController
 import com.trackr.core.model.LineOperatingState
 import com.trackr.core.model.ScheduledReminder
+import com.trackr.core.model.TrackingTarget
 import com.trackr.core.model.TransitCity
 import com.trackr.data.repository.IScheduledReminderRepository
 import com.trackr.data.repository.ITransitRepository
 import com.trackr.di.AppScopeQualifier
-import com.trackr.service.BusTrackingService
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -39,6 +37,7 @@ class ScheduledReminderReceiver : BroadcastReceiver(), KoinComponent {
     private val reminderRepository: IScheduledReminderRepository by inject()
     private val reminderScheduler: ReminderAlarms by inject()
     private val appScope: CoroutineScope by inject(AppScopeQualifier)
+    private val trackingController: TrackingController by inject()
 
     override fun onReceive(context: Context, intent: Intent) {
         val action = intent.action
@@ -67,7 +66,8 @@ class ScheduledReminderReceiver : BroadcastReceiver(), KoinComponent {
         }
     }
 
-    private suspend fun handleReminderTrigger(context: Context, reminderId: String) {
+    @VisibleForTesting
+    internal suspend fun handleReminderTrigger(context: Context, reminderId: String) {
         val reminder = reminderRepository.getReminderById(reminderId) ?: return
         if (!reminder.enabled) return
 
@@ -85,7 +85,7 @@ class ScheduledReminderReceiver : BroadcastReceiver(), KoinComponent {
         var autoStartFallback = false
         if (reminder.autoStartLiveTracking) {
             if (shouldAutoStartTracking(reminder, reminderScheduler.canScheduleExact()) &&
-                tryStartTracking(context, reminder)
+                tryStartTracking(reminder)
             ) {
                 return
             }
@@ -227,10 +227,11 @@ class ScheduledReminderReceiver : BroadcastReceiver(), KoinComponent {
         notificationManager.notify(NOTIFICATION_BASE_ID + reminder.id.hashCode() % 10000, notification)
     }
 
-    private fun handleStartTrackingNow(context: Context, reminderId: String) {
+    @VisibleForTesting
+    internal fun handleStartTrackingNow(context: Context, reminderId: String) {
         val reminder = reminderRepository.getReminderById(reminderId) ?: return
         // 通知按钮点击享有后台启动前台服务豁免，这里仍兜底捕获异常避免崩溃
-        if (!tryStartTracking(context, reminder)) return
+        if (!tryStartTracking(reminder)) return
 
         // 关闭快报通知（启动失败时保留通知，方便用户重试）
         val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
@@ -238,55 +239,26 @@ class ScheduledReminderReceiver : BroadcastReceiver(), KoinComponent {
     }
 
     /**
-     * 尝试为提醒拉起前台跟车服务。
-     * Android 12+ 后台受限时 startForegroundService 会抛 ForegroundServiceStartNotAllowedException
-     * （IllegalStateException 子类，低版本后台启动亦抛 IllegalStateException），此时返回 false 交由调用方降级。
+     * 尝试为提醒开始追踪（经 [TrackingController.start]：会话写进仓库后启动前台服务）。
+     * Android 12+ 后台受限时启动前台服务会被拒（ForegroundServiceStartNotAllowedException），
+     * 此时 [TrackingController.start] 返回 false、不留下会话，由调用方降级为通知。
+     * 这里仍兜底捕获异常避免崩溃。
      */
     internal fun tryStartTracking(
-        context: Context,
         reminder: ScheduledReminder,
-        starter: (Context, ScheduledReminder) -> Unit = this::startTrackingForReminder
+        starter: (TrackingTarget) -> Boolean = trackingController::start
     ): Boolean {
         return try {
-            starter(context, reminder)
-            true
+            starter(trackingTargetFor(reminder)).also { started ->
+                if (!started) Log.w(TAG, "Cannot start tracking service for ${reminder.id}")
+            }
         } catch (e: IllegalStateException) {
-            val notAllowed = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
-                e is ForegroundServiceStartNotAllowedException
-            Log.w(TAG, "Cannot start tracking service for ${reminder.id} (fgsNotAllowed=$notAllowed)", e)
+            Log.w(TAG, "Cannot start tracking service for ${reminder.id}", e)
             false
         } catch (e: SecurityException) {
             Log.w(TAG, "Cannot start tracking service for ${reminder.id}", e)
             false
         }
-    }
-
-    private fun startTrackingForReminder(context: Context, reminder: ScheduledReminder) {
-        val line = BusLineDirection(
-            lineId = reminder.lineId,
-            name = reminder.lineName,
-            lineNo = reminder.lineName,
-            direction = reminder.direction,
-            startStop = "",
-            endStop = reminder.endStopName,
-            firstTime = "",
-            lastTime = "",
-            source = reminder.dataSourceType,
-            mygolbsCityCode = reminder.mygolbsCityCode.orEmpty()
-        )
-        val targetStop = BusStop(
-            stopId = reminder.targetStopId,
-            name = reminder.targetStopName,
-            order = reminder.targetOrder
-        )
-        BusTrackingService.startTracking(
-            context = context,
-            cityId = reminder.cityId,
-            line = line,
-            targetStop = targetStop,
-            totalStops = reminder.totalStops,
-            alertThresholdStops = 2
-        )
     }
 
     private fun ensureNotificationChannel(context: Context, notificationManager: NotificationManager) {
@@ -322,8 +294,26 @@ class ScheduledReminderReceiver : BroadcastReceiver(), KoinComponent {
             return reminder.autoStartLiveTracking && canScheduleExact
         }
 
+        /** 提醒对应的单线路追踪目标（提前 2 站提醒） */
+        internal fun trackingTargetFor(reminder: ScheduledReminder): TrackingTarget.SingleLine =
+            TrackingTarget.SingleLine(
+                cityId = reminder.cityId,
+                lineId = reminder.lineId,
+                lineName = reminder.lineName,
+                lineNo = reminder.lineName,
+                endStopName = reminder.endStopName,
+                targetStopId = reminder.targetStopId,
+                targetStopName = reminder.targetStopName,
+                targetOrder = reminder.targetOrder,
+                totalStops = reminder.totalStops,
+                alertThresholdStops = 2,
+                source = reminder.dataSourceType,
+                mygolbsCityCode = reminder.mygolbsCityCode.orEmpty(),
+                direction = reminder.direction
+            )
+
         private const val CHANNEL_ID_SCHEDULED = "channel_transit_scheduled"
         private const val CHANNEL_NAME_SCHEDULED = "通勤定时到站提醒"
-        private const val NOTIFICATION_BASE_ID = 20000
+        internal const val NOTIFICATION_BASE_ID = 20000
     }
 }

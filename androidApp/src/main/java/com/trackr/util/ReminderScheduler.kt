@@ -330,33 +330,3 @@ class CachedReminderScheduleState private constructor(
     }
 }
 
-/** 旧入口：第 4 步起实现在 [ReminderAlarmScheduler]，这里只转发，第 12 步删 */
-object ReminderScheduler {
-
-    fun canScheduleExact(context: Context): Boolean = ReminderAlarmScheduler.canScheduleExact(context)
-
-    fun getLastScheduledTriggerMillis(context: Context, reminderId: String): Long? =
-        ReminderAlarmScheduler.getLastScheduledTriggerMillis(context, reminderId)
-
-    fun findExpiredOneTimeReminderIds(
-        reminders: List<ScheduledReminder>,
-        nowMillis: Long,
-        lastScheduledTrigger: (String) -> Long?
-    ): Set<String> = ReminderAlarmScheduler.findExpiredOneTimeReminderIds(reminders, nowMillis, lastScheduledTrigger)
-
-    fun calculateNextTriggerMillis(
-        hour: Int,
-        minute: Int,
-        daysOfWeek: Set<Int>,
-        nowMillis: Long = System.currentTimeMillis()
-    ): Long = ReminderAlarmScheduler.calculateNextTriggerMillis(hour, minute, daysOfWeek, nowMillis)
-
-    fun scheduleReminder(context: Context, reminder: ScheduledReminder) =
-        ReminderAlarmScheduler.scheduleReminder(context, reminder)
-
-    fun cancelReminder(context: Context, reminderId: String) =
-        ReminderAlarmScheduler.cancelReminder(context, reminderId)
-
-    fun rescheduleAll(context: Context, reminders: List<ScheduledReminder>) =
-        ReminderAlarmScheduler.rescheduleAll(context, reminders)
-}

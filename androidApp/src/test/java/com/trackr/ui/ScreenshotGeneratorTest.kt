@@ -11,6 +11,8 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onRoot
 import androidx.test.core.app.ApplicationProvider
 import com.trackr.core.data.repository.DefaultLocationRepository
+import com.trackr.core.data.repository.DefaultTrackingRepository
+import com.trackr.core.data.repository.InMemoryTrackingSessionStore
 import com.trackr.core.designsystem.theme.TrackrTheme
 import com.trackr.core.model.BusLineDetail
 import com.trackr.core.model.BusLineDirection
@@ -22,14 +24,15 @@ import com.trackr.core.model.NearbyStop
 import com.trackr.core.model.NearbyStopLineStatus
 import com.trackr.core.model.ScheduledReminder
 import com.trackr.core.model.TrackingSessionState
+import com.trackr.core.model.TrackingTarget
 import com.trackr.core.model.TransitCity
 import com.trackr.core.model.TransitSearchResult
 import com.trackr.core.testing.FakeAmapKeyRepository
+import com.trackr.core.testing.FakeTrackingController
 import com.trackr.data.location.AndroidLocationSource
 import com.trackr.data.location.AndroidMonotonicClock
 import com.trackr.data.repository.FakeScheduledReminderRepository
 import com.trackr.data.repository.FakeTransitRepository
-import com.trackr.service.AndroidTrackingController
 import com.trackr.ui.components.RouteRailLayoutMode
 import com.trackr.ui.screens.home.HomeScreen
 import com.trackr.ui.screens.home.HomeViewModel
@@ -42,7 +45,10 @@ import com.trackr.ui.screens.search.SearchScreen
 import com.trackr.ui.screens.stopdetail.StopDetailScreen
 import com.trackr.ui.screens.stopdetail.StopDetailViewModel
 import com.trackr.util.MainDispatcherRule
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.SupervisorJob
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -66,6 +72,8 @@ class ScreenshotGeneratorTest {
     val mainDispatcherRule = MainDispatcherRule()
 
     private lateinit var app: Application
+    private lateinit var trackingRepository: DefaultTrackingRepository
+    private lateinit var trackingController: FakeTrackingController
     private val outputDir = File("build/screenshots/promo")
 
     private val shanghai = TransitCity(
@@ -240,6 +248,11 @@ class ScreenshotGeneratorTest {
     fun setup() {
         app = ApplicationProvider.getApplicationContext()
         outputDir.mkdirs()
+        trackingRepository = DefaultTrackingRepository(
+            InMemoryTrackingSessionStore(),
+            CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
+        )
+        trackingController = FakeTrackingController(trackingRepository)
     }
 
     private fun saveScreenshot(name: String) {
@@ -263,6 +276,8 @@ class ScreenshotGeneratorTest {
             initialStationId = "s5",
             repository = fakeRepo,
             reminderRepository = FakeScheduledReminderRepository(),
+            trackingRepository = trackingRepository,
+            trackingController = trackingController,
             enableAutoPolling = false
         )
         mainDispatcherRule.testDispatcher.scheduler.advanceUntilIdle()
@@ -309,6 +324,8 @@ class ScreenshotGeneratorTest {
             initialStationId = "s5",
             repository = fakeRepo,
             reminderRepository = FakeScheduledReminderRepository(),
+            trackingRepository = trackingRepository,
+            trackingController = trackingController,
             enableAutoPolling = false
         )
         mainDispatcherRule.testDispatcher.scheduler.advanceUntilIdle()
@@ -437,7 +454,21 @@ class ScreenshotGeneratorTest {
             etaSeconds = 115,
             statusSummary = "下一班 1 站 · 约 2 分钟 (680m)"
         )
-        fakeRepo.updateTrackingSession(activeTracking)
+        // 让追踪会话进入这一状态：先开始追踪这条线，再把轮询结果写回
+        val session = trackingRepository.start(
+            TrackingTarget.SingleLine(
+                cityId = activeTracking.cityId,
+                lineId = activeTracking.lineId,
+                lineName = activeTracking.lineName,
+                endStopName = activeTracking.endStopName,
+                targetStopId = activeTracking.targetStopId,
+                targetStopName = activeTracking.targetStopName,
+                targetOrder = activeTracking.targetOrder,
+                totalStops = activeTracking.totalStops
+            )
+        )
+        checkNotNull(session)
+        trackingRepository.update(session.generation) { it.copy(state = activeTracking) }
 
         // 附近站点丰富模拟数据
         val nearbyStops = listOf(
@@ -551,7 +582,8 @@ class ScreenshotGeneratorTest {
 
         val vm = HomeViewModel(
             locationRepository = DefaultLocationRepository(AndroidLocationSource(app), AndroidMonotonicClock),
-            trackingController = AndroidTrackingController(app),
+            trackingController = trackingController,
+            trackingRepository = trackingRepository,
             repository = fakeRepo,
             enableAutoPolling = false
         )
@@ -726,7 +758,8 @@ class ScreenshotGeneratorTest {
 
         val vm = HomeViewModel(
             locationRepository = DefaultLocationRepository(AndroidLocationSource(app), AndroidMonotonicClock),
-            trackingController = AndroidTrackingController(app),
+            trackingController = trackingController,
+            trackingRepository = trackingRepository,
             repository = fakeRepo,
             enableAutoPolling = false
         )

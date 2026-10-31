@@ -19,7 +19,6 @@ import com.trackr.core.domain.math.RouteProjectionMath
 import com.trackr.core.model.TrackingSessionState
 import com.trackr.service.vendor.LiveUpdatePromotion
 import com.trackr.service.vendor.XiaomiFocusAdapter
-import org.koin.mp.KoinPlatform
 
 /**
  * 负责管理高优先级到站/进站预警通知渠道及震动声音提醒
@@ -307,43 +306,3 @@ class ArrivalAlertNotifier(
     }
 }
 
-/**
- * 旧入口：第 4 步起实现在 [ArrivalAlertNotifier]（Koin 单例），这里只转发，第 12 步删。
- * 服务已改为注入 [ArrivalAlertNotifier]；其余调用方暂时还走这里。
- */
-object ArrivalAlertManager {
-
-    private val impl: ArrivalAlertNotifier get() = KoinPlatform.getKoin().get()
-
-    const val CHANNEL_ID_ALERT = ArrivalAlertNotifier.CHANNEL_ID_ALERT
-    const val NOTIFICATION_ID_APPROACHING = ArrivalAlertNotifier.NOTIFICATION_ID_APPROACHING
-    const val NOTIFICATION_ID_ARRIVED = ArrivalAlertNotifier.NOTIFICATION_ID_ARRIVED
-    const val NOTIFICATION_ID_TRANSFER = ArrivalAlertNotifier.NOTIFICATION_ID_TRANSFER
-
-    fun ensureNotificationChannel(context: Context) = impl.ensureNotificationChannel(context)
-
-    fun triggerApproachingAlert(context: Context, state: TrackingSessionState) =
-        impl.triggerApproachingAlert(context, state)
-
-    fun triggerArrivedAlert(context: Context, state: TrackingSessionState) =
-        impl.triggerArrivedAlert(context, state)
-
-    fun triggerTransferAlert(context: Context, transferStationName: String, nextLineName: String) =
-        impl.triggerTransferAlert(context, transferStationName, nextLineName)
-
-    internal var liveUpdateActiveChecker: (Context) -> Boolean
-        get() = impl.liveUpdateActiveChecker
-        set(value) {
-            impl.liveUpdateActiveChecker = value
-        }
-
-    internal fun resetLiveUpdateActiveChecker() = impl.resetLiveUpdateActiveChecker()
-
-    internal var liveNotificationEnabledProvider: () -> Boolean
-        get() = impl.liveNotificationEnabledProvider
-        set(value) {
-            impl.liveNotificationEnabledProvider = value
-        }
-
-    internal fun resetLiveNotificationEnabledProvider() = impl.resetLiveNotificationEnabledProvider()
-}

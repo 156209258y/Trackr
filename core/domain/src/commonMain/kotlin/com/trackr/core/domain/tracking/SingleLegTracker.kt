@@ -14,7 +14,7 @@ import com.trackr.core.model.TrackingSessionState
  * - 正在追踪的车短暂从数据里消失时，保持原车 [MAX_MISSING_POLLS] 轮，不立刻换车。
  * - 正在追踪的车已开过目标站或消失超过上限时换车；换车时重置提醒触发标志，下一辆车照常提醒。
  */
-object SingleLegTracker {
+internal object SingleLegTracker {
 
     /** 追踪车辆短暂消失时最多保持原车的轮询次数 */
     const val MAX_MISSING_POLLS = 2

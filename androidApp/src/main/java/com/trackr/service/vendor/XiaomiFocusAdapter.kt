@@ -11,7 +11,7 @@ import com.trackr.core.domain.arrival.ArrivalRules
 import com.trackr.core.domain.math.RouteProjectionMath
 import com.trackr.core.model.LegPhase
 import com.trackr.core.model.TrackingSessionState
-import com.trackr.service.LiveProgressNotificationHelper
+import com.trackr.service.LiveProgressNotifier
 import org.json.JSONObject
 
 /**
@@ -21,6 +21,9 @@ object XiaomiFocusAdapter {
 
     const val EXTRA_KEY = "miui.focus.param"
     const val MAX_JSON_BYTES = 3072
+
+    /** 与系统通知共用文案和进度算法（这几个方法不读设置、不取下一程，所以用一个不接仓库的实例就行） */
+    private val notifierTexts = LiveProgressNotifier(liveNotificationSetting = { true }, nextLegLineNameOf = { null })
 
     /**
      * 判断当前设备是否为小米/Redmi 设备
@@ -57,7 +60,7 @@ object XiaomiFocusAdapter {
         val intent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
                 putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
-                putExtra(Settings.EXTRA_CHANNEL_ID, LiveProgressNotificationHelper.CHANNEL_ID_LIVE_PROGRESS)
+                putExtra(Settings.EXTRA_CHANNEL_ID, LiveProgressNotifier.CHANNEL_ID_LIVE_PROGRESS)
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK
             }
         } else {
@@ -128,16 +131,16 @@ object XiaomiFocusAdapter {
             subTitle = "候车追踪 · 第${state.targetOrder}站"
         } else {
             // 分组换乘两阶段：与系统通知共用同一套文案
-            val texts = LiveProgressNotificationHelper.buildTexts(state, nextLineName)
+            val texts = notifierTexts.buildTexts(state, nextLineName)
             capsuleText = texts.shortCriticalText
             title = texts.title
             content = texts.content
             subTitle = texts.subText
         }
 
-        val (rangeStart, rangeEnd) = LiveProgressNotificationHelper.progressRangeOf(state)
-        val (_, maxProgress) = LiveProgressNotificationHelper.calculateSpanAndMaxProgress(rangeStart, rangeEnd)
-        val currentProgress = LiveProgressNotificationHelper.calculateCurrentProgress(state, isArrived)
+        val (rangeStart, rangeEnd) = notifierTexts.progressRangeOf(state)
+        val (_, maxProgress) = notifierTexts.calculateSpanAndMaxProgress(rangeStart, rangeEnd)
+        val currentProgress = notifierTexts.calculateCurrentProgress(state, isArrived)
 
         val baseInfo = JSONObject().apply {
             put("title", title)

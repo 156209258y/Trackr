@@ -5,17 +5,26 @@ import android.content.Context
 import android.content.Intent
 import androidx.test.core.app.ApplicationProvider
 import com.trackr.TrackrApp
+import com.trackr.core.domain.platform.TrackingController
 import com.trackr.core.model.ScheduledReminder
+import com.trackr.core.model.TrackingTarget
+import com.trackr.core.testing.FakeTrackingController
+import com.trackr.data.repository.FakeTransitRepository
 import com.trackr.data.repository.IScheduledReminderRepository
-import com.trackr.util.ReminderScheduler
+import com.trackr.data.repository.ITransitRepository
+import com.trackr.util.ReminderAlarmScheduler
 import kotlinx.coroutines.runBlocking
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.koin.core.context.GlobalContext
+import org.koin.core.context.loadKoinModules
+import org.koin.dsl.module
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.shadows.ShadowAlarmManager
@@ -139,27 +148,135 @@ class ScheduledReminderReceiverTest {
     @Test
     fun testCanScheduleExact_reflectsAlarmPermission() {
         ShadowAlarmManager.setCanScheduleExactAlarms(false)
-        assertFalse(ReminderScheduler.canScheduleExact(app))
+        assertFalse(ReminderAlarmScheduler.canScheduleExact(app))
         ShadowAlarmManager.setCanScheduleExactAlarms(true)
-        assertTrue(ReminderScheduler.canScheduleExact(app))
+        assertTrue(ReminderAlarmScheduler.canScheduleExact(app))
     }
 
     @Test
     fun testTryStartTracking_whenServiceStartNotAllowed_returnsFalse() {
         val reminder = autoStartReminder("auto-2")
         // 模拟 Android 12+ ForegroundServiceStartNotAllowedException（IllegalStateException 子类）
-        val started = receiver.tryStartTracking(app, reminder) { _, _ ->
+        val started = receiver.tryStartTracking(reminder) {
             throw IllegalStateException("startForegroundService() not allowed")
         }
         assertFalse(started)
     }
 
     @Test
-    fun testTryStartTracking_whenStarterSucceeds_returnsTrue() {
-        val reminder = autoStartReminder("auto-3")
-        var invoked = false
-        val started = receiver.tryStartTracking(app, reminder) { _, _ -> invoked = true }
+    fun testTryStartTracking_whenControllerRefuses_returnsFalse() {
+        val reminder = autoStartReminder("auto-2b")
+        assertFalse(receiver.tryStartTracking(reminder) { false })
+    }
+
+    @Test
+    fun testTryStartTracking_whenStarterSucceeds_passesSingleLineTarget() {
+        val reminder = autoStartReminder("auto-3").copy(totalStops = 12, mygolbsCityCode = "350300")
+        var passed: TrackingTarget? = null
+        val started = receiver.tryStartTracking(reminder) { target ->
+            passed = target
+            true
+        }
         assertTrue(started)
-        assertTrue(invoked)
+        val single = passed as TrackingTarget.SingleLine
+        assertEquals("034", single.cityId)
+        assertEquals("line-101", single.lineId)
+        assertEquals("70路", single.lineName)
+        assertEquals("科技园", single.endStopName)
+        assertEquals("stop-5", single.targetStopId)
+        assertEquals("大冲", single.targetStopName)
+        assertEquals(5, single.targetOrder)
+        assertEquals(12, single.totalStops)
+        assertEquals(2, single.alertThresholdStops)
+        assertEquals("350300", single.mygolbsCityCode)
+    }
+
+    // ---------------------------------------------------------------- 降级（8e0c41e）
+
+    private fun installFakes(startResult: Boolean): FakeTrackingController {
+        val controller = FakeTrackingController().apply { this.startResult = startResult }
+        loadKoinModules(
+            module {
+                single<TrackingController> { controller }
+                single<ITransitRepository> { FakeTransitRepository() }
+            }
+        )
+        return controller
+    }
+
+    private fun postedReminderNotification(reminderId: String): android.app.Notification? {
+        val nm = app.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        val id = ScheduledReminderReceiver.NOTIFICATION_BASE_ID + reminderId.hashCode() % 10000
+        return shadowOf(nm).getNotification(id)
+    }
+
+    private fun bigTextOf(notification: android.app.Notification): String =
+        notification.extras.getCharSequence(android.app.Notification.EXTRA_BIG_TEXT)?.toString()
+            ?: notification.extras.getCharSequence(android.app.Notification.EXTRA_TEXT)?.toString().orEmpty()
+
+    @Test
+    fun testAutoStart_exactAlarmAndStarted_noNotification() = runBlocking {
+        ShadowAlarmManager.setCanScheduleExactAlarms(true)
+        val controller = installFakes(startResult = true)
+        val reminder = autoStartReminder("auto-ok")
+        reminderRepository.saveReminder(reminder)
+
+        ScheduledReminderReceiver().handleReminderTrigger(app, reminder.id)
+
+        assertEquals(1, controller.started.size)
+        assertNull(postedReminderNotification(reminder.id))
+    }
+
+    @Test
+    fun testAutoStart_inexactAlarm_degradesToNotificationWithHint() = runBlocking {
+        ShadowAlarmManager.setCanScheduleExactAlarms(false)
+        val controller = installFakes(startResult = true)
+        val reminder = autoStartReminder("auto-inexact")
+        reminderRepository.saveReminder(reminder)
+
+        ScheduledReminderReceiver().handleReminderTrigger(app, reminder.id)
+
+        // 非精确闹钟不直接开追踪，改发带提示的通知
+        assertTrue(controller.started.isEmpty())
+        val notification = requireNotNull(postedReminderNotification(reminder.id))
+        assertTrue(bigTextOf(notification).contains("系统限制未能自动开启跟车，请点击「开启实时追踪」"))
+        ShadowAlarmManager.setCanScheduleExactAlarms(true)
+    }
+
+    @Test
+    fun testAutoStart_startRefused_degradesToNotificationWithHint() = runBlocking {
+        ShadowAlarmManager.setCanScheduleExactAlarms(true)
+        val controller = installFakes(startResult = false)
+        val reminder = autoStartReminder("auto-refused")
+        reminderRepository.saveReminder(reminder)
+
+        ScheduledReminderReceiver().handleReminderTrigger(app, reminder.id)
+
+        assertEquals(1, controller.started.size)
+        val notification = requireNotNull(postedReminderNotification(reminder.id))
+        assertTrue(bigTextOf(notification).contains("系统限制未能自动开启跟车"))
+    }
+
+    @Test
+    fun testStartTrackingNow_whenStartFails_keepsNotificationForRetry() = runBlocking {
+        ShadowAlarmManager.setCanScheduleExactAlarms(false)
+        installFakes(startResult = true)
+        val reminder = autoStartReminder("retry")
+        reminderRepository.saveReminder(reminder)
+        ScheduledReminderReceiver().handleReminderTrigger(app, reminder.id)
+        assertNotNull(postedReminderNotification(reminder.id))
+
+        // 点「开启实时追踪」仍启动失败：通知保留，方便再点
+        val refusing = installFakes(startResult = false)
+        ScheduledReminderReceiver().handleStartTrackingNow(app, reminder.id)
+        assertEquals(1, refusing.started.size)
+        assertNotNull(postedReminderNotification(reminder.id))
+
+        // 再点一次成功：通知关掉
+        val accepting = installFakes(startResult = true)
+        ScheduledReminderReceiver().handleStartTrackingNow(app, reminder.id)
+        assertEquals(1, accepting.started.size)
+        assertNull(postedReminderNotification(reminder.id))
+        ShadowAlarmManager.setCanScheduleExactAlarms(true)
     }
 }

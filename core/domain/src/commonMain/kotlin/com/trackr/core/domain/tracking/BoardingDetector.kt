@@ -20,7 +20,7 @@ import kotlin.math.max
  * 4. 待确认超时（[CANDIDATE_TIMEOUT_MILLIS]）仍无结论：车已离开 A 就按已上车处理（与无定位时一致），否则继续等。
  * 5. ON_BOARD 错锁自愈：锁定车离用户 > 500m（或已从数据消失），同时另一辆车离用户 ≤ 80m，连续 [RELOCK_STREAK] 次 → 改锁。
  */
-object BoardingDetector {
+internal object BoardingDetector {
 
     const val CANDIDATE_RADIUS_METERS = 300
     const val CONFIRM_STREAK = 2

@@ -17,11 +17,15 @@ import com.trackr.core.data.local.SerialWriter
 import com.trackr.core.data.local.TransitLocalStore
 import com.trackr.core.data.repository.AmapKeyDefaults
 import com.trackr.core.data.repository.AmapKeyRepository
+import com.trackr.core.data.repository.DataStoreTrackingSessionStore
 import com.trackr.core.data.repository.DefaultAmapKeyRepository
+import com.trackr.core.data.repository.InMemoryTrackingSessionStore
+import com.trackr.core.data.repository.TrackingSessionStore
 import com.trackr.core.database.TrackrDatabase
 import com.trackr.core.database.createTrackrDatabase
 import com.trackr.core.datastore.TrackrDataStoreFiles
 import com.trackr.core.datastore.createPreferencesDataStore
+import com.trackr.core.datastore.createTrackingSessionDataStore
 import com.trackr.core.datastore.trackrDataStorePath
 import com.trackr.util.CachedReminderScheduleState
 import com.trackr.util.ReminderScheduleState
@@ -35,7 +39,7 @@ import kotlinx.coroutines.runBlocking
 /**
  * 这次启动用的整套本地存储（第 9 步）。按 [StoreSwitch] 选新旧：
  *
- * - 新：Room `trackr.db` + DataStore `trackr_settings` / `trackr_amap_keys`。打开时先跑 [LegacyLibraryMigration]
+ * - 新：Room `trackr.db` + DataStore `trackr_settings` / `trackr_amap_keys` / `tracking_session`。打开时先跑 [LegacyLibraryMigration]
  *   （旧 SharedPreferences -> 新存储，只读不删）。**迁移出任何错，这次启动就退回旧存储**，用户看到的还是原来的数据，
  *   下次启动再试。
  * - 旧：原来的 SharedPreferences（`SharedPrefs*Store`）。
@@ -51,6 +55,8 @@ class StorageBackend private constructor(
     val reminderStore: ReminderStore,
     val reminderScheduleState: ReminderScheduleState,
     val amapKeys: AmapKeyRepository,
+    /** 追踪会话（第 12 步）：新存储落 DataStore `tracking_session.json`；旧存储只在内存里（和之前一样，进程没了就没了） */
+    val trackingSessionStore: TrackingSessionStore,
     /** 新存储这次启动的迁移结果；旧存储为 null */
     val migrationReport: LegacyLibraryMigration.Report?,
     private val onClose: () -> Unit
@@ -100,6 +106,7 @@ class StorageBackend private constructor(
                 reminderStore = SharedPrefsReminderStore(context),
                 reminderScheduleState = SharedPrefsReminderScheduleState(context),
                 amapKeys = amapKeys,
+                trackingSessionStore = InMemoryTrackingSessionStore(),
                 migrationReport = null,
                 onClose = {}
             )
@@ -120,6 +127,10 @@ class StorageBackend private constructor(
                     path = context.trackrDataStorePath(TrackrDataStoreFiles.AMAP_KEYS),
                     scope = dataStoreScope,
                     migrations = listOf(LegacyAmapKeyMigration(context, generation))
+                )
+                val trackingSession = createTrackingSessionDataStore(
+                    path = context.trackrDataStorePath(TrackrDataStoreFiles.TRACKING_SESSION),
+                    scope = dataStoreScope
                 )
                 val database = createTrackrDatabase(context).also { db = it }
 
@@ -142,6 +153,7 @@ class StorageBackend private constructor(
                             newWriter(writeScope)
                         ),
                         amapKeys = DefaultAmapKeyRepository.create(DataStoreAmapKeyStore(keys), newWriter(writeScope), amapKeyDefaults()),
+                        trackingSessionStore = DataStoreTrackingSessionStore(trackingSession),
                         migrationReport = report,
                         onClose = {
                             dataStoreScope.cancel()

@@ -12,10 +12,14 @@ import com.trackr.core.data.repository.LocationRepository
 import com.trackr.core.data.repository.RealtimeRepository
 import com.trackr.core.data.repository.SearchHistoryRepository
 import com.trackr.core.data.repository.SettingsRepository
+import com.trackr.core.data.repository.DefaultTrackingRepository
+import com.trackr.core.data.repository.TrackingRepository
 import com.trackr.core.domain.platform.LocationSource
+import com.trackr.core.domain.platform.MonotonicClock
 import com.trackr.core.domain.platform.ReminderAlarms
 import com.trackr.core.domain.platform.TrackingController
 import com.trackr.core.domain.platform.UpdateChecker
+import com.trackr.core.domain.tracking.TrackingEngine
 import com.trackr.core.navigation.ScreenKey
 import com.trackr.core.network.provider.chelaile.ChelaileTransitProvider
 import com.trackr.core.network.provider.mygolbs.MygolbsTransitProvider
@@ -41,7 +45,6 @@ import com.trackr.data.repository.TransitRepository
 import com.trackr.service.AndroidTrackingController
 import com.trackr.service.ArrivalAlertNotifier
 import com.trackr.service.LiveProgressNotifier
-import com.trackr.service.TransferAutoSwitcher
 import com.trackr.ui.screens.favoritesgroup.FavoritesGroupViewModel
 import com.trackr.ui.screens.home.HomeViewModel
 import com.trackr.ui.screens.linedetail.LineDetailViewModel
@@ -63,6 +66,7 @@ import org.koin.core.module.dsl.viewModel
 import org.koin.core.qualifier.named
 import org.koin.dsl.module
 import org.koin.dsl.onClose
+import kotlin.time.Clock
 
 /** 应用级协程作用域的限定名：活得和进程一样久，接收器、小组件、收藏同步都用它 */
 val AppScopeQualifier = named("app")
@@ -125,22 +129,36 @@ val appModule: Module = module {
     // 收藏真变了才同步桌面快捷方式和小组件（原来挂在 MainActivity 的组合里）
     single { FavoritesShortcutWidgetSync(androidContext(), get(), get(AppScopeQualifier)) }
 
-    // 原来是 object 的有状态组件，改成类后由 Koin 提供唯一实例；旧 object 转发到这里
+    // 原来是 object 的有状态组件，改成类后由 Koin 提供唯一实例
     single {
         LiveProgressNotifier(
             liveNotificationSetting = { get<ITransitRepository>().isLiveNotificationEnabled.value },
-            nextLegLineNameOf = { legIndex -> get<TransferAutoSwitcher>().nextLegLineName(legIndex) },
+            nextLegLineNameOf = { legIndex ->
+                get<TrackingRepository>().session.value?.let { TrackingEngine.nextLegLineName(it, legIndex) }
+            },
             showOnLockScreenSetting = { get<ITransitRepository>().showOnLockScreen.value }
         )
     }
     single { ArrivalAlertNotifier(get()) }
-    single { TransferAutoSwitcher(get()) }
     single<ReminderAlarms> { ReminderAlarmScheduler(androidContext(), get()) }
+
+    // 追踪会话的唯一数据源（第 12 步）：UI、通知动作、追踪服务都读写它
+    single<TrackingRepository> {
+        DefaultTrackingRepository(
+            store = get<StorageBackend>().trackingSessionStore,
+            scope = get(AppScopeQualifier),
+            clock = get()
+        )
+    }
+
+    // 时钟：墙钟（写进会话的时刻）和单调时钟（定位年龄）
+    single<Clock> { Clock.System }
+    single<MonotonicClock> { AndroidMonotonicClock }
 
     // 平台能力：ViewModel 不再直接拿 Context
     single<LocationSource> { AndroidLocationSource(androidContext()) }
-    single<LocationRepository> { DefaultLocationRepository(source = get(), clock = AndroidMonotonicClock) }
-    single<TrackingController> { AndroidTrackingController(androidContext()) }
+    single<LocationRepository> { DefaultLocationRepository(source = get(), clock = get()) }
+    single<TrackingController> { AndroidTrackingController(androidContext(), get()) }
     single<AmapSdkKeyApplier> { AndroidAmapSdkKeyApplier(androidContext()) }
     // 用户改了 Android Key 就重新注入 SDK（第 11 步：Key 对话框在「更多」页，不再由规划页 VM 注入）
     single { AmapSdkKeySync(get(), get(), get(AppScopeQualifier)) }
@@ -155,6 +173,7 @@ val viewModelModule: Module = module {
         HomeViewModel(
             repository = get(),
             locationRepository = get(),
+            trackingRepository = get(),
             trackingController = get()
         )
     }
@@ -168,7 +187,9 @@ val viewModelModule: Module = module {
             amapSdkService = runCatching { AmapSdkTransitService(context) }.getOrNull(),
             migrationFlags = StoreMigrationFlags(get()),
             amapKeys = get(),
-            locationRepository = get()
+            locationRepository = get(),
+            trackingRepository = get(),
+            trackingController = get()
         )
     }
     viewModel { (key: ScreenKey.LineDetail) ->
@@ -180,7 +201,9 @@ val viewModelModule: Module = module {
             initialSource = key.source,
             lineNameHint = key.lineName,
             repository = get(),
-            reminderRepository = get()
+            reminderRepository = get(),
+            trackingRepository = get(),
+            trackingController = get()
         )
     }
     viewModel { (key: ScreenKey.StopDetail) ->

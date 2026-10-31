@@ -1,0 +1,467 @@
+package com.trackr.core.data.repository
+
+import com.trackr.core.domain.tracking.TrackingEngine
+import com.trackr.core.model.CandidateLine
+import com.trackr.core.model.LegPhase
+import com.trackr.core.model.LiveBus
+import com.trackr.core.model.TrackingSession
+import com.trackr.core.model.TrackingTarget
+import com.trackr.core.model.TransitGroup
+import com.trackr.core.model.TransitLeg
+import com.trackr.core.model.UserFix
+import com.trackr.core.testing.FakeClock
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.runTest
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
+import kotlin.time.Duration.Companion.minutes
+
+/**
+ * [DefaultTrackingRepository]：代际号、落盘读回（两个实例共用一个 store 模拟进程被杀后重建）、命令。
+ */
+class TrackingRepositoryTest {
+
+    private val clock = FakeClock()
+    private val store = InMemoryTrackingSessionStore()
+    private var idCounter = 0
+
+    private fun TestScope.newRepo(
+        sessionStore: TrackingSessionStore = store,
+        scope: CoroutineScope = backgroundScope
+    ) = DefaultTrackingRepository(sessionStore, scope, clock) { "s${++idCounter}" }
+
+    private val leg0 = TransitLeg(
+        legIndex = 0,
+        fromStopName = "上车站A",
+        toStopName = "换乘站B",
+        toStopId = "B",
+        candidateLines = listOf(CandidateLine(cityId = "hz", lineId = "L1", lineName = "156路", fromStopOrder = 3, toStopOrder = 8))
+    )
+    private val leg1 = TransitLeg(
+        legIndex = 1,
+        fromStopName = "换乘站B",
+        toStopName = "终点站C",
+        toStopId = "C",
+        candidateLines = listOf(CandidateLine(cityId = "hz", lineId = "L2", lineName = "28路", fromStopOrder = 2, toStopOrder = 6))
+    )
+    private val route = TrackingTarget.Route(
+        group = TransitGroup(id = "g1", name = "上班", legs = listOf(leg0, leg1), createdAt = 0L, updatedAt = 0L)
+    )
+    private val single = TrackingTarget.SingleLine(
+        cityId = "sh",
+        lineId = "L49",
+        lineName = "49路",
+        targetStopName = "上海体育馆",
+        targetOrder = 10
+    )
+
+    private fun bus(id: String, order: Int, progress: Float = 0.5f) = LiveBus(
+        busId = id,
+        plateOrFleetNo = id,
+        order = order,
+        segmentProgress = progress,
+        wgsLat = 30.0,
+        wgsLng = 120.0
+    )
+
+    private fun fix() = UserFix(lat = 30.0, lng = 120.0, accuracyMeters = 10f, elapsedMillis = clock.elapsedMillis())
+
+    /** 盘里总是读到 [onDisk]（读盘慢于本进程第一次写盘的情形），写入另记 */
+    private class StaleReadStore(private val onDisk: TrackingSession?) : TrackingSessionStore {
+        var written: TrackingSession? = onDisk
+        override suspend fun read(): TrackingSession? = onDisk
+        override suspend fun write(session: TrackingSession?) {
+            written = session
+        }
+    }
+
+    // ---------------- 落盘读回 ----------------
+
+    @Test
+    fun newInstance_readsBackSessionAsInterrupted_untilResume() = runTest {
+        val first = newRepo()
+        first.awaitLoaded()
+        val started = assertNotNull(first.start(route))
+        first.flush()
+
+        // 进程被杀后重建
+        clock.advanceBy(10.minutes)
+        val second = newRepo()
+        second.awaitLoaded()
+
+        val restored = assertNotNull(second.session.value)
+        assertTrue(restored.interrupted)
+        assertEquals(started.sessionId, restored.sessionId)
+        assertEquals(started.generation, restored.generation)
+        assertEquals(started.state, restored.state)
+        assertFalse(second.legState.value.isActive)
+        assertNull(second.groupSession.value)
+        // 中断期间写回一律丢弃
+        assertFalse(second.update(restored.generation) { it })
+
+        val resumed = assertNotNull(second.resume())
+        assertFalse(resumed.interrupted)
+        assertEquals(started.generation + 1, resumed.generation)
+        assertEquals(resumed, second.session.value)
+        assertEquals(started.state, second.legState.value)
+        assertTrue(second.legState.value.isActive)
+        assertEquals("g1", second.groupSession.value?.groupId)
+        // 接上之后不再是中断状态，再 resume 原样返回
+        assertEquals(resumed, second.resume())
+    }
+
+    @Test
+    fun readBack_olderThanMaxResumeAge_isDroppedAndStoreCleared() = runTest {
+        val first = newRepo()
+        first.awaitLoaded()
+        assertNotNull(first.start(single))
+        first.flush()
+
+        clock.advanceBy((DefaultTrackingRepository.MAX_RESUME_AGE_MILLIS / 60_000L + 1).minutes)
+        val second = newRepo()
+        second.awaitLoaded()
+        second.flush()
+
+        assertNull(second.session.value)
+        assertFalse(second.legState.value.isActive)
+        assertNull(store.read())
+    }
+
+    @Test
+    fun startBeforeLoadCompletes_discardsReadBackSession() = runTest {
+        val first = newRepo()
+        first.awaitLoaded()
+        val old = assertNotNull(first.start(route))
+        first.flush()
+
+        val second = newRepo()
+        // 还没让出线程：init 里的读盘还没跑
+        val fresh = assertNotNull(second.start(single))
+        second.awaitLoaded()
+        second.flush()
+
+        assertEquals(fresh, second.session.value)
+        assertFalse(fresh.interrupted)
+        assertEquals(fresh, store.read())
+        assertTrue(fresh.sessionId != old.sessionId)
+    }
+
+    @Test
+    fun startBeforeLoadCompletes_withSlowRead_ignoresStaleDiskSession_andKeepsGenerationsAbove() = runTest {
+        // 上个进程用到了第 50 代
+        val old = assertNotNull(TrackingEngine.begin("old", 50, route, clock.nowMillis))
+
+        // 盘里读到的始终是旧会话（读盘发生在本进程第一次写盘之后，也仍拿到旧值）
+        val slowStore = StaleReadStore(old)
+        val second = newRepo(sessionStore = slowStore)
+        val fresh = assertNotNull(second.start(single))
+        second.awaitLoaded()
+        second.flush()
+
+        assertEquals(fresh, second.session.value)
+        assertFalse(assertNotNull(second.session.value).interrupted)
+        assertEquals(fresh, slowStore.written)
+        // 读回的旧会话代际号也算“用过的”：之后的会话代际号都比它大
+        second.stop()
+        val later = assertNotNull(second.start(single))
+        assertTrue(later.generation > old.generation, "later=${later.generation} old=${old.generation}")
+    }
+
+    // ---------------- 代际号 ----------------
+
+    @Test
+    fun update_withStaleGeneration_isDiscarded() = runTest {
+        val repo = newRepo()
+        repo.awaitLoaded()
+        val session = assertNotNull(repo.start(route))
+        val g = session.generation
+
+        assertFalse(repo.update(g - 1) { it.copy(state = it.state.copy(statusSummary = "旧结果")) })
+        assertEquals(session, repo.session.value)
+
+        assertTrue(repo.update(g) { it.copy(state = it.state.copy(statusSummary = "新结果")) })
+        assertEquals("新结果", repo.session.value?.state?.statusSummary)
+        assertEquals("新结果", repo.legState.value.statusSummary)
+
+        // 开了新会话：老会话的代际号不再生效
+        val next = assertNotNull(repo.start(single))
+        assertTrue(next.generation > g)
+        assertFalse(repo.update(g) { it.copy(state = it.state.copy(statusSummary = "老会话")) })
+        assertEquals(next, repo.session.value)
+
+        // 停止后：任何代际号都不生效
+        repo.stop()
+        assertFalse(repo.update(next.generation) { it })
+        assertNull(repo.session.value)
+    }
+
+    @Test
+    fun update_transformReturningNull_endsSession() = runTest {
+        val repo = newRepo()
+        repo.awaitLoaded()
+        val session = assertNotNull(repo.start(route))
+
+        assertTrue(repo.update(session.generation) { null })
+        assertNull(repo.session.value)
+        assertFalse(repo.legState.value.isActive)
+        assertNull(repo.groupSession.value)
+        assertFalse(repo.update(session.generation) { it })
+        repo.flush()
+        assertNull(store.read())
+    }
+
+    @Test
+    fun update_transformSeesCurrentValue_afterConfirmBoarded() = runTest {
+        val repo = newRepo()
+        repo.awaitLoaded()
+        val session = assertNotNull(repo.start(route))
+        assertEquals(LegPhase.WAITING_BOARD, session.state.legPhase)
+
+        // 轮询在路上时用户点了「我上车了」
+        repo.confirmBoarded()
+        var seen: LegPhase? = null
+        assertTrue(repo.update(session.generation) { current -> seen = current.state.legPhase; current })
+        assertEquals(LegPhase.ON_BOARD, seen)
+        assertEquals(LegPhase.ON_BOARD, repo.session.value?.state?.legPhase)
+    }
+
+    @Test
+    fun stop_doesNotRollBackGeneration() = runTest {
+        val repo = newRepo()
+        repo.awaitLoaded()
+        val seen = mutableListOf<Int>()
+
+        val a = assertNotNull(repo.start(route))
+        seen += a.generation
+        // 引擎切程（代际号 +1）
+        assertTrue(repo.update(a.generation) { it.copy(generation = it.generation + 1) })
+        seen += assertNotNull(repo.session.value).generation
+        repo.stop()
+
+        val b = assertNotNull(repo.start(single))
+        assertTrue(b.generation > seen.max(), "b=${b.generation} seen=$seen")
+        seen += b.generation
+        repo.stop()
+
+        val c = assertNotNull(repo.start(single))
+        assertTrue(c.generation > seen.max(), "c=${c.generation} seen=$seen")
+    }
+
+    // ---------------- 命令 ----------------
+
+    @Test
+    fun confirmBoarded_locksBusRecordedForCurrentGeneration() = runTest {
+        val repo = newRepo()
+        repo.awaitLoaded()
+        val session = assertNotNull(repo.start(route))
+
+        repo.recordBuses(session.generation, listOf(bus("next", order = 2), bus("mine", order = 4, progress = 0.2f)))
+        repo.confirmBoarded()
+
+        val boarded = assertNotNull(repo.session.value)
+        assertEquals(LegPhase.ON_BOARD, boarded.state.legPhase)
+        assertEquals("mine", boarded.state.lockedBusId)
+        assertEquals(session.generation, boarded.generation)
+    }
+
+    @Test
+    fun recordBuses_withWrongGeneration_isIgnored() = runTest {
+        val repo = newRepo()
+        repo.awaitLoaded()
+        val session = assertNotNull(repo.start(route))
+
+        repo.recordBuses(session.generation - 1, listOf(bus("mine", order = 4, progress = 0.2f)))
+        repo.confirmBoarded()
+
+        val boarded = assertNotNull(repo.session.value)
+        assertEquals(LegPhase.ON_BOARD, boarded.state.legPhase)
+        assertNull(boarded.state.lockedBusId)
+    }
+
+    @Test
+    fun confirmBoarded_outsideWaitingBoard_doesNothing() = runTest {
+        val repo = newRepo()
+        repo.awaitLoaded()
+        val session = assertNotNull(repo.start(single))
+        repo.confirmBoarded()
+        assertEquals(session, repo.session.value)
+    }
+
+    @Test
+    fun switchToNextLeg_bumpsGeneration_andClearsUserFix() = runTest {
+        val repo = newRepo()
+        repo.awaitLoaded()
+        val session = assertNotNull(repo.start(route))
+        repo.updateUserFix(fix())
+        assertNotNull(repo.latestUserFix)
+
+        repo.switchToNextLeg()
+
+        val next = assertNotNull(repo.session.value)
+        assertEquals(session.generation + 1, next.generation)
+        assertEquals(1, next.state.currentLegIndex)
+        assertEquals("L2", next.leg.lineId)
+        assertNull(repo.latestUserFix)
+        assertEquals(1, repo.groupSession.value?.activeLegIndex)
+        assertFalse(repo.update(session.generation) { it })
+
+        // 最后一程：什么都不做
+        repo.switchToNextLeg()
+        assertEquals(next, repo.session.value)
+    }
+
+    @Test
+    fun startAndStop_clearUserFix() = runTest {
+        val repo = newRepo()
+        repo.awaitLoaded()
+        repo.updateUserFix(fix())
+        assertNotNull(repo.start(route))
+        assertNull(repo.latestUserFix)
+
+        repo.updateUserFix(fix())
+        assertNotNull(repo.latestUserFix)
+        repo.stop()
+        assertNull(repo.latestUserFix)
+    }
+
+    @Test
+    fun groupSession_forRoute_andNullForSingleLine() = runTest {
+        val repo = newRepo()
+        repo.awaitLoaded()
+        val session = assertNotNull(repo.start(route))
+
+        val group = assertNotNull(repo.groupSession.value)
+        assertEquals("g1", group.groupId)
+        assertEquals("上班", group.groupName)
+        assertEquals(0, group.activeLegIndex)
+        assertEquals(2, group.totalLegs)
+        assertEquals(session.state, group.trackingSessionState)
+        assertEquals(session.state, repo.legState.value)
+
+        assertNotNull(repo.start(single))
+        assertNull(repo.groupSession.value)
+        assertTrue(repo.legState.value.isActive)
+    }
+
+    @Test
+    fun start_routeWithoutLegs_returnsNullAndKeepsCurrentSession() = runTest {
+        val repo = newRepo()
+        repo.awaitLoaded()
+        val session = assertNotNull(repo.start(single))
+        assertNull(repo.start(route.copy(group = route.group.copy(legs = emptyList()))))
+        assertEquals(session, repo.session.value)
+    }
+
+    @Test
+    fun cycleThreshold_cyclesAndIsIgnoredWhileInterrupted() = runTest {
+        val repo = newRepo()
+        repo.awaitLoaded()
+        val session = assertNotNull(repo.start(single))
+        assertEquals(2, session.state.alertThresholdStops)
+
+        repo.cycleThreshold()
+        assertEquals(3, repo.session.value?.state?.alertThresholdStops)
+        repo.cycleThreshold()
+        assertEquals(1, repo.session.value?.state?.alertThresholdStops)
+        repo.cycleThreshold()
+        assertEquals(2, repo.legState.value.alertThresholdStops)
+        repo.flush()
+
+        // 读回的中断会话：不改
+        val restored = newRepo()
+        restored.awaitLoaded()
+        val interrupted = assertNotNull(restored.session.value)
+        assertTrue(interrupted.interrupted)
+        restored.cycleThreshold()
+        assertEquals(interrupted, restored.session.value)
+    }
+
+    @Test
+    fun writesArePersisted_inCallOrder() = runTest {
+        val repo = newRepo()
+        repo.awaitLoaded()
+        val session = assertNotNull(repo.start(route))
+        repo.cycleThreshold()
+        repo.flush()
+        assertEquals(repo.session.value, store.read())
+        assertEquals(TrackingEngine.cycleThreshold(session, clock.nowMillis), store.read())
+
+        repo.stop()
+        repo.flush()
+        assertNull(store.read())
+    }
+
+    // ---------------- 开始失败放回 / 无效目标 / 改系统时间 ----------------
+
+    @Test
+    fun restore_putsPreviousSessionBackWithNewerGeneration() = runTest {
+        val repo = newRepo()
+        repo.awaitLoaded()
+        val previous = assertNotNull(repo.start(single))
+        val failed = assertNotNull(repo.start(route))
+
+        repo.restore(failed, previous)
+
+        val restored = assertNotNull(repo.session.value)
+        assertEquals(previous.sessionId, restored.sessionId)
+        assertTrue(restored.generation > failed.generation)
+        assertEquals(LegPhase.SINGLE, repo.legState.value.legPhase)
+        // 失败的那一代写回被丢弃
+        assertFalse(repo.update(failed.generation) { it })
+    }
+
+    @Test
+    fun restore_withoutPrevious_endsSession_andIgnoresIfSessionMovedOn() = runTest {
+        val repo = newRepo()
+        repo.awaitLoaded()
+        val failed = assertNotNull(repo.start(single))
+        val newer = assertNotNull(repo.start(route))
+
+        // 已经换成别的会话了：不动
+        repo.restore(failed, null)
+        assertEquals(newer.sessionId, repo.session.value?.sessionId)
+
+        repo.restore(newer, null)
+        assertNull(repo.session.value)
+        assertFalse(repo.legState.value.isActive)
+    }
+
+    @Test
+    fun invalidStartBeforeLoad_doesNotDiscardReadBackSession() = runTest {
+        val first = newRepo()
+        first.awaitLoaded()
+        val started = assertNotNull(first.start(single))
+        first.flush()
+
+        val second = newRepo()
+        // 读盘完成前点了一个没有程的路线：什么都不动
+        assertNull(second.start(TrackingTarget.Route(group = TransitGroup(id = "empty", name = "空", createdAt = 0L, updatedAt = 0L))))
+        second.awaitLoaded()
+
+        val readBack = assertNotNull(second.session.value)
+        assertEquals(started.sessionId, readBack.sessionId)
+        assertTrue(readBack.interrupted)
+    }
+
+    @Test
+    fun readBack_whenWallClockMovedBackwards_isStillResumable() = runTest {
+        val first = newRepo()
+        first.awaitLoaded()
+        assertNotNull(first.start(single))
+        first.flush()
+
+        // 用户把系统时间往回调了 10 分钟
+        clock.setWallClock(clock.nowMillis - 10.minutes.inWholeMilliseconds)
+        val second = newRepo()
+        second.awaitLoaded()
+
+        assertNotNull(second.session.value)
+        assertNotNull(second.resume())
+        assertTrue(second.legState.value.isActive)
+    }
+}

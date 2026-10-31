@@ -68,7 +68,7 @@ class LegacySettingsMigration(
  *
  * 0a4fdab 之前 Key 在 `trackr_prefs` 里。旧 SharedPreferences 的 `trackr_amap_keys` 没有 `migrated_from_trackr_prefs`
  * 标记时（用户从 0a4fdab 之前直接升到这一版），某个槽在 `trackr_amap_keys` 里是空的，就用 `trackr_prefs` 里的值；
- * `trackr_amap_keys` 里有值时以它为准（和 `AmapKeyStore.migrateFromLegacy` 的规则一样）。
+ * `trackr_amap_keys` 里有值时以它为准（和 `AmapKeyStorage.migrateFromLegacy` 的规则一样）。
  * 只写非空值：旧文件里是空的，不会清掉新存储里已经填好的 Key。
  */
 class LegacyAmapKeyMigration(

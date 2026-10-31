@@ -3,19 +3,25 @@ package com.trackr.ui.screens.home
 import android.app.Application
 import androidx.test.core.app.ApplicationProvider
 import com.trackr.core.data.repository.DefaultLocationRepository
+import com.trackr.core.data.repository.DefaultTrackingRepository
+import com.trackr.core.data.repository.InMemoryTrackingSessionStore
 import com.trackr.core.model.BusLineDirection
 import com.trackr.core.model.BusLineSummary
 import com.trackr.core.model.DataSourceType
 import com.trackr.core.model.FavoriteStationLine
 import com.trackr.core.model.NearbyStop
+import com.trackr.core.model.TrackingTarget
 import com.trackr.core.model.TransitCity
 import com.trackr.core.model.TransitSearchResult
+import com.trackr.core.testing.FakeTrackingController
 import com.trackr.data.location.AndroidLocationSource
 import com.trackr.data.location.AndroidMonotonicClock
 import com.trackr.data.repository.FakeTransitRepository
-import com.trackr.service.AndroidTrackingController
 import com.trackr.util.MainDispatcherRule
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -36,6 +42,8 @@ class HomeViewModelTest {
 
     private lateinit var app: Application
     private lateinit var fakeRepository: FakeTransitRepository
+    private lateinit var trackingRepository: DefaultTrackingRepository
+    private lateinit var trackingController: FakeTrackingController
     private val shanghai = TransitCity(cityId = "034", cityName = "上海", pinyin = "shanghai", province = "直辖市")
     private val beijing = TransitCity(cityId = "001", cityName = "北京", pinyin = "beijing", province = "直辖市")
     private val hangzhou = TransitCity(cityId = "0571", cityName = "杭州", pinyin = "hangzhou", province = "浙江省")
@@ -45,12 +53,18 @@ class HomeViewModelTest {
         app = ApplicationProvider.getApplicationContext()
         fakeRepository = FakeTransitRepository(initialCity = shanghai)
         fakeRepository.supportedCitiesResult = Result.success(listOf(shanghai, beijing, hangzhou))
+        trackingRepository = DefaultTrackingRepository(
+            InMemoryTrackingSessionStore(),
+            CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
+        )
+        trackingController = FakeTrackingController(trackingRepository)
     }
 
     private fun createViewModel(): HomeViewModel {
         return HomeViewModel(
             locationRepository = DefaultLocationRepository(AndroidLocationSource(app), AndroidMonotonicClock),
-            trackingController = AndroidTrackingController(app),
+            trackingController = trackingController,
+            trackingRepository = trackingRepository,
             repository = fakeRepository,
             enableAutoPolling = false
         )
@@ -518,10 +532,38 @@ class HomeViewModelTest {
     }
 
     @Test
+    fun testStopTracking_callsControllerAndActiveTrackingBecomesInactive() = runTest {
+        val viewModel = createViewModel()
+        testScheduler.runCurrent()
+        trackingController.start(
+            TrackingTarget.SingleLine(
+                cityId = "034",
+                lineId = "line_71",
+                lineName = "71路",
+                targetStopId = "stop_5",
+                targetStopName = "人民广场",
+                targetOrder = 5,
+                totalStops = 20
+            )
+        )
+        testScheduler.runCurrent()
+        assertTrue(viewModel.uiState.value.activeTracking.isActive)
+        assertEquals("line_71", viewModel.uiState.value.activeTracking.lineId)
+
+        viewModel.stopTracking()
+        testScheduler.runCurrent()
+
+        assertEquals(1, trackingController.stopCount)
+        assertFalse(trackingRepository.legState.value.isActive)
+        assertFalse(viewModel.uiState.value.activeTracking.isActive)
+    }
+
+    @Test
     fun testPollingLifecycle_pauseResumeAndExplicitControl() = runTest {
         val vmWithAutoPolling = HomeViewModel(
             locationRepository = DefaultLocationRepository(AndroidLocationSource(app), AndroidMonotonicClock),
-            trackingController = AndroidTrackingController(app),
+            trackingController = trackingController,
+            trackingRepository = trackingRepository,
             repository = fakeRepository,
             enableAutoPolling = true
         )
@@ -559,7 +601,8 @@ class HomeViewModelTest {
         var now = 1_000_000L
         val viewModel = HomeViewModel(
             locationRepository = DefaultLocationRepository(AndroidLocationSource(app), AndroidMonotonicClock),
-            trackingController = AndroidTrackingController(app),
+            trackingController = trackingController,
+            trackingRepository = trackingRepository,
             repository = fakeRepository,
             enableAutoPolling = false,
             elapsedRealtimeMillis = { now }
@@ -582,7 +625,8 @@ class HomeViewModelTest {
         var now = 1_000_000L
         val viewModel = HomeViewModel(
             locationRepository = DefaultLocationRepository(AndroidLocationSource(app), AndroidMonotonicClock),
-            trackingController = AndroidTrackingController(app),
+            trackingController = trackingController,
+            trackingRepository = trackingRepository,
             repository = fakeRepository,
             enableAutoPolling = false,
             elapsedRealtimeMillis = { now }

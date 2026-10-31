@@ -3,7 +3,7 @@ package com.trackr.data.repository
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import com.trackr.core.model.ScheduledReminder
-import com.trackr.util.ReminderScheduler
+import com.trackr.util.ReminderAlarmScheduler
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -228,11 +228,11 @@ class ScheduledReminderRepositoryTest {
     @Test
     fun testScheduleRecordsLastTrigger_andCancelClearsIt() = runTest(testDispatcher) {
         repository.saveReminder(sampleReminder("record-1", daysOfWeek = emptySet()))
-        val planned = ReminderScheduler.getLastScheduledTriggerMillis(context, "record-1")
+        val planned = ReminderAlarmScheduler.getLastScheduledTriggerMillis(context, "record-1")
         assertNotNull(planned)
         assertTrue(planned!! > System.currentTimeMillis() - 1_000L)
 
         repository.toggleReminder("record-1", false)
-        assertNull(ReminderScheduler.getLastScheduledTriggerMillis(context, "record-1"))
+        assertNull(ReminderAlarmScheduler.getLastScheduledTriggerMillis(context, "record-1"))
     }
 }

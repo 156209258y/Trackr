@@ -68,52 +68,52 @@ class AmapSdkManagerTest {
 
     @Test
     fun androidAndWebKeys_stayInSeparateSlots() {
-        val storePrefs = AmapKeyStore.prefs(context)
-        AmapKeyStore.writeAndroidKey(context, "android_key_abc")
-        AmapKeyStore.writeWebKey(context, "web_key_xyz")
+        val storePrefs = AmapKeyStorage.prefs(context)
+        AmapKeyStorage.writeAndroidKey(context, "android_key_abc")
+        AmapKeyStorage.writeWebKey(context, "web_key_xyz")
 
-        assertEquals("android_key_abc", AmapKeyStore.readAndroidKey(context))
-        assertEquals("web_key_xyz", AmapKeyStore.readWebKey(context))
+        assertEquals("android_key_abc", AmapKeyStorage.readAndroidKey(context))
+        assertEquals("web_key_xyz", AmapKeyStorage.readWebKey(context))
 
-        AmapKeyStore.writeAndroidKey(context, "")
-        AmapKeyStore.writeWebKey(context, "")
+        AmapKeyStorage.writeAndroidKey(context, "")
+        AmapKeyStorage.writeWebKey(context, "")
         storePrefs?.edit()?.clear()?.apply()
     }
 
     @Test
     fun readAndroidKey_doesNotFallBackToWebSlot() {
-        val storePrefs = AmapKeyStore.prefs(context)
+        val storePrefs = AmapKeyStorage.prefs(context)
         storePrefs?.edit()?.clear()?.commit()
         // 只配置了 Web 服务 Key（或旧版本单输入框留下的值）
-        AmapKeyStore.writeWebKey(context, "web_only_key")
+        AmapKeyStorage.writeWebKey(context, "web_only_key")
 
-        assertNull(AmapKeyStore.readAndroidKey(context))
-        assertEquals("web_only_key", AmapKeyStore.readWebKey(context))
+        assertNull(AmapKeyStorage.readAndroidKey(context))
+        assertEquals("web_only_key", AmapKeyStorage.readWebKey(context))
 
         storePrefs?.edit()?.clear()?.commit()
     }
 
     @Test
     fun prefs_movesLegacyKeysOutOfTrackrPrefsOnce() {
-        val legacy = context.getSharedPreferences(AmapKeyStore.LEGACY_PREFS_NAME, Context.MODE_PRIVATE)
-        val keyFile = context.getSharedPreferences(AmapKeyStore.PREFS_NAME, Context.MODE_PRIVATE)
+        val legacy = context.getSharedPreferences(AmapKeyStorage.LEGACY_PREFS_NAME, Context.MODE_PRIVATE)
+        val keyFile = context.getSharedPreferences(AmapKeyStorage.PREFS_NAME, Context.MODE_PRIVATE)
         keyFile.edit().clear().commit()
         legacy.edit().clear()
-            .putString(AmapKeyStore.KEY_ANDROID, "legacy_android")
-            .putString(AmapKeyStore.KEY_WEB, "legacy_web")
+            .putString(AmapKeyStorage.KEY_ANDROID, "legacy_android")
+            .putString(AmapKeyStorage.KEY_WEB, "legacy_web")
             .putString("selected_city_id", "033")
             .commit()
 
-        assertEquals("legacy_android", AmapKeyStore.readAndroidKey(context))
-        assertEquals("legacy_web", AmapKeyStore.readWebKey(context))
+        assertEquals("legacy_android", AmapKeyStorage.readAndroidKey(context))
+        assertEquals("legacy_web", AmapKeyStorage.readWebKey(context))
         // Key 已从普通设置文件移除，其他设置原样保留
-        assertNull(legacy.getString(AmapKeyStore.KEY_ANDROID, null))
-        assertNull(legacy.getString(AmapKeyStore.KEY_WEB, null))
+        assertNull(legacy.getString(AmapKeyStorage.KEY_ANDROID, null))
+        assertNull(legacy.getString(AmapKeyStorage.KEY_WEB, null))
         assertEquals("033", legacy.getString("selected_city_id", null))
 
         // 只搬一次：之后旧文件里再出现的值不会覆盖专用文件
-        legacy.edit().putString(AmapKeyStore.KEY_ANDROID, "stale").commit()
-        assertEquals("legacy_android", AmapKeyStore.readAndroidKey(context))
+        legacy.edit().putString(AmapKeyStorage.KEY_ANDROID, "stale").commit()
+        assertEquals("legacy_android", AmapKeyStorage.readAndroidKey(context))
 
         legacy.edit().clear().commit()
         keyFile.edit().clear().commit()
@@ -123,14 +123,14 @@ class AmapSdkManagerTest {
     fun migrateFromLegacy_keepsKeyAlreadyInNewFile() {
         val legacy = context.getSharedPreferences("migrate_legacy_test", Context.MODE_PRIVATE)
         val target = context.getSharedPreferences("migrate_target_test", Context.MODE_PRIVATE)
-        legacy.edit().clear().putString(AmapKeyStore.KEY_WEB, "old_web").commit()
-        target.edit().clear().putString(AmapKeyStore.KEY_WEB, "new_web").commit()
+        legacy.edit().clear().putString(AmapKeyStorage.KEY_WEB, "old_web").commit()
+        target.edit().clear().putString(AmapKeyStorage.KEY_WEB, "new_web").commit()
 
-        AmapKeyStore.migrateFromLegacy(legacy, target)
+        AmapKeyStorage.migrateFromLegacy(legacy, target)
 
-        assertEquals("new_web", target.getString(AmapKeyStore.KEY_WEB, null))
-        assertTrue(target.getBoolean(AmapKeyStore.KEY_MIGRATED_FROM_LEGACY, false))
-        assertNull(legacy.getString(AmapKeyStore.KEY_WEB, null))
+        assertEquals("new_web", target.getString(AmapKeyStorage.KEY_WEB, null))
+        assertTrue(target.getBoolean(AmapKeyStorage.KEY_MIGRATED_FROM_LEGACY, false))
+        assertNull(legacy.getString(AmapKeyStorage.KEY_WEB, null))
     }
 
     @Test

@@ -21,7 +21,6 @@ import com.trackr.core.model.TrackingSessionState
 import com.trackr.service.vendor.LiveUpdatePromotion
 import com.trackr.service.vendor.OppoFluidCloudAdapter
 import com.trackr.service.vendor.XiaomiFocusAdapter
-import org.koin.mp.KoinPlatform
 
 /**
  * 负责构建常驻实时公交进度通知，深度适配 Android 16 / Core-KTX 1.19.0 的 NotificationCompat.ProgressStyle 实时活动
@@ -29,7 +28,7 @@ import org.koin.mp.KoinPlatform
  * 第 4 步从 object 改成类，由 Koin 提供单例；旧的 [LiveProgressNotificationHelper] 暂时转发到这里（第 12 步删）。
  *
  * @param liveNotificationSetting 读「实时通知」设置开关（Koin 里接仓库）
- * @param nextLegLineNameOf 第 N 程之后那一程的线路名（Koin 里接 [TransferAutoSwitcher]）
+ * @param nextLegLineNameOf 第 N 程之后那一程的线路名（Koin 里接 `TrackingRepository` 的会话）
  * @param showOnLockScreenSetting 读「锁屏显示」开关（D3）；读不到按开
  */
 class LiveProgressNotifier(
@@ -509,57 +508,3 @@ class LiveProgressNotifier(
     }
 }
 
-/**
- * 旧入口：第 4 步起实现在 [LiveProgressNotifier]（Koin 单例），这里只转发，第 12 步删。
- * 服务、接收器已改为注入 [LiveProgressNotifier]；其余调用方暂时还走这里。
- */
-object LiveProgressNotificationHelper {
-
-    private val impl: LiveProgressNotifier get() = KoinPlatform.getKoin().get()
-
-    const val CHANNEL_ID_LIVE_PROGRESS = LiveProgressNotifier.CHANNEL_ID_LIVE_PROGRESS
-    const val NOTIFICATION_ID_LIVE_PROGRESS = LiveProgressNotifier.NOTIFICATION_ID_LIVE_PROGRESS
-    internal const val LIVE_NOTIFICATION_ENABLED_FALLBACK = LiveProgressNotifier.LIVE_NOTIFICATION_ENABLED_FALLBACK
-
-    internal var liveNotificationEnabledProvider: () -> Boolean
-        get() = impl.liveNotificationEnabledProvider
-        set(value) {
-            impl.liveNotificationEnabledProvider = value
-        }
-
-    internal fun resetLiveNotificationEnabledProvider() = impl.resetLiveNotificationEnabledProvider()
-
-    internal fun readLiveNotificationEnabled(): Boolean = impl.readLiveNotificationEnabled()
-
-    fun ensureNotificationChannel(context: Context) = impl.ensureNotificationChannel(context)
-
-    fun calculateSpanAndMaxProgress(startTrackingOrder: Int, targetOrder: Int): Pair<Int, Int> =
-        impl.calculateSpanAndMaxProgress(startTrackingOrder, targetOrder)
-
-    fun progressRangeOf(state: TrackingSessionState): Pair<Int, Int> = impl.progressRangeOf(state)
-
-    fun calculateCurrentProgress(
-        state: TrackingSessionState,
-        isArrived: Boolean = ArrivalRules.isSessionArrived(state)
-    ): Int = impl.calculateCurrentProgress(state, isArrived)
-
-    fun buildNotification(context: Context, state: TrackingSessionState): Notification =
-        impl.buildNotification(context, state)
-
-    fun buildNotification(context: Context, state: TrackingSessionState, nextLineName: String?): Notification =
-        impl.buildNotification(context, state, nextLineName)
-
-    internal fun isArrivedState(state: TrackingSessionState): Boolean = impl.isArrivedState(state)
-
-    fun shortCriticalTextFor(state: TrackingSessionState): String = impl.shortCriticalTextFor(state)
-
-    fun buildTexts(state: TrackingSessionState, nextLineName: String? = null): LiveProgressNotifier.NotificationTexts =
-        impl.buildTexts(state, nextLineName)
-
-    fun notificationActions(state: TrackingSessionState): List<LiveProgressNotifier.NotificationAction> =
-        impl.notificationActions(state)
-
-    fun updateNotification(context: Context, state: TrackingSessionState) = impl.updateNotification(context, state)
-
-    fun cancelNotification(context: Context) = impl.cancelNotification(context)
-}

@@ -51,7 +51,9 @@ class KoinGraphVerifyTest {
         ITransitProvider::class,
         // LiveProgressNotifier 收两个 lambda（读设置开关、取下一程线路名），在模块里现写
         Function0::class,
-        Function1::class
+        Function1::class,
+        // AndroidTrackingController 收一个启动前台服务的 lambda（测试替换用，Koin 里用默认值）
+        Function2::class
     )
 
     /** 静态校验某个模块：别的模块的定义也算可用绑定 */

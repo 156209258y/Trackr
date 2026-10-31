@@ -1,7 +1,13 @@
 package com.trackr.core.datastore
 
 import androidx.datastore.preferences.core.edit
+import com.trackr.core.model.CandidateLine
+import com.trackr.core.model.TrackingLegParams
+import com.trackr.core.model.TrackingSession
 import com.trackr.core.model.TrackingSessionState
+import com.trackr.core.model.TrackingTarget
+import com.trackr.core.model.TransitGroup
+import com.trackr.core.model.TransitLeg
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -84,7 +90,27 @@ class TrackrDataStoresTest {
         val store = createTrackingSessionDataStore(path, newScope())
         assertNull(store.data.first())
 
-        val session = TrackingSessionState(isActive = true, lineId = "L1", lineName = "59", targetOrder = 7, updatedAtMillis = 5L)
+        val group = TransitGroup(
+            id = "g1",
+            name = "上班",
+            legs = listOf(
+                TransitLeg(
+                    legIndex = 0,
+                    fromStopName = "A",
+                    toStopName = "B",
+                    candidateLines = listOf(CandidateLine(cityId = "c", lineId = "L1", lineName = "59", fromStopOrder = 3, toStopOrder = 7))
+                )
+            ),
+            createdAt = 1L,
+            updatedAt = 1L
+        )
+        val session = TrackingSession(
+            sessionId = "s1",
+            generation = 3,
+            target = TrackingTarget.Route(group, startLeg = 0, selectedLineIds = mapOf(0 to "L1")),
+            leg = TrackingLegParams(cityId = "c", lineId = "L1", lineName = "59", targetOrder = 7),
+            state = TrackingSessionState(isActive = true, lineId = "L1", lineName = "59", targetOrder = 7, updatedAtMillis = 5L)
+        )
         store.updateData { session }
         closeAll()
 

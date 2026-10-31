@@ -19,7 +19,6 @@ import com.trackr.core.model.EngineMode
 import com.trackr.core.model.LineTimetable
 import com.trackr.core.model.NearbyStop
 import com.trackr.core.model.ProvinceCityCatalog
-import com.trackr.core.model.TrackingSessionState
 import com.trackr.core.model.TransitCity
 import com.trackr.core.model.TransitCodeProvider
 import com.trackr.core.model.TransitSearchResult
@@ -101,9 +100,6 @@ class TransitRepository(
 
     private val _showOnLockScreen = MutableStateFlow(initial.showOnLockScreen ?: true)
     override val showOnLockScreen: StateFlow<Boolean> = _showOnLockScreen.asStateFlow()
-
-    private val _activeTrackingSession = MutableStateFlow(TrackingSessionState())
-    override val activeTrackingSession: StateFlow<TrackingSessionState> = _activeTrackingSession.asStateFlow()
 
     private val _userLocation = MutableStateFlow<Pair<Double, Double>?>(null)
     override val userLocation: StateFlow<Pair<Double, Double>?> = _userLocation.asStateFlow()
@@ -281,10 +277,6 @@ class TransitRepository(
     override suspend fun setPreferredTransitCodeProvider(provider: TransitCodeProvider) {
         _preferredTransitCodeProvider.value = provider
         writer.enqueue { store.saveTransitCodeProvider(provider.id) }.join()
-    }
-
-    override fun updateTrackingSession(state: TrackingSessionState) {
-        _activeTrackingSession.value = state
     }
 
     /** 等排队的写盘做完（测试用） */

@@ -2,6 +2,7 @@ package com.trackr.core.domain.platform
 
 import com.trackr.core.domain.tracking.LocationCadence
 import com.trackr.core.model.ScheduledReminder
+import com.trackr.core.model.TrackingTarget
 import com.trackr.core.model.TransitCodeProvider
 import com.trackr.core.model.UpdateCheckResult
 import com.trackr.core.model.UserFix
@@ -36,13 +37,31 @@ val ProcessMonotonicClock: MonotonicClock = object : MonotonicClock {
     override fun elapsedMillis(): Long = start.elapsedNow().inWholeMilliseconds
 }
 
-/** 追踪服务的控制入口（Android：前台服务；iOS：App 在前台时轮询） */
+/**
+ * 追踪的控制入口（Android：会话写进 `TrackingRepository` 后启动前台服务；iOS：App 在前台时轮询）。
+ * 追踪状态本身只从 `TrackingRepository.session` 读，这里只发命令。
+ */
 interface TrackingController {
 
-    /** 结束追踪：停止追踪服务；分组追踪时同时清掉换乘组状态 */
+    /**
+     * 开始追踪（替换掉正在进行的追踪）。
+     * @return 是否启动成功；后台不允许启动前台服务时返回 false，会话不保留，由调用方降级（如改发通知）
+     */
+    fun start(target: TrackingTarget): Boolean
+
+    /** 结束追踪 */
     fun stopTracking()
 
-    /** 把带精度和定位时刻的手机定位喂给换乘引擎（下车站辅助判定用） */
+    /** 手动「我已上车」（只在路线的等车阶段有效） */
+    fun confirmBoarded()
+
+    /** 手动切到下一程（只在路线追踪时有效） */
+    fun switchToNextLeg()
+
+    /** 切换提前几站提醒（1 -> 2 -> 3 -> 1） */
+    fun cycleThreshold()
+
+    /** 把带精度和定位时刻的手机定位喂给追踪（下车站辅助判定用） */
     fun updateUserFix(fix: UserFix)
 }
 

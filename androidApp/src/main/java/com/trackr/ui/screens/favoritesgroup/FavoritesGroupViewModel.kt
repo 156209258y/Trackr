@@ -1,6 +1,5 @@
 package com.trackr.ui.screens.favoritesgroup
 
-import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.trackr.core.data.local.LocalMigrationFlags
@@ -9,10 +8,12 @@ import com.trackr.core.data.repository.AmapKeyRepository
 import com.trackr.core.data.repository.AmapRouteGateway
 import com.trackr.core.data.repository.DefaultLocationRepository
 import com.trackr.core.data.repository.LocationRepository
+import com.trackr.core.data.repository.TrackingRepository
 import com.trackr.core.domain.arrival.ArrivalState
 import com.trackr.core.domain.arrival.ArrivalText
 import com.trackr.core.domain.math.CoordTransform
 import com.trackr.core.domain.math.RouteProjectionMath
+import com.trackr.core.domain.platform.TrackingController
 import com.trackr.core.model.AmapTipItem
 import com.trackr.core.model.AmapTransitSchemeResult
 import com.trackr.core.model.BusLineDetail
@@ -27,6 +28,7 @@ import com.trackr.core.model.GeoPoint
 import com.trackr.core.model.GroupCategory
 import com.trackr.core.model.GroupTrackingSessionState
 import com.trackr.core.model.NearbyStop
+import com.trackr.core.model.TrackingTarget
 import com.trackr.core.model.TransitCity
 import com.trackr.core.model.TransitGroup
 import com.trackr.core.model.TransitLeg
@@ -38,7 +40,6 @@ import com.trackr.data.remote.amap.AmapSdkManager
 import com.trackr.data.remote.amap.AmapSdkTransitService
 import com.trackr.data.repository.IRouteGroupRepository
 import com.trackr.data.repository.ITransitRepository
-import com.trackr.service.TransferAutoSwitchManager
 import com.trackr.ui.screens.routeplan.MAX_VISIBLE_SCHEMES
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Deferred
@@ -73,6 +74,10 @@ import java.util.concurrent.ConcurrentHashMap
 class FavoritesGroupViewModel(
     private val groupRepository: IRouteGroupRepository,
     private val transitRepository: ITransitRepository,
+    /** 追踪会话（换乘组视图、临时追踪卡读它） */
+    private val trackingRepository: TrackingRepository,
+    /** 追踪命令入口（开始 / 我已上车 / 下一程 / 结束） */
+    private val trackingController: TrackingController,
     private val coordinator: TransitProviderCoordinator? = null,
     /** 高德 Web 服务客户端；为 null 时 Web 通道不可用（测试一般注入 [AmapRouteGateway] 替身） */
     private val amapApiClient: AmapTransitApiClient? = null,
@@ -172,18 +177,19 @@ class FavoritesGroupViewModel(
         }
     }.stateIn(viewModelScope, SharingStarted.Eagerly, groups.value)
 
-    val activeGroupSession: StateFlow<GroupTrackingSessionState?> =
-        TransferAutoSwitchManager.activeGroupSession
+    val activeGroupSession: StateFlow<GroupTrackingSessionState?> = trackingRepository.groupSession
 
     /**
      * 正在追踪、但不在已保存列表里的路线（如规划页"开始追踪"的临时方案）。
      * 收藏页在列表最上方显示为"临时追踪"卡片。
      */
     val temporaryTrackingGroup: StateFlow<TransitGroup?> = combine(
-        TransferAutoSwitchManager.activeGroupState,
-        TransferAutoSwitchManager.activeGroupSession,
+        trackingRepository.session,
+        trackingRepository.groupSession,
         groups
-    ) { activeGroup, session, savedGroups ->
+    ) { trackingSession, session, savedGroups ->
+        // 中断待恢复的会话当作没在追踪
+        val activeGroup = trackingSession?.takeIf { !it.interrupted }?.group
         activeGroup?.takeIf { group ->
             session != null && !session.isCompleted && session.groupId == group.id &&
                 savedGroups.none { it.id == group.id }
@@ -299,7 +305,7 @@ class FavoritesGroupViewModel(
                 }
             }
             // 换乘引擎的下车站定位辅助判定需要精度与定位时刻，由拿到 Location 的地方直接调用
-            // TransferAutoSwitchManager.updateUserFix；仓库里的纯经纬度不再转发（无法判断是否过期）
+            // TrackingController.updateUserFix；仓库里的纯经纬度不再转发（无法判断是否过期）
         }
     }
 
@@ -1167,7 +1173,7 @@ class FavoritesGroupViewModel(
      *    匹配不到则保持未对齐并通过 [trackingMessage] 提示，不使用假站序启动追踪。
      * 2. 追踪使用用户在卡片上选中的候选线路（[selectedLineKeys]）。
      */
-    fun startGroupTracking(context: Context, group: TransitGroup, startingLegIndex: Int = 0): Job =
+    fun startGroupTracking(group: TransitGroup, startingLegIndex: Int = 0): Job =
         viewModelScope.launch {
             val alignedGroup = ensureGroupAligned(group)
 
@@ -1182,22 +1188,23 @@ class FavoritesGroupViewModel(
                 return@launch
             }
 
-            TransferAutoSwitchManager.startGroupTracking(
-                context = context,
-                group = alignedGroup,
-                startingLegIndex = startingLegIndex,
-                selectedLineIds = selectedIds
+            trackingController.start(
+                TrackingTarget.Route(
+                    group = alignedGroup,
+                    startLeg = startingLegIndex,
+                    selectedLineIds = selectedIds
+                )
             )
         }
 
     /** 手动确认“我已上车”，跳过等车阶段 */
-    fun confirmBoarded(context: Context) {
-        TransferAutoSwitchManager.confirmBoarded(context)
+    fun confirmBoarded() {
+        trackingController.confirmBoarded()
     }
 
     /** 手动跳到下一程（乘车阶段使用） */
-    fun switchToNextLeg(context: Context) {
-        TransferAutoSwitchManager.switchToNextLeg(context)
+    fun switchToNextLeg() {
+        trackingController.switchToNextLeg()
     }
 
     /** 判断候选线路是否为合成/未对齐（合成 id / 非法站序） */
@@ -1235,8 +1242,8 @@ class FavoritesGroupViewModel(
     /**
      * 停止换乘追踪
      */
-    fun stopGroupTracking(context: Context) {
-        TransferAutoSwitchManager.stopGroupTracking(context)
+    fun stopGroupTracking() {
+        trackingController.stopTracking()
     }
 
     /**

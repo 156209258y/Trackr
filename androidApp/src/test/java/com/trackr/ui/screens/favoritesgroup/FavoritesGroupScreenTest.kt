@@ -14,6 +14,8 @@ import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.trackr.core.data.repository.DefaultTrackingRepository
+import com.trackr.core.data.repository.InMemoryTrackingSessionStore
 import com.trackr.core.model.BusLineDetail
 import com.trackr.core.model.BusLineDirection
 import com.trackr.core.model.CandidateLine
@@ -23,12 +25,13 @@ import com.trackr.core.model.LiveBus
 import com.trackr.core.model.TransitCity
 import com.trackr.core.model.TransitGroup
 import com.trackr.core.model.TransitLeg
+import com.trackr.core.testing.FakeTrackingController
 import com.trackr.data.repository.FakeTransitRepository
 import com.trackr.data.repository.RouteGroupRepository
-import com.trackr.service.TransferAutoSwitchManager
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import org.junit.After
+import kotlinx.coroutines.SupervisorJob
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
@@ -50,6 +53,8 @@ class FavoritesGroupScreenTest {
     private lateinit var context: Context
     private lateinit var groupRepository: RouteGroupRepository
     private lateinit var fakeTransitRepository: FakeTransitRepository
+    private lateinit var trackingRepository: DefaultTrackingRepository
+    private lateinit var trackingController: FakeTrackingController
 
     @Before
     fun setup() {
@@ -62,17 +67,20 @@ class FavoritesGroupScreenTest {
         fakeTransitRepository = FakeTransitRepository(
             initialCity = TransitCity(cityId = "0755", cityName = "深圳")
         )
-    }
-
-    @After
-    fun tearDown() {
-        TransferAutoSwitchManager.stopGroupTracking(context)
+        // 每个测试自己一份追踪会话，不会串状态
+        trackingRepository = DefaultTrackingRepository(
+            InMemoryTrackingSessionStore(),
+            CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
+        )
+        trackingController = FakeTrackingController(trackingRepository)
     }
 
     private fun createViewModel(): FavoritesGroupViewModel {
         return FavoritesGroupViewModel(
             groupRepository = groupRepository,
             transitRepository = fakeTransitRepository,
+            trackingRepository = trackingRepository,
+            trackingController = trackingController,
             coordinator = null,
             ioDispatcher = Dispatchers.Unconfined,
             enableAutoRefresh = false
@@ -423,7 +431,7 @@ class FavoritesGroupScreenTest {
             )
         )
         val viewModel = createViewModel()
-        viewModel.startGroupTracking(context, plannedGroup)
+        viewModel.startGroupTracking(plannedGroup)
 
         composeTestRule.setContent {
             FavoritesGroupScreen(viewModel = viewModel)

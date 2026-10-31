@@ -1,20 +1,27 @@
 package com.trackr.ui.screens.linedetail
 
+import com.trackr.core.data.repository.DefaultTrackingRepository
+import com.trackr.core.data.repository.InMemoryTrackingSessionStore
 import com.trackr.core.model.BusLineDetail
 import com.trackr.core.model.BusLineDirection
 import com.trackr.core.model.BusStop
 import com.trackr.core.model.DataSourceType
 import com.trackr.core.model.LineTimetable
 import com.trackr.core.model.LiveBus
+import com.trackr.core.model.TrackingTarget
 import com.trackr.core.model.TransitCity
 import com.trackr.core.model.TransitCodeProvider
+import com.trackr.core.testing.FakeTrackingController
 import com.trackr.data.repository.FakeScheduledReminderRepository
 import com.trackr.data.repository.FakeTransitRepository
 import com.trackr.data.repository.ITransitRepository
 import com.trackr.ui.components.RouteRailLayoutMode
 import com.trackr.util.MainDispatcherRule
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -58,6 +65,8 @@ class LineDetailViewModelTest {
     val mainDispatcherRule = MainDispatcherRule()
 
     private lateinit var fakeRepository: FakeTransitRepository
+    private lateinit var trackingRepository: DefaultTrackingRepository
+    private lateinit var trackingController: FakeTrackingController
     private val defaultCity = TransitCity(cityId = "034", cityName = "上海")
     private val forwardDirection = BusLineDirection(
         lineId = "line_001",
@@ -87,6 +96,11 @@ class LineDetailViewModelTest {
     @Before
     fun setup() {
         fakeRepository = FakeTransitRepository(initialCity = defaultCity)
+        trackingRepository = DefaultTrackingRepository(
+            InMemoryTrackingSessionStore(),
+            CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
+        )
+        trackingController = FakeTrackingController(trackingRepository)
         fakeRepository.lineDetailResult = Result.success(
             BusLineDetail(
                 line = forwardDirection,
@@ -110,8 +124,61 @@ class LineDetailViewModelTest {
             initialSource = DataSourceType.CHELAILE,
             repository = fakeRepository,
             reminderRepository = FakeScheduledReminderRepository(),
+            trackingRepository = trackingRepository,
+            trackingController = trackingController,
             enableAutoPolling = false
         )
+    }
+
+    @Test
+    fun testStartTracking_passesSingleLineTargetToController() = runTest {
+        val viewModel = createViewModel(targetOrder = 2)
+        testScheduler.runCurrent()
+        val line = forwardDirection.copy(
+            lineNo = "49",
+            source = DataSourceType.MYGOLBS,
+            mygolbsCityCode = "310000",
+            direction = 1
+        )
+
+        val started = viewModel.startTracking(
+            line = line,
+            targetStop = stops[1],
+            totalStops = stops.size,
+            alertThresholdStops = 3
+        )
+
+        assertTrue(started)
+        assertEquals(
+            listOf(
+                TrackingTarget.SingleLine(
+                    cityId = "034",
+                    lineId = "line_001",
+                    lineName = "49路",
+                    lineNo = "49",
+                    endStopName = "上海体育馆",
+                    targetStopId = "s2",
+                    targetStopName = "人民广场",
+                    targetOrder = 2,
+                    totalStops = 3,
+                    alertThresholdStops = 3,
+                    source = DataSourceType.MYGOLBS,
+                    mygolbsCityCode = "310000",
+                    direction = 1
+                )
+            ),
+            trackingController.started
+        )
+        // 页面据此判断「本站正在追踪」
+        val session = viewModel.activeTrackingSession.value
+        assertTrue(session.isActive)
+        assertEquals("line_001", session.lineId)
+        assertEquals(2, session.targetOrder)
+
+        viewModel.stopTracking()
+
+        assertEquals(1, trackingController.stopCount)
+        assertFalse(viewModel.activeTrackingSession.value.isActive)
     }
 
     @Test
@@ -226,6 +293,8 @@ class LineDetailViewModelTest {
             initialLineId = "line_001",
             repository = fakeRepository,
             reminderRepository = FakeScheduledReminderRepository(),
+            trackingRepository = trackingRepository,
+            trackingController = trackingController,
             enableAutoPolling = true
         )
         assertTrue(vmWithAutoPolling.isPollingActive)
@@ -288,6 +357,8 @@ class LineDetailViewModelTest {
             initialTargetOrder = 1,
             repository = fakeRepository,
             reminderRepository = FakeScheduledReminderRepository(),
+            trackingRepository = trackingRepository,
+            trackingController = trackingController,
             enableAutoPolling = false,
             nowHHmm = { "21:28" }
         )
@@ -307,6 +378,8 @@ class LineDetailViewModelTest {
             initialTargetOrder = 3,
             repository = fakeRepository,
             reminderRepository = FakeScheduledReminderRepository(),
+            trackingRepository = trackingRepository,
+            trackingController = trackingController,
             enableAutoPolling = false,
             nowHHmm = { "21:28" }
         )
@@ -336,6 +409,8 @@ class LineDetailViewModelTest {
             initialTargetOrder = 2,
             repository = repo,
             reminderRepository = FakeScheduledReminderRepository(),
+            trackingRepository = trackingRepository,
+            trackingController = trackingController,
             enableAutoPolling = false
         )
         testScheduler.runCurrent()
@@ -351,6 +426,8 @@ class LineDetailViewModelTest {
             initialLineId = "line_001",
             repository = repo,
             reminderRepository = FakeScheduledReminderRepository(),
+            trackingRepository = trackingRepository,
+            trackingController = trackingController,
             enableAutoPolling = false
         )
         testScheduler.runCurrent()
@@ -371,6 +448,8 @@ class LineDetailViewModelTest {
             initialTargetOrder = 2,
             repository = repo,
             reminderRepository = FakeScheduledReminderRepository(),
+            trackingRepository = trackingRepository,
+            trackingController = trackingController,
             enableAutoPolling = true
         )
         testScheduler.runCurrent()
@@ -401,6 +480,8 @@ class LineDetailViewModelTest {
             initialTargetOrder = 2,
             repository = fakeRepository,
             reminderRepository = FakeScheduledReminderRepository(),
+            trackingRepository = trackingRepository,
+            trackingController = trackingController,
             enableAutoPolling = true
         )
         testScheduler.runCurrent()
@@ -424,6 +505,8 @@ class LineDetailViewModelTest {
             initialTargetOrder = 2,
             repository = repo,
             reminderRepository = FakeScheduledReminderRepository(),
+            trackingRepository = trackingRepository,
+            trackingController = trackingController,
             enableAutoPolling = true,
             clockMillis = { now }
         )

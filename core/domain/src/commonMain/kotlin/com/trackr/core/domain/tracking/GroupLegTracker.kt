@@ -19,7 +19,7 @@ import kotlin.math.roundToInt
  * 有精确定位时（传入 [BoardingDetector.Input]），车到 A 不再直接算上车，而是先进入“待确认”，
  * 由 [BoardingDetector] 根据人车距离判断上车 / 没赶上；ON_BOARD 阶段也可据定位纠正锁错的车。
  */
-object GroupLegTracker {
+internal object GroupLegTracker {
 
     /**
      * 单次轮询结果。

@@ -8,7 +8,6 @@ import com.trackr.core.model.BusLineDetail
 import com.trackr.core.model.FavoriteStationLine
 import com.trackr.core.model.LineTimetable
 import com.trackr.core.model.NearbyStop
-import com.trackr.core.model.TrackingSessionState
 import com.trackr.core.model.TransitCity
 import com.trackr.core.model.TransitCodeProvider
 import com.trackr.core.model.TransitSearchResult
@@ -78,17 +77,10 @@ class FakeTransitRepository private constructor(
     /** 可按查询坐标返回不同结果；为 null 时统一返回 [nearbyStopsResult] */
     var nearbyStopsResultProvider: ((TransitCity, Double, Double) -> Result<List<NearbyStop>>)? by realtime::nearbyStopsResultProvider
 
-    private val _activeTrackingSession = MutableStateFlow(TrackingSessionState())
-    override val activeTrackingSession: StateFlow<TrackingSessionState> = _activeTrackingSession.asStateFlow()
-
     private val _userLocation = MutableStateFlow<Pair<Double, Double>?>(null)
     override val userLocation: StateFlow<Pair<Double, Double>?> = _userLocation.asStateFlow()
 
     override fun updateUserLocation(lat: Double, lng: Double) {
         _userLocation.value = lat to lng
-    }
-
-    override fun updateTrackingSession(state: TrackingSessionState) {
-        _activeTrackingSession.value = state
     }
 }
