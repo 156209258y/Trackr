@@ -27,8 +27,8 @@ import kotlinx.coroutines.sync.withLock
 data class TransitLocalSnapshot(
     /** 当前城市（TransitCity 的 JSON）；为 null 表示从没选过城市 */
     val selectedCityJson: String? = null,
+    /** 数据源（`EngineMode` 的名字）；旧的聚合配置在读出时已换成主数据源 */
     val engineMode: String? = null,
-    val aggregatedPriority: String? = null,
     val transitCodeProvider: String? = null,
     val nearbyStopsCount: Int? = null,
     val liveNotificationEnabled: Boolean? = null,
@@ -42,7 +42,6 @@ interface TransitLocalStore {
     suspend fun load(): TransitLocalSnapshot
     suspend fun saveSelectedCityJson(json: String)
     suspend fun saveEngineMode(name: String)
-    suspend fun saveAggregatedPriority(name: String)
     suspend fun saveTransitCodeProvider(id: String)
     suspend fun saveNearbyStopsCount(count: Int)
     suspend fun saveLiveNotificationEnabled(enabled: Boolean)

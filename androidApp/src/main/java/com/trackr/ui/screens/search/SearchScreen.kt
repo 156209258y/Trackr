@@ -775,32 +775,6 @@ private fun SearchSuggestionsView(
                 )
             }
         }
-
-        Spacer(modifier = Modifier.height(28.dp))
-
-        // 双引擎搜索特性卡片
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-            )
-        ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text(
-                    text = "💡 双引擎混合检索能力",
-                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                    color = MaterialTheme.colorScheme.primary
-                )
-                Spacer(modifier = Modifier.height(6.dp))
-                Text(
-                    text = "本应用在搜索框输入时，会同时向全国「车来了」与全国「掌上公交」发送并发请求，聚合返回各线路正反双向运营信息与沿途车站，实现全国 480+ 城市一网打尽。",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    lineHeight = 18.sp
-                )
-            }
-        }
     }
 }
 

@@ -6,7 +6,6 @@ import com.trackr.core.data.repository.RealtimeRepository
 import com.trackr.core.data.repository.SearchHistoryRepository
 import com.trackr.core.data.repository.SettingsRepository
 import com.trackr.core.domain.tracking.LocationCadence
-import com.trackr.core.model.AggregatedSourcePriority
 import com.trackr.core.model.BusLineDetail
 import com.trackr.core.model.BusLineDirection
 import com.trackr.core.model.DataSourceType
@@ -53,9 +52,6 @@ class FakeSettingsRepository(
     private val _engineMode = MutableStateFlow(EngineMode.CHELAILE)
     override val engineMode: StateFlow<EngineMode> = _engineMode.asStateFlow()
 
-    private val _aggregatedPriority = MutableStateFlow(AggregatedSourcePriority.CHELAILE_FIRST)
-    override val aggregatedPriority: StateFlow<AggregatedSourcePriority> = _aggregatedPriority.asStateFlow()
-
     private val _preferredTransitCodeProvider = MutableStateFlow(initialTransitCodeProvider)
     override val preferredTransitCodeProvider: StateFlow<TransitCodeProvider> = _preferredTransitCodeProvider.asStateFlow()
 
@@ -70,10 +66,6 @@ class FakeSettingsRepository(
 
     override fun setEngineMode(mode: EngineMode) {
         _engineMode.value = mode
-    }
-
-    override fun setAggregatedPriority(priority: AggregatedSourcePriority) {
-        _aggregatedPriority.value = priority
     }
 
     override fun setNearbyStopsCount(count: Int) {

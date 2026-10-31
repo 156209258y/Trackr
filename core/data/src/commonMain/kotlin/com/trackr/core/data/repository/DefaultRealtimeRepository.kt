@@ -105,11 +105,9 @@ class DefaultRealtimeRepository(
 
     override suspend fun resolveCityByLocation(wgsLat: Double, wgsLng: Double): Result<TransitCity?> = runCatching {
         withContext(Dispatchers.IO) {
-            val priority = settings.aggregatedPriority.value
-
             // 1) 优先尝试雷达 Provider GPS 逆地理服务（地级市 + 区县）
-            var resolvedName: String? = coordinator.resolveCityByLocation(wgsLat, wgsLng, priority)
-            var rawDistrict: String? = coordinator.resolveDistrictByLocation(wgsLat, wgsLng, priority)
+            var resolvedName: String? = coordinator.resolveCityByLocation(wgsLat, wgsLng)
+            var rawDistrict: String? = coordinator.resolveDistrictByLocation(wgsLat, wgsLng)
 
             // 2) 若为空，尝试系统自带的逆地理（Android Geocoder）
             if (resolvedName.isNullOrBlank()) {
@@ -180,7 +178,7 @@ class DefaultRealtimeRepository(
         wgsLng: Double,
         limit: Int
     ): Result<List<NearbyStop>> = runCatching {
-        coordinator.getNearbyStops(city, wgsLat, wgsLng, limit, settings.engineMode.value, settings.aggregatedPriority.value)
+        coordinator.getNearbyStops(city, wgsLat, wgsLng, limit, settings.engineMode.value)
     }
 
     override suspend fun getStopDetail(
@@ -205,7 +203,7 @@ class DefaultRealtimeRepository(
             userLat = userLat ?: location?.first,
             userLng = userLng ?: location?.second
         )
-        coordinator.getStopDetail(city, request, settings.engineMode.value, settings.aggregatedPriority.value)
+        coordinator.getStopDetail(city, request, settings.engineMode.value)
     }
 
     override suspend fun search(
@@ -220,8 +218,7 @@ class DefaultRealtimeRepository(
             keyword = keyword,
             mode = settings.engineMode.value,
             userLat = userLat ?: location?.first,
-            userLng = userLng ?: location?.second,
-            priority = settings.aggregatedPriority.value
+            userLng = userLng ?: location?.second
         )
         if (result.lines.isNotEmpty() || result.stops.isNotEmpty()) {
             searchHistory.addSearchHistory(keyword)
@@ -265,7 +262,7 @@ class DefaultRealtimeRepository(
 
     private suspend fun fetchLineDetail(city: TransitCity, request: LineDetailRequest): BusLineDetail {
         val lineId = request.lineId
-        val detail = coordinator.getLineDetail(city, request, settings.aggregatedPriority.value)
+        val detail = coordinator.getLineDetail(city, request, settings.engineMode.value)
 
         // 静态站表内存缓存维护
         val effectiveStops = synchronized(stopsLock) {
@@ -289,7 +286,7 @@ class DefaultRealtimeRepository(
         line: BusLineDirection,
         atTimeHHMM: String?
     ): Result<LineTimetable> = runCatching {
-        coordinator.getTimetable(city, line, atTimeHHMM, settings.aggregatedPriority.value)
+        coordinator.getTimetable(city, line, atTimeHHMM, settings.engineMode.value)
     }
 
     override suspend fun refreshFavoritesRealtime(): Result<Map<String, NearbyStop>> = runCatching {

@@ -2,7 +2,6 @@ package com.trackr.ui.screens.more
 
 import android.app.Application
 import androidx.test.core.app.ApplicationProvider
-import com.trackr.core.model.AggregatedSourcePriority
 import com.trackr.core.model.EngineMode
 import com.trackr.core.model.ScheduledReminder
 import com.trackr.core.model.TransitCodeProvider
@@ -53,7 +52,6 @@ class MoreViewModelTest {
 
         // 验证统一 MoreUiState
         assertEquals(EngineMode.CHELAILE, viewModel.uiState.value.engineMode)
-        assertEquals(AggregatedSourcePriority.CHELAILE_FIRST, viewModel.uiState.value.aggregatedPriority)
         assertEquals(4, viewModel.uiState.value.nearbyStopsCount)
         assertEquals(TransitCodeProvider.ASK_ALWAYS, viewModel.uiState.value.preferredTransitCode)
         assertTrue(viewModel.uiState.value.reminders.isEmpty())
@@ -71,15 +69,17 @@ class MoreViewModelTest {
     }
 
     @Test
-    fun testSetAggregatedPriority_updatesRepositoryAndState() = runTest {
-        assertEquals(AggregatedSourcePriority.CHELAILE_FIRST, viewModel.aggregatedPriority.value)
-        assertEquals(AggregatedSourcePriority.CHELAILE_FIRST, viewModel.uiState.value.aggregatedPriority)
+    fun testDataSource_isSingleChoiceOfTwo_andUiStateFollows() = runTest {
+        // D1：数据源只有车来了 / 掌上公交两个，没有聚合
+        assertEquals(listOf(EngineMode.CHELAILE, EngineMode.MYGOLBS), EngineMode.entries.toList())
 
-        viewModel.setAggregatedPriority(AggregatedSourcePriority.MYGOLBS_FIRST)
+        viewModel.setEngineMode(EngineMode.MYGOLBS)
         testScheduler.advanceUntilIdle()
-        assertEquals(AggregatedSourcePriority.MYGOLBS_FIRST, viewModel.aggregatedPriority.value)
-        assertEquals(AggregatedSourcePriority.MYGOLBS_FIRST, fakeTransitRepository.aggregatedPriority.value)
-        assertEquals(AggregatedSourcePriority.MYGOLBS_FIRST, viewModel.uiState.value.aggregatedPriority)
+        assertEquals(EngineMode.MYGOLBS, viewModel.uiState.value.engineMode)
+
+        viewModel.setEngineMode(EngineMode.CHELAILE)
+        testScheduler.advanceUntilIdle()
+        assertEquals(EngineMode.CHELAILE, viewModel.uiState.value.engineMode)
     }
 
     @Test

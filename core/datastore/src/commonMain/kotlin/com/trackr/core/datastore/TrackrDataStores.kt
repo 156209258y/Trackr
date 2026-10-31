@@ -38,7 +38,6 @@ object TrackrDataStoreFiles {
 object SettingsKeys {
     val SELECTED_CITY_JSON = stringPreferencesKey("selected_city_json")
     val ENGINE_MODE = stringPreferencesKey("engine_mode")
-    val AGGREGATED_SOURCE_PRIORITY = stringPreferencesKey("aggregated_source_priority")
     val PREFERRED_TRANSIT_CODE_PROVIDER = stringPreferencesKey("preferred_transit_code_provider")
     val NEARBY_STOPS_COUNT = intPreferencesKey("nearby_stops_count")
     val LIVE_NOTIFICATION_ENABLED = booleanPreferencesKey("is_live_notification_enabled")

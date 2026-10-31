@@ -51,7 +51,7 @@ Koin 由 `TrackrApp.onCreate` 启动，Robolectric 用例里每个用例都会�
 | `data/remote/amap` | `AmapSdkManagerTest` | 高德 Key 优先级、隐私合规与 Key 注入 | Robolectric (JVM) |
 |  | `AmapSdkTransitServiceTest` | 高德 SDK 公交路径转换为方案、无 Key 时的提示 | Robolectric (JVM) |
 | `data/remote/update` | `GithubUpdateCheckerTest` | 更新检查多源回退、强制更新判定、下载地址 https 与域名白名单校验、取消后不再试剩下的源（Ktor `MockEngine`） | Robolectric (JVM) |
-| `data/local` | `StorageBackendTest` | 整套存储端到端：同一份旧数据经新存储和旧存储读出来完全相同、旧文件不被改动、新存储写入重开读回、USE_NEW_STORE 关了再开能带回旧存储期间的改动、库打不开时退回旧存储 | Robolectric (JVM) |
+| `data/local` | `StorageBackendTest` | 整套存储端到端：同一份旧数据经新存储和旧存储读出来完全相同、旧文件不被改动、新存储写入重开读回、USE_NEW_STORE 关了再开能带回旧存储期间的改动、库打不开时退回旧存储、旧的聚合配置在新旧存储里读成同一个主数据源 | Robolectric (JVM) |
 |  | `BackupRulesTest` | `backup_rules.xml` 和 `data_extraction_rules.xml` 两段：排除高德 Key（新旧两个文件）和追踪会话、不排除 `trackr.db` 和设置、没有 include、三段一样、Manifest 都接上了 | Robolectric (JVM) |
 | `data/repository` | `RouteGroupRepositoryTest` | 旧存储（SharedPreferences）上：路线分组与收藏分组增删改排序、并发写入不丢更新、JSON 损坏备份 | Robolectric (JVM) |
 |  | `RoomRouteGroupRepositoryTest` | 新存储（Room）上：读回逐字段一致（程、候选线、轨迹点）、清理假数据、删分组时路线一起改成不分组、排序和加候选线持久化、并发写入不丢更新 | Robolectric (JVM) |
@@ -80,7 +80,7 @@ Koin 由 `TrackrApp.onCreate` 启动，Robolectric 用例里每个用例都会�
 |  | `LineDetailViewModelTest` | 线路详情加载、站点选择、单车行程跟踪、走向条横纵向切换、收藏切换 | 本地 JVM |
 |  | `StationArrivalContentTest` | 线路页到站大字：在路上、到站了、车都过了只给下一班始发时间、首班、末班已过 | Robolectric Compose UI |
 | `ui/screens/more` | `AboutViewModelTest` | 关于页更新检查状态流转 | Robolectric (JVM) |
-|  | `MoreViewModelTest` | 设置项读写与定时提醒开关/删除 | Robolectric (JVM) |
+|  | `MoreViewModelTest` | 设置项读写（数据源只有车来了 / 掌上公交二选一）与定时提醒开关/删除 | Robolectric (JVM) |
 | `ui/screens/routeplan` | `RoutePlanScreenTest` | 路线规划搜索台、起终点互换、方案卡片与特征标签 | Robolectric Compose UI |
 | `ui/screens/stopdetail` | `StopDetailViewModelTest` | 站点详情物理站台切换、途经线路实时 ETA、收藏增删 | 本地 JVM |
 | `ui/util` | `PollingCoordinatorTest` | 定时/倒计时轮询策略与生命周期控制 | 本地 JVM |
@@ -114,12 +114,12 @@ Koin 由 `TrackrApp.onCreate` 启动，Robolectric 用例里每个用例都会�
 | `:core:network` `provider` | `TransitProviderTest` | 车来了 Provider 多物理站台并发补全、附近站过滤与站点状态映射；掌上公交站点详情、搜索、附近站、城市列表 | commonTest（JVM + iOS 模拟器） |
 |  | `TransitProviderCacheTest` | Provider 层省请求：车来了附近站补全短缓存、其他站台只在首次加载补全、空主查询下次跳过；掌上公交 cmd103 缓存只轮询 cmd104、搜索回退结果线路与站点共用、附近站短缓存、反向地理编码空结果短缓存 | commonTest（JVM + iOS 模拟器） |
 |  | `RecordedResponsesTest` | 录好的真实响应（`RecordedResponses`，车来了 5 个接口、掌上公交 4 个 CMD）走一遍客户端和解析，并核对发出去的请求头和表单 | commonTest（JVM + iOS 模拟器） |
-| `:core:data` `provider` | `TransitProviderCoordinatorTest` | 引擎模式下搜索/站点详情的数据源路由与回退 | commonTest（JVM + iOS 模拟器） |
+| `:core:data` `provider` | `TransitProviderCoordinatorTest` | 数据源二选一（D1）：搜索、附近站、站点详情只查当前数据源，搜索去掉地铁并按线路名自然排序；线路详情按来源 / id 前缀路由，认不出来走当前数据源；逆地理先车来了、空了再掌上公交；城市列表两家合并 | commonTest（JVM + iOS 模拟器） |
 | `:core:data` `repository` | `RealtimeRepositoryLineDetailCacheTest` | 线路详情同 key 并发只请求一次上游、TTL 内复用与过期重拉、目标站顺序不同算不同 key、失败不缓存、取消的调用方不影响其他等待者 | commonTest（JVM + iOS 模拟器） |
 |  | `LocationRepositoryTest` | 首页取定位：够新够准直接用、强制刷新 10 秒 / 平时 60 秒、4.5 秒窗口取最准且 ≤100 m 提前结束、超过 10 分钟的旧定位不用、无权限不定位；规划页 lastKnown 取 10 分钟内最准的 | commonTest（JVM + iOS 模拟器） |
 |  | `CountyLevelCityMatchTest` | 县级市/县城匹配与省份校验 | commonTest（JVM + iOS 模拟器） |
-| `:core:data` `legacy` | `LegacyLibraryMigrationTest` | 旧 SharedPreferences -> Room / DataStore：每个旧 key 一条（收藏、搜索历史、路线、收藏分组、提醒 + 计划触发时刻、7 个设置、两个 Key 槽，含 0a4fdab 之前存在 `trackr_prefs` 的 Key 与「Key 文件优先」）；旧文件前后一字不差；损坏 JSON 不崩、只跳过那一项、原文复制到 `legacy_backup/`；已有 `_corrupt_backup_` 原样复制；同一代只跑一次、换代只替换旧文件里有的项；库重建后重新导入 | Robolectric（只 JVM） |
-|  | `SettingsMigrationTest` | 设置和 Key 的只读 DataMigration：按类型搬、类型不对跳过、旧 key 不删、同一代不重跑、再导只覆盖旧文件里有的 key、空的旧 Key 不清掉新 Key、Key 不进设置文件 | Robolectric（只 JVM） |
+| `:core:data` `legacy` | `LegacyLibraryMigrationTest` | 旧 SharedPreferences -> Room / DataStore：每个旧 key 一条（收藏、搜索历史、路线、收藏分组、提醒 + 计划触发时刻、6 个设置（聚合优先级不导入）、两个 Key 槽，含 0a4fdab 之前存在 `trackr_prefs` 的 Key 与「Key 文件优先」）；旧文件前后一字不差；损坏 JSON 不崩、只跳过那一项、原文复制到 `legacy_backup/`；已有 `_corrupt_backup_` 原样复制；同一代只跑一次、换代只替换旧文件里有的项；库重建后重新导入 | Robolectric（只 JVM） |
+|  | `SettingsMigrationTest` | 设置和 Key 的只读 DataMigration：按类型搬、旧的聚合配置（`engine_mode = ALL` 或没存 + 优先级）落成主数据源（D1）、类型不对跳过、旧 key 不删、同一代不重跑、再导只覆盖旧文件里有的 key、空的旧 Key 不清掉新 Key、Key 不进设置文件 | Robolectric（只 JVM） |
 | `:core:database` | `DaoTest` | 各 DAO 在内存库上：整份替换保序、路线连程和候选线读回、删路线不留孤儿行、路线和分组一个事务、提醒改列表时保留计划触发时刻、搜索历史、站表缓存过期清理、迁移标记 | commonTest（Robolectric + iOS 模拟器） |
 | `:core:datastore` | `TrackrDataStoresTest` | 设置文件读写重开、文件损坏换成空内容不崩、Key 和设置分两个文件、追踪会话 JSON 读写清空、会话文件损坏读成没有会话 | androidHostTest（只 JVM） |
 | `:core:testing` | `FakesTest` | `FakeClock` 墙钟和单调时钟一起走、改墙钟不动单调时钟；`FakeReminderAlarms`、`FakeTransitCodeLauncher`、`FakeLocationSource` 的行为 | commonTest（JVM + iOS 模拟器） |

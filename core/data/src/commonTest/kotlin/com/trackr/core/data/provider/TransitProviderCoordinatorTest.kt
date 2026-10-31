@@ -1,6 +1,5 @@
 package com.trackr.core.data.provider
 
-import com.trackr.core.model.AggregatedSourcePriority
 import com.trackr.core.model.BusLineDetail
 import com.trackr.core.model.BusLineDirection
 import com.trackr.core.model.BusLineSummary
@@ -465,19 +464,71 @@ class TransitProviderCoordinatorTest {
     }
 
     @Test
-    fun testResolveCityByLocation_withMygolbsPriority_prefersMygolbs() = runBlocking {
-        fakeMygolbsProvider.resolveCityResult = "杭州"
-        fakeChelaileProvider.resolveCityResult = "上海"
+    fun testResolveCityByLocation_chelaileEmpty_fallsBackToMygolbs() = runBlocking {
+        fakeChelaileProvider.resolveCityResult = null
+        fakeMygolbsProvider.resolveCityResult = "玉林"
 
-        val resolved = coordinator.resolveCityByLocation(
-            wgsLat = 30.27,
-            wgsLng = 120.15,
-            priority = AggregatedSourcePriority.MYGOLBS_FIRST
+        val resolved = coordinator.resolveCityByLocation(22.63, 110.16)
+
+        assertEquals("玉林", resolved)
+        assertEquals(1, fakeChelaileProvider.resolveCityCallCount)
+        assertEquals(1, fakeMygolbsProvider.resolveCityCallCount)
+    }
+
+    @Test
+    fun testSearch_sortsLineNamesNaturally_andKeepsProviderOrderForTies() = runBlocking {
+        fakeMygolbsProvider.searchResult = TransitSearchResult(
+            keyword = "1",
+            lines = listOf(
+                createSummary(name = "10路", lineNo = "a", source = DataSourceType.MYGOLBS),
+                createSummary(name = "2路", source = DataSourceType.MYGOLBS),
+                createSummary(name = "10路", lineNo = "b", source = DataSourceType.MYGOLBS),
+                createSummary(name = "1路", source = DataSourceType.MYGOLBS),
+                createSummary(name = "地铁1号线", source = DataSourceType.MYGOLBS)
+            )
         )
 
-        assertEquals("杭州", resolved)
-        assertEquals(1, fakeMygolbsProvider.resolveCityCallCount)
-        assertEquals(0, fakeChelaileProvider.resolveCityCallCount)
+        val result = coordinator.search(testCity, "1", EngineMode.MYGOLBS)
+
+        assertEquals(listOf("1路", "2路", "10路", "10路"), result.lines.map { it.name })
+        assertEquals(listOf("a", "b"), result.lines.filter { it.name == "10路" }.map { it.lineNo })
+        assertEquals("1", result.keyword)
+    }
+
+    @Test
+    fun testSearch_providerFails_returnsEmptyWithoutAskingOtherSource() = runBlocking {
+        fakeChelaileProvider.searchFailure = IllegalStateException("boom")
+        fakeMygolbsProvider.searchResult = TransitSearchResult(
+            keyword = "1",
+            lines = listOf(createSummary(name = "1路", source = DataSourceType.MYGOLBS))
+        )
+
+        val result = coordinator.search(testCity, "1", EngineMode.CHELAILE)
+
+        assertTrue(result.lines.isEmpty())
+        assertTrue(result.stops.isEmpty())
+        assertEquals(0, fakeMygolbsProvider.searchCallCount)
+    }
+
+    @Test
+    fun testGetLineDetail_unrecognizedLine_usesCurrentDataSource() = runBlocking {
+        val onlyExplicit = { _: String -> false }
+        val chelaile = FakeTestTransitProvider(DataSourceType.CHELAILE, lineSupportPredicate = onlyExplicit)
+        val mygolbs = FakeTestTransitProvider(DataSourceType.MYGOLBS, lineSupportPredicate = onlyExplicit)
+        val coord = TransitProviderCoordinator(chelaileProvider = chelaile, mygolbsProvider = mygolbs)
+
+        coord.getLineDetail(testCity, LineDetailRequest(lineId = "x1"), EngineMode.MYGOLBS)
+        assertEquals(1, mygolbs.lineDetailCallCount)
+        assertEquals(0, chelaile.lineDetailCallCount)
+
+        coord.getLineDetail(testCity, LineDetailRequest(lineId = "x1"), EngineMode.CHELAILE)
+        assertEquals(1, chelaile.lineDetailCallCount)
+    }
+
+    @Test
+    fun testEngineMode_mapsToDataSource() {
+        assertEquals(DataSourceType.CHELAILE, EngineMode.CHELAILE.dataSource)
+        assertEquals(DataSourceType.MYGOLBS, EngineMode.MYGOLBS.dataSource)
     }
 }
 
@@ -502,6 +553,7 @@ class FakeTestTransitProvider(
     var supportedCitiesResult: List<TransitCity> = emptyList()
     var resolveCityResult: String? = null
     var searchResult: TransitSearchResult = TransitSearchResult("")
+    var searchFailure: Throwable? = null
     var nearbyStopsResult: List<NearbyStop> = emptyList()
     var stopDetailResult: List<NearbyStop> = emptyList()
     var lineDetailResult: BusLineDetail = BusLineDetail(
@@ -534,6 +586,7 @@ class FakeTestTransitProvider(
         userLng: Double?
     ): TransitSearchResult {
         searchCallCount++
+        searchFailure?.let { throw it }
         return searchResult
     }
 

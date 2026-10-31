@@ -10,7 +10,6 @@ import com.trackr.core.data.repository.DefaultRealtimeRepository
 import com.trackr.core.data.repository.PlatformGeocoder
 import com.trackr.core.domain.platform.MonotonicClock
 import com.trackr.core.domain.platform.ProcessMonotonicClock
-import com.trackr.core.model.AggregatedSourcePriority
 import com.trackr.core.model.BusLineDetail
 import com.trackr.core.model.BusLineDirection
 import com.trackr.core.model.DataSourceType
@@ -82,9 +81,6 @@ class TransitRepository(
 
     private val _engineMode = MutableStateFlow(loadInitialEngineMode())
     override val engineMode: StateFlow<EngineMode> = _engineMode.asStateFlow()
-
-    private val _aggregatedPriority = MutableStateFlow(loadInitialAggregatedPriority())
-    override val aggregatedPriority: StateFlow<AggregatedSourcePriority> = _aggregatedPriority.asStateFlow()
 
     private val _favorites = MutableStateFlow(initial.favorites)
     override val favorites: StateFlow<List<FavoriteStationLine>> = _favorites.asStateFlow()
@@ -159,17 +155,6 @@ class TransitRepository(
     private fun loadInitialEngineMode(): EngineMode {
         val modeStr = initial.engineMode ?: EngineMode.CHELAILE.name
         return runCatching { EngineMode.valueOf(modeStr) }.getOrDefault(EngineMode.CHELAILE)
-    }
-
-    private fun loadInitialAggregatedPriority(): AggregatedSourcePriority {
-        val name = initial.aggregatedPriority ?: AggregatedSourcePriority.CHELAILE_FIRST.name
-        return runCatching { AggregatedSourcePriority.valueOf(name) }
-            .getOrDefault(AggregatedSourcePriority.CHELAILE_FIRST)
-    }
-
-    override fun setAggregatedPriority(priority: AggregatedSourcePriority) {
-        _aggregatedPriority.value = priority
-        writer.enqueue { store.saveAggregatedPriority(priority.name) }
     }
 
     override fun setEngineMode(mode: EngineMode) {

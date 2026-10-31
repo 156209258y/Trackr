@@ -46,8 +46,11 @@ class LegacySettingsMigration(
         /** 按类型逐个搬；类型对不上（理论上不会）就跳过这个 key，保留新存储里的值 */
         fun copySettings(legacy: Map<String, *>, target: MutablePreferences) {
             (legacy[LegacyPrefs.KEY_SELECTED_CITY] as? String)?.let { target[SettingsKeys.SELECTED_CITY_JSON] = it }
-            (legacy[LegacyPrefs.KEY_ENGINE_MODE] as? String)?.let { target[SettingsKeys.ENGINE_MODE] = it }
-            (legacy[LegacyPrefs.KEY_AGGREGATED_PRIORITY] as? String)?.let { target[SettingsKeys.AGGREGATED_SOURCE_PRIORITY] = it }
+            // D1：旧的聚合配置（engine_mode = ALL + 优先级）落成主数据源，优先级本身不再导入
+            LegacyDataSource.resolve(
+                engineMode = legacy[LegacyPrefs.KEY_ENGINE_MODE] as? String,
+                aggregatedPriority = legacy[LegacyPrefs.KEY_AGGREGATED_PRIORITY] as? String
+            )?.let { target[SettingsKeys.ENGINE_MODE] = it }
             (legacy[LegacyPrefs.KEY_TRANSIT_CODE_PROVIDER] as? String)?.let { target[SettingsKeys.PREFERRED_TRANSIT_CODE_PROVIDER] = it }
             (legacy[LegacyPrefs.KEY_NEARBY_STOPS_COUNT] as? Int)?.let { target[SettingsKeys.NEARBY_STOPS_COUNT] = it }
             (legacy[LegacyPrefs.KEY_LIVE_NOTIFICATION] as? Boolean)?.let { target[SettingsKeys.LIVE_NOTIFICATION_ENABLED] = it }

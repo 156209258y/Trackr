@@ -43,8 +43,9 @@ class SettingsMigrationTest {
         assertEquals(false, result[SettingsKeys.LIVE_NOTIFICATION_ENABLED])
         assertEquals(2, result[SettingsKeys.FAVORITES_GROUP_MIGRATION_VERSION])
         assertEquals(0, result[SettingsKeys.LEGACY_IMPORT_GEN])
-        // 7 个设置 + 导入代数；收藏、历史这些列表进 Room，不进设置文件
-        assertEquals(8, result.asMap().size)
+        // 6 个设置 + 导入代数（D1 起聚合优先级不导入）；收藏、历史这些列表进 Room，不进设置文件
+        assertEquals(7, result.asMap().size)
+        assertFalse(result.asMap().keys.any { it.name == LegacyPrefs.KEY_AGGREGATED_PRIORITY })
         assertEquals(before, LegacyFixtures.snapshot(context))
     }
 
@@ -92,6 +93,58 @@ class SettingsMigrationTest {
         assertNull(result[SettingsKeys.ENGINE_MODE])
         assertNull(result[SettingsKeys.NEARBY_STOPS_COUNT])
         assertNull(result[SettingsKeys.SELECTED_CITY_JSON])
+    }
+
+    /** 只写 engine_mode / aggregated_source_priority 两个旧 key（null 表示不写），跑一次导入，返回导入后的数据源 */
+    private fun migrateDataSource(engineMode: String?, priority: String?): String? = runBlocking {
+        val edit = LegacyFixtures.prefs(context, LegacyPrefs.TRANSIT).edit().clear()
+        engineMode?.let { edit.putString(LegacyPrefs.KEY_ENGINE_MODE, it) }
+        priority?.let { edit.putString(LegacyPrefs.KEY_AGGREGATED_PRIORITY, it) }
+        edit.commit()
+        val result = LegacySettingsMigration(context, generation = 0).migrate(emptyPreferences())
+        assertFalse(result.asMap().keys.any { it.name == LegacyPrefs.KEY_AGGREGATED_PRIORITY })
+        result[SettingsKeys.ENGINE_MODE]
+    }
+
+    @Test
+    fun dataSource_legacyAggregatedMode_becomesPrimarySourceOfPriority() {
+        assertEquals("MYGOLBS", migrateDataSource("ALL", "MYGOLBS_FIRST"))
+        assertEquals("CHELAILE", migrateDataSource("ALL", "CHELAILE_FIRST"))
+        assertEquals("CHELAILE", migrateDataSource("ALL", null))
+        assertEquals("CHELAILE", migrateDataSource("ALL", "garbage"))
+    }
+
+    @Test
+    fun dataSource_unsetModeWithMygolbsFirst_becomesMygolbs() {
+        // ded8132 之前默认就是聚合模式，没存 engine_mode 的人用的是聚合 + 优先级
+        assertEquals("MYGOLBS", migrateDataSource(null, "MYGOLBS_FIRST"))
+        assertNull(migrateDataSource(null, "CHELAILE_FIRST"))
+        assertNull(migrateDataSource(null, null))
+    }
+
+    @Test
+    fun dataSource_singleSourceMode_keptAndStalePriorityIgnored() {
+        assertEquals("CHELAILE", migrateDataSource("CHELAILE", "MYGOLBS_FIRST"))
+        assertEquals("MYGOLBS", migrateDataSource("MYGOLBS", "CHELAILE_FIRST"))
+        assertEquals("MYGOLBS", migrateDataSource("MYGOLBS", null))
+    }
+
+    @Test
+    fun dataSource_unknownMode_notWritten() {
+        assertNull(migrateDataSource("BOTH", "MYGOLBS_FIRST"))
+        assertNull(migrateDataSource("", null))
+    }
+
+    @Test
+    fun dataSource_legacyFileUntouched() = runBlocking {
+        LegacyFixtures.prefs(context, LegacyPrefs.TRANSIT).edit()
+            .putString(LegacyPrefs.KEY_ENGINE_MODE, "ALL")
+            .putString(LegacyPrefs.KEY_AGGREGATED_PRIORITY, "MYGOLBS_FIRST")
+            .commit()
+        val before = LegacyFixtures.snapshot(context)
+        LegacySettingsMigration(context, generation = 0).migrate(emptyPreferences())
+        assertEquals(before, LegacyFixtures.snapshot(context))
+        assertEquals("ALL", LegacyFixtures.prefs(context, LegacyPrefs.TRANSIT).getString(LegacyPrefs.KEY_ENGINE_MODE, null))
     }
 
     @Test

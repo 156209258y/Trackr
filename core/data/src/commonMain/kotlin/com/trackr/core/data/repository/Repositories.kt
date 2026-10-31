@@ -1,7 +1,6 @@
 package com.trackr.core.data.repository
 
 import com.trackr.core.domain.tracking.LocationCadence
-import com.trackr.core.model.AggregatedSourcePriority
 import com.trackr.core.model.AmapTipItem
 import com.trackr.core.model.AmapTransitSchemeResult
 import com.trackr.core.model.BusLineDetail
@@ -36,8 +35,8 @@ interface SettingsRepository {
 
     /** 用户是否曾经选过/存过城市（首次安装为 false，此时才允许定位自动切换城市）。第 9 步起是 Flow */
     val hasSavedCity: StateFlow<Boolean>
+    /** 实时数据源，二选一（D1） */
     val engineMode: StateFlow<EngineMode>
-    val aggregatedPriority: StateFlow<AggregatedSourcePriority>
     val preferredTransitCodeProvider: StateFlow<TransitCodeProvider>
     val nearbyStopsCount: StateFlow<Int>
     val isLiveNotificationEnabled: StateFlow<Boolean>
@@ -46,7 +45,6 @@ interface SettingsRepository {
     val showOnLockScreen: StateFlow<Boolean>
 
     fun setEngineMode(mode: EngineMode)
-    fun setAggregatedPriority(priority: AggregatedSourcePriority)
     fun setNearbyStopsCount(count: Int)
     fun setLiveNotificationEnabled(enabled: Boolean)
     fun setShowOnLockScreen(enabled: Boolean)

@@ -3,7 +3,6 @@ package com.trackr.ui.screens.more
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.trackr.core.model.AggregatedSourcePriority
 import com.trackr.core.model.EngineMode
 import com.trackr.core.model.ScheduledReminder
 import com.trackr.core.model.TransitCodeProvider
@@ -20,7 +19,6 @@ import kotlinx.coroutines.launch
  */
 data class MoreUiState(
     val engineMode: EngineMode = EngineMode.CHELAILE,
-    val aggregatedPriority: AggregatedSourcePriority = AggregatedSourcePriority.CHELAILE_FIRST,
     val nearbyStopsCount: Int = 4,
     val preferredTransitCode: TransitCodeProvider = TransitCodeProvider.ASK_ALWAYS,
     val isLiveNotificationEnabled: Boolean = true,
@@ -34,7 +32,6 @@ class MoreViewModel(
 ) : AndroidViewModel(application) {
 
     val engineMode: StateFlow<EngineMode> = repository.engineMode
-    val aggregatedPriority: StateFlow<AggregatedSourcePriority> = repository.aggregatedPriority
     val nearbyStopsCount: StateFlow<Int> = repository.nearbyStopsCount
     val preferredTransitCode: StateFlow<TransitCodeProvider> = repository.preferredTransitCodeProvider
     val isLiveNotificationEnabled: StateFlow<Boolean> = repository.isLiveNotificationEnabled
@@ -42,7 +39,6 @@ class MoreViewModel(
 
     val uiState: StateFlow<MoreUiState> = combine(
         engineMode,
-        aggregatedPriority,
         nearbyStopsCount,
         preferredTransitCode,
         isLiveNotificationEnabled,
@@ -51,18 +47,16 @@ class MoreViewModel(
         @Suppress("UNCHECKED_CAST")
         MoreUiState(
             engineMode = args[0] as EngineMode,
-            aggregatedPriority = args[1] as AggregatedSourcePriority,
-            nearbyStopsCount = args[2] as Int,
-            preferredTransitCode = args[3] as TransitCodeProvider,
-            isLiveNotificationEnabled = args[4] as Boolean,
-            reminders = args[5] as List<ScheduledReminder>
+            nearbyStopsCount = args[1] as Int,
+            preferredTransitCode = args[2] as TransitCodeProvider,
+            isLiveNotificationEnabled = args[3] as Boolean,
+            reminders = args[4] as List<ScheduledReminder>
         )
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.Eagerly,
         initialValue = MoreUiState(
             engineMode = repository.engineMode.value,
-            aggregatedPriority = repository.aggregatedPriority.value,
             nearbyStopsCount = repository.nearbyStopsCount.value,
             preferredTransitCode = repository.preferredTransitCodeProvider.value,
             isLiveNotificationEnabled = repository.isLiveNotificationEnabled.value,
@@ -83,10 +77,6 @@ class MoreViewModel(
 
     fun setEngineMode(mode: EngineMode) {
         repository.setEngineMode(mode)
-    }
-
-    fun setAggregatedPriority(priority: AggregatedSourcePriority) {
-        repository.setAggregatedPriority(priority)
     }
 
     fun setNearbyStopsCount(count: Int) {

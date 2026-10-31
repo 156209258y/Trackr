@@ -3,6 +3,7 @@ package com.trackr.data.local
 import android.content.Context
 import android.content.SharedPreferences
 import android.util.Log
+import com.trackr.core.data.legacy.LegacyDataSource
 import com.trackr.core.data.local.AmapKeyStore
 import com.trackr.core.data.local.ReminderStore
 import com.trackr.core.data.local.RouteGroupStore
@@ -37,8 +38,11 @@ class SharedPrefsTransitStore(private val prefs: SharedPreferences) : TransitLoc
     override suspend fun load(): TransitLocalSnapshot = TransitLocalSnapshot(
         // 旧版 hasSavedCity = prefs.contains(...)；存的是空串时也算存过
         selectedCityJson = if (prefs.contains(KEY_SELECTED_CITY)) prefs.getString(KEY_SELECTED_CITY, null).orEmpty() else null,
-        engineMode = prefs.getString(KEY_ENGINE_MODE, null),
-        aggregatedPriority = prefs.getString(KEY_AGGREGATED_PRIORITY, null),
+        // D1：旧的聚合配置按和新存储导入同样的规则落成主数据源（只读，不改旧文件）
+        engineMode = LegacyDataSource.resolve(
+            engineMode = prefs.getString(KEY_ENGINE_MODE, null),
+            aggregatedPriority = prefs.getString(KEY_AGGREGATED_PRIORITY, null)
+        ),
         transitCodeProvider = prefs.getString(KEY_TRANSIT_CODE_PROVIDER, null),
         nearbyStopsCount = if (prefs.contains(KEY_NEARBY_STOPS_COUNT)) prefs.getInt(KEY_NEARBY_STOPS_COUNT, 4) else null,
         liveNotificationEnabled = if (prefs.contains(KEY_LIVE_NOTIFICATION)) prefs.getBoolean(KEY_LIVE_NOTIFICATION, true) else null,
@@ -62,10 +66,6 @@ class SharedPrefsTransitStore(private val prefs: SharedPreferences) : TransitLoc
 
     override suspend fun saveEngineMode(name: String) {
         prefs.edit().putString(KEY_ENGINE_MODE, name).apply()
-    }
-
-    override suspend fun saveAggregatedPriority(name: String) {
-        prefs.edit().putString(KEY_AGGREGATED_PRIORITY, name).apply()
     }
 
     override suspend fun saveTransitCodeProvider(id: String) {

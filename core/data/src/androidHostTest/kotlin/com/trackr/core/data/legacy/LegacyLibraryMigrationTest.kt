@@ -156,7 +156,8 @@ class LegacyLibraryMigrationTest {
         val prefs = settingsNow()
         assertEquals(LegacyFixtures.CITY_JSON, prefs[SettingsKeys.SELECTED_CITY_JSON])
         assertEquals("MYGOLBS", prefs[SettingsKeys.ENGINE_MODE])
-        assertEquals("MYGOLBS_FIRST", prefs[SettingsKeys.AGGREGATED_SOURCE_PRIORITY])
+        // D1：旧的聚合优先级不再导入
+        assertFalse(prefs.asMap().keys.any { it.name == "aggregated_source_priority" })
         assertEquals("alipay", prefs[SettingsKeys.PREFERRED_TRANSIT_CODE_PROVIDER])
         assertEquals(6, prefs[SettingsKeys.NEARBY_STOPS_COUNT])
         assertEquals(false, prefs[SettingsKeys.LIVE_NOTIFICATION_ENABLED])

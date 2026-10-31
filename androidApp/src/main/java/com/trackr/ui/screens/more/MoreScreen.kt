@@ -67,7 +67,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.trackr.core.model.AggregatedSourcePriority
 import com.trackr.core.model.DataSourceType
 import com.trackr.core.model.EngineMode
 import com.trackr.core.model.TransitCodeProvider
@@ -87,7 +86,6 @@ fun MoreScreen(
 ) {
     val context = LocalContext.current
     val engineMode by viewModel.engineMode.collectAsStateWithLifecycle()
-    val aggregatedPriority by viewModel.aggregatedPriority.collectAsStateWithLifecycle()
     val nearbyStopsCount by viewModel.nearbyStopsCount.collectAsStateWithLifecycle()
     val preferredTransitCode by viewModel.preferredTransitCode.collectAsStateWithLifecycle()
     val isLiveNotificationEnabled by viewModel.isLiveNotificationEnabled.collectAsStateWithLifecycle()
@@ -174,13 +172,6 @@ fun MoreScreen(
                                 style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.SemiBold),
                                 color = MaterialTheme.colorScheme.onSurface
                             )
-                            Spacer(modifier = Modifier.height(2.dp))
-                            Text(
-                                text = "聚合模式下智能互补两大数据源，获得最优到站精度",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-
                             Spacer(modifier = Modifier.height(10.dp))
 
                             val engineOptions = listOf(

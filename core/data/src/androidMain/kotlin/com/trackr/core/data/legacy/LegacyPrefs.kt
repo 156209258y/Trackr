@@ -20,6 +20,7 @@ object LegacyPrefs {
     const val KEY_SEARCH_HISTORY = "search_history_json"
     const val KEY_SELECTED_CITY = "selected_city_json"
     const val KEY_ENGINE_MODE = "engine_mode"
+    /** 旧的聚合优先级：只在导入时用来定主数据源（D1），不再导进新存储 */
     const val KEY_AGGREGATED_PRIORITY = "aggregated_source_priority"
     const val KEY_TRANSIT_CODE_PROVIDER = "preferred_transit_code_provider"
     const val KEY_NEARBY_STOPS_COUNT = "nearby_stops_count"

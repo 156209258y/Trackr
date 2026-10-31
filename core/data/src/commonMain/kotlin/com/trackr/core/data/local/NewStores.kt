@@ -28,7 +28,6 @@ class RoomDataStoreTransitStore(
         return TransitLocalSnapshot(
             selectedCityJson = prefs[SettingsKeys.SELECTED_CITY_JSON],
             engineMode = prefs[SettingsKeys.ENGINE_MODE],
-            aggregatedPriority = prefs[SettingsKeys.AGGREGATED_SOURCE_PRIORITY],
             transitCodeProvider = prefs[SettingsKeys.PREFERRED_TRANSIT_CODE_PROVIDER],
             nearbyStopsCount = prefs[SettingsKeys.NEARBY_STOPS_COUNT],
             liveNotificationEnabled = prefs[SettingsKeys.LIVE_NOTIFICATION_ENABLED],
@@ -44,10 +43,6 @@ class RoomDataStoreTransitStore(
 
     override suspend fun saveEngineMode(name: String) {
         settings.edit { it[SettingsKeys.ENGINE_MODE] = name }
-    }
-
-    override suspend fun saveAggregatedPriority(name: String) {
-        settings.edit { it[SettingsKeys.AGGREGATED_SOURCE_PRIORITY] = name }
     }
 
     override suspend fun saveTransitCodeProvider(id: String) {

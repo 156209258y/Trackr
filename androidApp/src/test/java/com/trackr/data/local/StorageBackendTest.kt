@@ -230,6 +230,24 @@ class StorageBackendTest {
     }
 
     @Test
+    fun legacyAggregatedConfig_bothStoresPickSamePrimarySource() {
+        // D1：旧的「聚合 + 掌上公交优先」在新旧存储里都读成掌上公交，旧文件不改
+        writeLegacy()
+        context.getSharedPreferences("trackr_prefs", Context.MODE_PRIVATE).edit()
+            .putString("engine_mode", "ALL")
+            .putString("aggregated_source_priority", "MYGOLBS_FIRST")
+            .commit()
+        val before = legacySnapshot()
+
+        val viaNew = seen(open())
+        val viaLegacy = seen(open(forceLegacy = true))
+
+        assertEquals(EngineMode.MYGOLBS, viaNew.engine)
+        assertEquals(viaLegacy, viaNew)
+        assertEquals(before, legacySnapshot())
+    }
+
+    @Test
     fun freshInstall_newStoreMatchesLegacyDefaults() {
         val viaNew = seen(open())
         val viaLegacy = seen(open(forceLegacy = true))
