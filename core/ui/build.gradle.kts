@@ -16,6 +16,8 @@ kotlin {
             implementation(libs.compose.mp.foundation)
             implementation(libs.compose.mp.ui)
             implementation(libs.compose.mp.material3)
+            // :core:designsystem 的图标（Res.drawable.*，第 19 步乘车码按钮等 commonMain 组件用）
+            implementation(libs.compose.mp.components.resources)
             implementation(libs.jetbrains.lifecycle.viewmodel)
             implementation(libs.jetbrains.lifecycle.runtime.compose)
             implementation(libs.kotlinx.coroutines.core)

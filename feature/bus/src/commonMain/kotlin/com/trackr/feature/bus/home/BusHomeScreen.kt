@@ -1,0 +1,302 @@
+package com.trackr.feature.bus.home
+
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.calculateEndPadding
+import androidx.compose.foundation.layout.calculateStartPadding
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import com.trackr.core.designsystem.resources.Res
+import com.trackr.core.designsystem.resources.ic_arrow_drop_down
+import com.trackr.core.designsystem.resources.ic_my_location
+import com.trackr.core.designsystem.resources.ic_search
+import com.trackr.core.designsystem.theme.TrackrTheme
+import com.trackr.feature.bus.citypicker.CityPickerBottomSheet
+import com.trackr.ui.components.transitcode.TransitCodeChooserSheet
+import com.trackr.ui.components.transitcode.TransitCodeFab
+import com.trackr.ui.components.transitcode.rememberTransitCodeFabState
+import org.jetbrains.compose.resources.vectorResource
+
+/** 测试用的 tag */
+internal object BusHomeTags {
+    const val LIST = "bus_home_list"
+    const val CITY_TITLE = "bus_home_city"
+    const val SEARCH = "bus_home_search"
+    const val TRACKING_CARD = "bus_home_tracking"
+    const val STOP_TRACKING = "bus_home_stop_tracking"
+    const val WATCH_MORE = "bus_home_watch_more"
+    const val EDIT_FAVORITES = "bus_home_edit_favorites"
+    const val NEARBY_HEADER = "bus_home_nearby_header"
+    fun favoriteRow(key: String) = "bus_home_fav_$key"
+    fun groupChip(id: String?) = "bus_home_group_${id ?: "all"}"
+    fun nearbyStop(key: String) = "bus_home_nearby_$key"
+}
+
+/**
+ * v3 公交首页（无状态）：顶栏城市名、搜索、追踪卡、收藏（车和路线一个列表 + 分组 chips）、附近 6 个站，
+ * 右下角「乘车码」悬浮按钮（往下滑缩小、往上滑展开）。下拉刷新。
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun BusHomeScreen(
+    state: BusHomeUiState,
+    onEvent: (BusHomeEvent) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val fabState = rememberTransitCodeFabState()
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    // 一次性消息：一条一条显示，显示完回报
+    val message = state.userMessages.firstOrNull()
+    LaunchedEffect(message?.id) {
+        if (message != null) {
+            snackbarHostState.showSnackbar(message.text)
+            onEvent(BusHomeEvent.MessageShown(message.id))
+        }
+    }
+
+    Scaffold(
+        modifier = modifier.nestedScroll(fabState.nestedScrollConnection),
+        contentWindowInsets = WindowInsets.safeDrawing,
+        topBar = {
+            BusHomeTopBar(
+                cityName = state.currentCity.cityName,
+                onCityClick = { onEvent(BusHomeEvent.OpenCityPicker) }
+            )
+        },
+        floatingActionButton = {
+            TransitCodeFab(
+                expanded = fabState.expanded,
+                onClick = { onEvent(BusHomeEvent.TransitCodeClicked) },
+                // 底栏（页签）盖在页面上面，按钮要让开它
+                modifier = Modifier.padding(bottom = BOTTOM_BAR_HEIGHT)
+            )
+        },
+        snackbarHost = { SnackbarHost(snackbarHostState, modifier = Modifier.padding(bottom = BOTTOM_BAR_HEIGHT)) }
+    ) { innerPadding ->
+        val pullState = rememberPullToRefreshState()
+        val layoutDirection = LocalLayoutDirection.current
+        PullToRefreshBox(
+            isRefreshing = state.isRefreshing,
+            onRefresh = { onEvent(BusHomeEvent.Refresh) },
+            state = pullState,
+            modifier = Modifier.fillMaxSize(),
+            indicator = {
+                PullToRefreshDefaults.Indicator(
+                    state = pullState,
+                    isRefreshing = state.isRefreshing,
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .padding(top = innerPadding.calculateTopPadding())
+                )
+            }
+        ) {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .testTag(BusHomeTags.LIST),
+                contentPadding = PaddingValues(
+                    start = innerPadding.calculateStartPadding(layoutDirection),
+                    end = innerPadding.calculateEndPadding(layoutDirection),
+                    top = innerPadding.calculateTopPadding(),
+                    // 留出底栏和悬浮按钮的高度，最后一个站不被挡住
+                    bottom = innerPadding.calculateBottomPadding() + BOTTOM_BAR_HEIGHT + FAB_CLEARANCE
+                ),
+                verticalArrangement = Arrangement.spacedBy(TrackrTheme.dimens.spaceS)
+            ) {
+                state.trackingCard?.let { card ->
+                    item(key = "tracking", contentType = "tracking") {
+                        TrackingCard(
+                            card = card,
+                            onOpen = { onEvent(BusHomeEvent.OpenLine(card.open)) },
+                            onStop = { onEvent(BusHomeEvent.StopTracking) }
+                        )
+                    }
+                }
+
+                item(key = "search", contentType = "search") {
+                    SearchEntry(onClick = { onEvent(BusHomeEvent.OpenSearch) })
+                }
+
+                state.locationError?.let { error ->
+                    item(key = "location_hint", contentType = "location_hint") {
+                        LocationHint(message = error, onRetry = { onEvent(BusHomeEvent.RetryLocation) })
+                    }
+                }
+
+                favoritesSection(state = state, onEvent = onEvent)
+
+                nearbySection(state = state, onEvent = onEvent)
+            }
+        }
+    }
+
+    if (state.isCityPickerOpen) {
+        CityPickerBottomSheet(
+            currentCity = state.currentCity,
+            locatedCity = state.locatedCity,
+            selectedProvince = state.selectedProvince,
+            cities = state.cities,
+            searchQuery = state.citySearchQuery,
+            onSearchQueryChange = { onEvent(BusHomeEvent.CitySearchChanged(it)) },
+            onSelectProvince = { onEvent(BusHomeEvent.ProvinceSelected(it)) },
+            onSelectCity = { onEvent(BusHomeEvent.CitySelected(it)) },
+            onRelocate = { onEvent(BusHomeEvent.RelocateCity) },
+            onDismiss = { onEvent(BusHomeEvent.CloseCityPicker) }
+        )
+    }
+
+    if (state.isTransitCodeSheetOpen) {
+        TransitCodeChooserSheet(
+            onDismiss = { onEvent(BusHomeEvent.TransitCodeSheetDismissed) },
+            onSelect = { provider, save -> onEvent(BusHomeEvent.TransitCodeChosen(provider, save)) }
+        )
+    }
+}
+
+/** 顶栏：标题就是城市名（v3），点它换城市 */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun BusHomeTopBar(cityName: String, onCityClick: () -> Unit) {
+    TopAppBar(
+        title = {
+            Surface(
+                onClick = onCityClick,
+                shape = CircleShape,
+                color = MaterialTheme.colorScheme.surface,
+                modifier = Modifier.testTag(BusHomeTags.CITY_TITLE)
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(vertical = 4.dp)
+                ) {
+                    Text(text = cityName, style = MaterialTheme.typography.titleLarge)
+                    Icon(
+                        imageVector = vectorResource(Res.drawable.ic_arrow_drop_down),
+                        contentDescription = "换城市"
+                    )
+                }
+            }
+        }
+    )
+}
+
+@Composable
+private fun SearchEntry(onClick: () -> Unit) {
+    val dimens = TrackrTheme.dimens
+    Surface(
+        onClick = onClick,
+        shape = CircleShape,
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = dimens.screenPadding)
+            .testTag(BusHomeTags.SEARCH)
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = dimens.spaceL, vertical = dimens.spaceM),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = vectorResource(Res.drawable.ic_search),
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(20.dp)
+            )
+            Spacer(modifier = Modifier.width(dimens.spaceS))
+            Text(
+                text = "搜线路、车站",
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+/** 定位不可用时的常驻提示（是状态，不是一次性消息） */
+@Composable
+private fun LocationHint(message: String, onRetry: () -> Unit) {
+    val dimens = TrackrTheme.dimens
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = dimens.screenPadding),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = vectorResource(Res.drawable.ic_my_location),
+            contentDescription = null,
+            tint = TrackrTheme.colors.warn,
+            modifier = Modifier.size(16.dp)
+        )
+        Spacer(modifier = Modifier.width(dimens.spaceS))
+        Text(
+            text = message,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f)
+        )
+        TextButton(onClick = onRetry) { Text("重新定位") }
+    }
+}
+
+/** 区块标题（「收藏」「附近」），右边可以放一个文字按钮 */
+@Composable
+internal fun SectionHeader(
+    title: String,
+    modifier: Modifier = Modifier,
+    trailing: @Composable (() -> Unit)? = null
+) {
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(start = TrackrTheme.dimens.screenPadding + 4.dp, end = TrackrTheme.dimens.spaceXs, top = TrackrTheme.dimens.spaceM),
+        contentAlignment = Alignment.CenterStart
+    ) {
+        Text(text = title, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
+        if (trailing != null) {
+            Box(modifier = Modifier.align(Alignment.CenterEnd)) { trailing() }
+        }
+    }
+}
+
+/** 底栏（页签）高度：它盖在页面上面，列表和悬浮按钮要让开 */
+private val BOTTOM_BAR_HEIGHT = 80.dp
+
+/** 悬浮按钮的高度 + 间距 */
+private val FAB_CLEARANCE = 72.dp

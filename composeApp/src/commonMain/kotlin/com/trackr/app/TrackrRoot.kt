@@ -54,7 +54,7 @@ import com.trackr.ui.navigation.LocalAppViewModelStoreOwner
 import com.trackr.ui.navigation.PendingDeepLink
 import com.trackr.ui.navigation.rememberVisibleTabs
 import com.trackr.ui.screens.favoritesedit.FavoritesEditViewModel
-import com.trackr.ui.screens.home.HomeViewModel
+import com.trackr.feature.bus.home.BusHomeViewModel
 import com.trackr.ui.screens.routedetail.RouteDetailViewModel
 import com.trackr.ui.screens.routeplan.RoutePlanViewModel
 import org.koin.compose.koinInject
@@ -100,7 +100,7 @@ private fun TrackrNavApp(
     // 原来在这里（NavDisplay 外）取、跨页共享的 ViewModel：首页（首页 / 权限回调）、FavoritesGroupViewModel（规划页 / 收藏页）。
     // 拆开后仍在这里先取一次 Activity 级的实例，创建时机和原来一样（收藏的自动 ETA 刷新、一次性数据修复都从这时开始）
     val appViewModelStoreOwner = LocalAppViewModelStoreOwner.current
-    val homeViewModel = koinViewModel<HomeViewModel>(viewModelStoreOwner = appViewModelStoreOwner)
+    val homeViewModel = koinViewModel<BusHomeViewModel>(viewModelStoreOwner = appViewModelStoreOwner)
     // 首页 ViewModel 建好就开着轮询；恢复到别的页签、或首页栈顶是子页时首页 Route 不组合，没人关它。
     // 和原来 shouldPollHome 第一帧一样：首页根页没显示就先关掉，之后由首页 Route 的 LifecycleStartEffect 开关
     LaunchedEffect(homeViewModel) {

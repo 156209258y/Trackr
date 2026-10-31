@@ -29,13 +29,16 @@ import com.trackr.core.model.TransitCity
 import com.trackr.core.model.TransitSearchResult
 import com.trackr.core.testing.FakeAmapKeyRepository
 import com.trackr.core.testing.FakeTrackingController
+import com.trackr.core.testing.FakeTransitCodeLauncher
 import com.trackr.data.location.AndroidLocationSource
 import com.trackr.data.location.AndroidMonotonicClock
 import com.trackr.data.repository.FakeScheduledReminderRepository
 import com.trackr.data.repository.FakeTransitRepository
 import com.trackr.ui.components.RouteRailLayoutMode
-import com.trackr.ui.screens.home.HomeScreen
-import com.trackr.ui.screens.home.HomeViewModel
+import com.trackr.feature.bus.home.BusHomeScreen
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import com.trackr.feature.bus.home.BusHomeViewModel
 import com.trackr.ui.screens.linedetail.LineDetailScreen
 import com.trackr.ui.screens.linedetail.LineDetailViewModel
 import com.trackr.ui.screens.more.AboutScreen
@@ -359,11 +362,8 @@ class ScreenshotGeneratorTest {
         composeTestRule.setContent {
             TrackrTheme(darkTheme = false) {
                 Surface(modifier = Modifier.fillMaxSize()) {
-                    HomeScreen(
-                        viewModel = vm,
-                        onNavigateToLineDetail = { _, _, _, _, _, _ -> },
-                        onNavigateToSearch = {}
-                    )
+                    val state by vm.uiState.collectAsState()
+                    BusHomeScreen(state = state, onEvent = vm::onEvent)
                 }
             }
         }
@@ -379,11 +379,8 @@ class ScreenshotGeneratorTest {
         composeTestRule.setContent {
             TrackrTheme(darkTheme = true) {
                 Surface(modifier = Modifier.fillMaxSize()) {
-                    HomeScreen(
-                        viewModel = vm,
-                        onNavigateToLineDetail = { _, _, _, _, _, _ -> },
-                        onNavigateToSearch = {}
-                    )
+                    val state by vm.uiState.collectAsState()
+                    BusHomeScreen(state = state, onEvent = vm::onEvent)
                 }
             }
         }
@@ -392,7 +389,7 @@ class ScreenshotGeneratorTest {
         saveScreenshot("08_home_screen_dark.png")
     }
 
-    private fun setupHomeViewModel(): HomeViewModel {
+    private fun setupHomeViewModel(): BusHomeViewModel {
         val initialFavorites = listOf(
             FavoriteStationLine(
                 id = "fav_1",
@@ -586,7 +583,7 @@ class ScreenshotGeneratorTest {
         )
         fakeRepo.favoritesRealtimeResult = Result.success(favRealtime)
 
-        val vm = HomeViewModel(
+        val vm = BusHomeViewModel(
             locationRepository = DefaultLocationRepository(AndroidLocationSource(app), AndroidMonotonicClock),
             trackingController = trackingController,
             trackingRepository = trackingRepository,
@@ -594,6 +591,7 @@ class ScreenshotGeneratorTest {
             favorites = fakeRepo,
             realtime = fakeRepo,
             userLocationStore = TransitUserLocationStore(fakeRepo),
+            transitCodeLauncher = FakeTransitCodeLauncher(),
             enableAutoPolling = false
         )
         mainDispatcherRule.testDispatcher.scheduler.advanceUntilIdle()

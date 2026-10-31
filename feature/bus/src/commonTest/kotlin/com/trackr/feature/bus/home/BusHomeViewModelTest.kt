@@ -1,8 +1,17 @@
-package com.trackr.ui.screens.home
+package com.trackr.feature.bus.home
 
+import com.trackr.core.data.repository.DefaultLocationRepository
 import com.trackr.core.data.repository.DefaultTrackingRepository
 import com.trackr.core.data.repository.InMemoryTrackingSessionStore
 import com.trackr.core.model.DataSourceType
+import com.trackr.core.model.BusLineDirection
+import com.trackr.core.model.CandidateLine
+import com.trackr.core.model.FavoriteGroup
+import com.trackr.core.model.FavoriteItem
+import com.trackr.core.model.NearbyStopLineStatus
+import com.trackr.core.model.TransitCodeProvider
+import com.trackr.core.model.TransitGroup
+import com.trackr.core.model.TransitLeg
 import com.trackr.core.model.EngineMode
 import com.trackr.core.model.FavoriteStationLine
 import com.trackr.core.model.NearbyStop
@@ -16,6 +25,7 @@ import com.trackr.core.testing.FakeLocationRepository
 import com.trackr.core.testing.FakeRealtimeRepository
 import com.trackr.core.testing.FakeSettingsRepository
 import com.trackr.core.testing.FakeTrackingController
+import com.trackr.core.testing.FakeTransitCodeLauncher
 import com.trackr.core.testing.FakeUserLocationStore
 import com.trackr.core.testing.MainDispatcherHolder
 import kotlinx.coroutines.CoroutineScope
@@ -37,9 +47,8 @@ import kotlin.time.Duration.Companion.milliseconds
  * 第 17 步：HomeViewModel 改拿拆开的接口，这里把几个 Fake 放在一起，保留原测试里 `fakeRepository.xxx` 的写法
  * （转发方式同旧 FakeTransitRepository）。
  */
-private class HomeFakes(city: TransitCity) {
+private class HomeFakes(city: TransitCity, val favoritesRepo: FakeFavoritesRepository = FakeFavoritesRepository()) {
     val settings = FakeSettingsRepository(city)
-    val favoritesRepo = FakeFavoritesRepository()
     val realtime = FakeRealtimeRepository(currentCity = { settings.selectedCity.value })
     val userLocationStore = FakeUserLocationStore()
     val location = FakeLocationRepository()
@@ -58,13 +67,14 @@ private class HomeFakes(city: TransitCity) {
 }
 
 @OptIn(ExperimentalCoroutinesApi::class)
-class HomeViewModelTest {
+class BusHomeViewModelTest {
 
     private val main = MainDispatcherHolder()
 
     private lateinit var fakeRepository: HomeFakes
     private lateinit var trackingRepository: DefaultTrackingRepository
     private lateinit var trackingController: FakeTrackingController
+    private val transitCodeLauncher = FakeTransitCodeLauncher()
     private val shanghai = TransitCity(cityId = "034", cityName = "上海", pinyin = "shanghai", province = "直辖市")
     private val beijing = TransitCity(cityId = "001", cityName = "北京", pinyin = "beijing", province = "直辖市")
     private val hangzhou = TransitCity(cityId = "0571", cityName = "杭州", pinyin = "hangzhou", province = "浙江省")
@@ -89,10 +99,10 @@ class HomeViewModelTest {
     private fun createViewModel(
         enableAutoPolling: Boolean = false,
         elapsedRealtimeMillis: (() -> Long)? = null
-    ): HomeViewModel {
+    ): BusHomeViewModel {
         val f = fakeRepository
         return if (elapsedRealtimeMillis == null) {
-            HomeViewModel(
+            BusHomeViewModel(
                 settings = f.settings,
                 favorites = f.favoritesRepo,
                 realtime = f.realtime,
@@ -100,10 +110,11 @@ class HomeViewModelTest {
                 locationRepository = f.location,
                 trackingController = trackingController,
                 trackingRepository = trackingRepository,
+                transitCodeLauncher = transitCodeLauncher,
                 enableAutoPolling = enableAutoPolling
             )
         } else {
-            HomeViewModel(
+            BusHomeViewModel(
                 settings = f.settings,
                 favorites = f.favoritesRepo,
                 realtime = f.realtime,
@@ -111,6 +122,7 @@ class HomeViewModelTest {
                 locationRepository = f.location,
                 trackingController = trackingController,
                 trackingRepository = trackingRepository,
+                transitCodeLauncher = transitCodeLauncher,
                 enableAutoPolling = enableAutoPolling,
                 elapsedRealtimeMillis = elapsedRealtimeMillis
             )
@@ -233,20 +245,22 @@ class HomeViewModelTest {
     }
 
     @Test
-    fun testNearbyStopsCountChange_refreshesNearbyStops() = runTest(main.dispatcher) {
-        val stop1 = NearbyStop(stopId = "stop_1", name = "站点1")
-        val stop2 = NearbyStop(stopId = "stop_2", name = "站点2")
-        fakeRepository.nearbyStopsResult = Result.success(listOf(stop1))
+    fun testNearbyStops_alwaysRequestsSixStops_ignoringOldSetting() = runTest(main.dispatcher) {
+        // v3：附近站固定 6 个，「附近站数」设置不再影响首页，改了也不重新请求
+        fakeRepository.nearbyStopsResult = Result.success(listOf(NearbyStop(stopId = "stop_1", name = "站点1")))
 
         val viewModel = createViewModel()
         testScheduler.runCurrent()
-        assertEquals(1, viewModel.uiState.value.nearbyStops.size)
+        val callsBefore = fakeRepository.nearbyStopsCalls.size
 
-        fakeRepository.nearbyStopsResult = Result.success(listOf(stop1, stop2))
         fakeRepository.setNearbyStopsCount(8)
         testScheduler.runCurrent()
 
-        assertEquals(2, viewModel.uiState.value.nearbyStops.size)
+        assertEquals(callsBefore, fakeRepository.nearbyStopsCalls.size)
+        assertTrue(fakeRepository.realtime.nearbyStopsLimits.isNotEmpty())
+        assertTrue(fakeRepository.realtime.nearbyStopsLimits.all { it == BusHomeViewModel.NEARBY_STOPS_LIMIT })
+        assertEquals(6, BusHomeViewModel.NEARBY_STOPS_LIMIT)
+        assertEquals(1, viewModel.uiState.value.nearbyStops.size)
     }
 
     @Test
@@ -478,7 +492,7 @@ class HomeViewModelTest {
         val callsBefore = fakeRepository.nearbyStopsCalls.size
 
         // 离开首页超过一个轮询周期后回来：立即补刷一次，而不是再等 15 秒
-        clock.advanceBy((HomeViewModel.POLLING_INTERVAL_MS + 1).milliseconds)
+        clock.advanceBy((BusHomeViewModel.POLLING_INTERVAL_MS + 1).milliseconds)
         viewModel.setPollingActive(true)
         testScheduler.runCurrent()
 
@@ -495,7 +509,7 @@ class HomeViewModelTest {
         val callsBefore = fakeRepository.nearbyStopsCalls.size
 
         // 边界：距上次刷新正好一个轮询周期（15000 ms）也算到期，补刷一次
-        clock.advanceBy(HomeViewModel.POLLING_INTERVAL_MS.milliseconds)
+        clock.advanceBy(BusHomeViewModel.POLLING_INTERVAL_MS.milliseconds)
         viewModel.setPollingActive(true)
         testScheduler.runCurrent()
 
@@ -528,11 +542,194 @@ class HomeViewModelTest {
 
         val viewModel = createViewModel()
         testScheduler.runCurrent()
-        testScheduler.advanceTimeBy(HomeViewModel.LOCATION_WINDOW_MS + 500L)
+        testScheduler.advanceTimeBy(DefaultLocationRepository.LOCATION_WINDOW_MS + 500L)
         testScheduler.runCurrent()
 
         assertNull(fakeRepository.userLocation.value)
         assertEquals("定位不可用，已保留当前位置", viewModel.uiState.value.locationError)
         assertFalse(viewModel.uiState.value.isLocating)
+    }
+
+    // ---- 第 19 步新加 ----
+
+    private fun fav(id: String, line: String, stop: String) = FavoriteStationLine(
+        id = id,
+        cityId = "034",
+        cityName = "上海",
+        lineId = "l_$id",
+        lineName = line,
+        startStop = "白石洲",
+        endStop = "科技园",
+        targetStopId = "s_$id",
+        targetStopName = stop,
+        targetOrder = 5
+    )
+
+    @Test
+    fun testFavorites_stopsAndRoutesInOneList_groupChipsFilter() = runTest(main.dispatcher) {
+        val route = TransitGroup(
+            id = "r1",
+            name = "家 → 公司",
+            legs = listOf(
+                TransitLeg(legIndex = 0, fromStopName = "家", toStopName = "换乘站", candidateLines = listOf(CandidateLine(cityId = "034", lineId = "a", lineName = "325"))),
+                TransitLeg(legIndex = 1, fromStopName = "换乘站", toStopName = "公司", candidateLines = listOf(CandidateLine(cityId = "034", lineId = "b", lineName = "19")))
+            )
+        )
+        val work = FavoriteGroup(id = "g_work", name = "上班")
+        val repo = FakeFavoritesRepository(
+            initialFavorites = listOf(fav("f1", "325", "科技园站"), fav("f2", "M194", "深大北门")),
+            initialRoutes = listOf(route),
+            initialGroups = listOf(work)
+        )
+        repo.setGroup(FavoriteItem.stopKey("f2"), "g_work")
+        repo.setGroup(FavoriteItem.routeKey("r1"), "g_work")
+        fakeRepository = HomeFakes(shanghai, repo)
+
+        val viewModel = createViewModel()
+        testScheduler.runCurrent()
+
+        val rows = viewModel.uiState.value.favoriteRows
+        assertEquals(listOf("stop_f1", "stop_f2", "route_r1"), rows.map { it.key })
+        val first = rows[0] as FavoriteRowUi.Stop
+        assertEquals("科技园站上车", first.boardText)
+        assertEquals("白石洲 → 科技园", first.direction)
+        val routeRow = rows[2] as FavoriteRowUi.Route
+        assertEquals("家 → 公司", routeRow.title)
+        assertEquals("325 › 19 · 换乘 1 次", routeRow.linesText)
+
+        viewModel.onEvent(BusHomeEvent.SelectGroup("g_work"))
+        assertEquals(listOf("stop_f2", "route_r1"), viewModel.uiState.value.favoriteRows.map { it.key })
+
+        // 分组被删了：回到「全部」
+        repo.deleteGroup("g_work")
+        testScheduler.runCurrent()
+        assertNull(viewModel.uiState.value.selectedGroupId)
+        assertEquals(3, viewModel.uiState.value.favoriteRows.size)
+    }
+
+    @Test
+    fun testFavoriteRow_noBus_showsNextDepartureFromStart() = runTest(main.dispatcher) {
+        val f = fav("f1", "325", "科技园站")
+        fakeRepository = HomeFakes(shanghai, FakeFavoritesRepository(initialFavorites = listOf(f)))
+        val status = NearbyStopLineStatus(
+            line = BusLineDirection(lineId = f.lineId, name = "325", startStop = "白石洲", endStop = "科技园"),
+            targetOrder = 5,
+            targetStopId = f.targetStopId,
+            targetStopName = f.targetStopName,
+            statusText = "等待发车",
+            preArrivalTime = "07:20"
+        )
+        fakeRepository.realtime.favoritesRealtimeResult = Result.success(
+            mapOf(f.id to NearbyStop(stopId = f.targetStopId, name = f.targetStopName, lines = listOf(status)))
+        )
+
+        val viewModel = createViewModel()
+        testScheduler.runCurrent()
+
+        val row = viewModel.uiState.value.favoriteRows.single() as FavoriteRowUi.Stop
+        assertEquals("下一班 07:20", row.arrival.big)
+        assertEquals("从 白石洲 发车", row.arrival.small)
+    }
+
+    @Test
+    fun testPolling_unchangedRowsKeepSameInstance() = runTest(main.dispatcher) {
+        fakeRepository.nearbyStopsResult = Result.success(listOf(NearbyStop(stopId = "s1", name = "站点1")))
+        val viewModel = createViewModel()
+        testScheduler.runCurrent()
+        val before = viewModel.uiState.value.nearbyCards
+
+        // 再刷一次，数据一样：沿用旧列表实例（§4.1 强跳过）
+        viewModel.refresh()
+        testScheduler.runCurrent()
+        assertTrue(before === viewModel.uiState.value.nearbyCards)
+    }
+
+    @Test
+    fun testTransitCode_preferredProviderOpensDirectly() = runTest(main.dispatcher) {
+        fakeRepository.settings.setPreferredTransitCodeProvider(TransitCodeProvider.ALIPAY)
+        val viewModel = createViewModel()
+        testScheduler.runCurrent()
+
+        viewModel.onEvent(BusHomeEvent.TransitCodeClicked)
+
+        assertEquals(listOf(TransitCodeProvider.ALIPAY), transitCodeLauncher.opened)
+        assertFalse(viewModel.uiState.value.isTransitCodeSheetOpen)
+    }
+
+    @Test
+    fun testTransitCode_askAlways_opensChooser_andRemembersChoice() = runTest(main.dispatcher) {
+        val viewModel = createViewModel()
+        testScheduler.runCurrent()
+
+        viewModel.onEvent(BusHomeEvent.TransitCodeClicked)
+        assertTrue(viewModel.uiState.value.isTransitCodeSheetOpen)
+        assertTrue(transitCodeLauncher.opened.isEmpty())
+
+        viewModel.onEvent(BusHomeEvent.TransitCodeChosen(TransitCodeProvider.UNIONPAY, saveAsDefault = true))
+        testScheduler.runCurrent()
+
+        assertFalse(viewModel.uiState.value.isTransitCodeSheetOpen)
+        assertEquals(listOf(TransitCodeProvider.UNIONPAY), transitCodeLauncher.opened)
+        assertEquals(TransitCodeProvider.UNIONPAY, fakeRepository.settings.preferredTransitCodeProvider.value)
+    }
+
+    @Test
+    fun testTransitCode_chooseWithoutRemember_keepsAskAlways() = runTest(main.dispatcher) {
+        val viewModel = createViewModel()
+        testScheduler.runCurrent()
+
+        viewModel.onEvent(BusHomeEvent.TransitCodeClicked)
+        viewModel.onEvent(BusHomeEvent.TransitCodeChosen(TransitCodeProvider.ALIPAY, saveAsDefault = false))
+        testScheduler.runCurrent()
+
+        assertEquals(listOf(TransitCodeProvider.ALIPAY), transitCodeLauncher.opened)
+        assertEquals(TransitCodeProvider.ASK_ALWAYS, fakeRepository.settings.preferredTransitCodeProvider.value)
+    }
+
+    @Test
+    fun testRefresh_nearbyRequestFails_addsOneShotMessage() = runTest(main.dispatcher) {
+        fakeRepository.nearbyStopsResult = Result.failure(RuntimeException("no network"))
+        val viewModel = createViewModel()
+        testScheduler.runCurrent()
+
+        val message = viewModel.uiState.value.userMessages.single()
+        assertEquals(BusHomeViewModel.NEARBY_FAILED, message.text)
+
+        viewModel.onEvent(BusHomeEvent.MessageShown(message.id))
+        assertTrue(viewModel.uiState.value.userMessages.isEmpty())
+    }
+
+    @Test
+    fun testTrackingCard_singleLine_endedByStopTracking() = runTest(main.dispatcher) {
+        val viewModel = createViewModel()
+        testScheduler.runCurrent()
+        assertNull(viewModel.uiState.value.trackingCard)
+
+        trackingController.start(
+            TrackingTarget.SingleLine(
+                cityId = "034",
+                lineId = "line_71",
+                lineName = "71路",
+                targetStopId = "stop_5",
+                targetStopName = "人民广场",
+                targetOrder = 5,
+                totalStops = 20,
+                source = DataSourceType.MYGOLBS
+            )
+        )
+        testScheduler.runCurrent()
+
+        val card = assertNotNull(viewModel.uiState.value.trackingCard)
+        assertEquals("追踪 71路 · 人民广场", card.title)
+        assertEquals("line_71", card.open.lineId)
+        assertEquals(5, card.open.targetOrder)
+        // 点卡片按会话里的数据源打开线路页（旧首页写死 CHELAILE）
+        assertEquals(DataSourceType.MYGOLBS, card.open.source)
+
+        viewModel.onEvent(BusHomeEvent.StopTracking)
+        testScheduler.runCurrent()
+        assertEquals(1, trackingController.stopCount)
+        assertNull(viewModel.uiState.value.trackingCard)
+        assertNull(trackingRepository.groupSession.value)
     }
 }

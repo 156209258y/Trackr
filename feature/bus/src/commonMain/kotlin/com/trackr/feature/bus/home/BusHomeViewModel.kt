@@ -1,8 +1,7 @@
-package com.trackr.ui.screens.home
+package com.trackr.feature.bus.home
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.trackr.core.data.repository.DefaultLocationRepository
 import com.trackr.core.data.repository.FavoritesRepository
 import com.trackr.core.data.repository.HomeCoordinates
 import com.trackr.core.data.repository.LocationRepository
@@ -12,12 +11,11 @@ import com.trackr.core.data.repository.TrackingRepository
 import com.trackr.core.data.repository.UserLocationStore
 import com.trackr.core.domain.platform.ProcessMonotonicClock
 import com.trackr.core.domain.platform.TrackingController
+import com.trackr.core.domain.platform.TransitCodeLauncher
 import com.trackr.core.model.EngineMode
-import com.trackr.core.model.FavoriteStationLine
-import com.trackr.core.model.NearbyStop
 import com.trackr.core.model.ProvinceCityCatalog
-import com.trackr.core.model.TrackingSessionState
 import com.trackr.core.model.TransitCity
+import com.trackr.core.model.TransitCodeProvider
 import com.trackr.ui.util.FixedDelayPollingStrategy
 import com.trackr.ui.util.PollingCoordinator
 import kotlinx.coroutines.Job
@@ -27,47 +25,19 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlin.concurrent.Volatile
 
-data class HomeUiState(
-    val currentCity: TransitCity = TransitCity(cityId = "034", cityName = "上海", pinyin = "shanghai", supportSubway = true, isHot = true, province = "直辖市"),
-    val selectedProvince: String = "直辖市",
-    val locatedCity: TransitCity? = null,
-    val cities: List<TransitCity> = emptyList(),
-    val citySearchQuery: String = "",
-    val isCityPickerOpen: Boolean = false,
-    val currentLat: Double = 31.2304,
-    val currentLng: Double = 121.4737,
-    val isLocating: Boolean = false,
-    val locationError: String? = null,
-    val nearbyStops: List<NearbyStop> = emptyList(),
-    val isLoadingNearby: Boolean = false,
-    val favorites: List<FavoriteStationLine> = emptyList(),
-    val favoritesRealtime: Map<String, NearbyStop> = emptyMap(),
-    val activeTracking: TrackingSessionState = TrackingSessionState(),
-    val isRefreshing: Boolean = false,
-    val engineMode: EngineMode = EngineMode.CHELAILE
-) {
-    val filteredCities: List<TransitCity>
-        get() {
-            val baseList = when (engineMode) {
-                EngineMode.MYGOLBS -> cities.filter { !it.mygolbsCityCode.isNullOrBlank() }
-                EngineMode.CHELAILE -> cities.filter { it.cityId.isNotBlank() }
-            }
-            if (citySearchQuery.isBlank()) return baseList
-            val q = citySearchQuery.trim().lowercase()
-            return baseList.filter {
-                it.cityName.lowercase().contains(q) ||
-                it.pinyin.lowercase().contains(q) ||
-                (it.province.ifBlank { ProvinceCityCatalog.inferProvince(it.cityName) }).lowercase().contains(q)
-            }
-        }
-}
-
-class HomeViewModel(
-    // 第 17 步：原来的 ITransitRepository 拆成只拿用到的几个接口
+/**
+ * v3 公交首页（重构计划第 19 步，原 `HomeViewModel`）。
+ *
+ * - 附近站固定 6 个；附近站 + 收藏实时每 15 秒轮询一次，由 [BusHomeRoute] 随 STARTED 开关（§4.4），
+ *   恢复时距上次刷新超过一个周期就立即补刷。
+ * - 定位走 [LocationRepository.bestFix]（4.5 秒窗口内取最准）。
+ * - 追踪卡读整个会话（一起等的几条线都在里面）；「结束」调 [TrackingController.stopTracking]，路线状态一起清。
+ * - 乘车码按钮：「我的」里选了平台就直接打开，选了「每次询问」才弹选择。
+ */
+class BusHomeViewModel(
     private val settings: SettingsRepository,
     private val favorites: FavoritesRepository,
     private val realtime: RealtimeRepository,
@@ -77,8 +47,10 @@ class HomeViewModel(
     private val locationRepository: LocationRepository,
     /** 追踪服务控制（「结束追踪」、把定位喂给换乘引擎） */
     private val trackingController: TrackingController,
-    /** 追踪会话（首页追踪卡读当前这一程的状态） */
+    /** 追踪会话（首页追踪卡） */
     private val trackingRepository: TrackingRepository,
+    /** 打开支付宝 / 云闪付乘车码 */
+    private val transitCodeLauncher: TransitCodeLauncher,
     private val enableAutoPolling: Boolean = true,
     /** 单调时钟（毫秒），用于判断恢复轮询时距上次刷新是否已超过一个周期；测试可替换 */
     private val elapsedRealtimeMillis: () -> Long = { ProcessMonotonicClock.elapsedMillis() },
@@ -86,8 +58,13 @@ class HomeViewModel(
     private val homeCoordinates: HomeCoordinates? = null
 ) : ViewModel() {
 
-    private val _uiState = MutableStateFlow(HomeUiState())
-    val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
+    private val _uiState = MutableStateFlow(BusHomeUiState())
+    val uiState: StateFlow<BusHomeUiState> = _uiState.asStateFlow()
+
+    /** 改状态都走这里：数据改完立刻重算 UI 模型（没变的行沿用旧实例） */
+    private inline fun edit(crossinline transform: (BusHomeUiState) -> BusHomeUiState) {
+        _uiState.update { old -> BusHomeMapper.derive(old, transform(old)) }
+    }
 
     /** 上一次实时数据（附近站 + 收藏）刷新完成的时间，基于 [elapsedRealtimeMillis]；0 表示还没刷新过 */
     @Volatile
@@ -95,6 +72,8 @@ class HomeViewModel(
 
     /** 恢复轮询时补发的一次立即刷新 */
     private var catchUpPollJob: Job? = null
+
+    private var nextMessageId = 1L
 
     internal val pollingCoordinator = PollingCoordinator(
         scope = viewModelScope,
@@ -112,10 +91,10 @@ class HomeViewModel(
                 state.currentCity,
                 state.currentLat,
                 state.currentLng,
-                limit = settings.nearbyStopsCount.value
+                limit = NEARBY_STOPS_LIMIT
             )
             val favResult = realtime.refreshFavoritesRealtime()
-            _uiState.update {
+            edit {
                 it.copy(
                     nearbyStops = nearbyResult.getOrNull() ?: it.nearbyStops,
                     favoritesRealtime = favResult.getOrNull() ?: it.favoritesRealtime
@@ -149,7 +128,7 @@ class HomeViewModel(
                 }
                 val isSameAsLocated = city.matchesCity(state.locatedCity)
                 if (isSameAsLocated) {
-                    _uiState.update {
+                    edit {
                         it.copy(
                             currentCity = city,
                             selectedProvince = city.province.ifBlank { ProvinceCityCatalog.inferProvince(city.cityName) }
@@ -157,7 +136,7 @@ class HomeViewModel(
                     }
                 } else {
                     val coords = ProvinceCityCatalog.getCityCenterCoordinates(city.cityName)
-                    _uiState.update {
+                    edit {
                         it.copy(
                             currentCity = city,
                             selectedProvince = city.province.ifBlank { ProvinceCityCatalog.inferProvince(city.cityName) },
@@ -170,17 +149,39 @@ class HomeViewModel(
             }
         }
 
-        // 观察数据仓库收藏列表（桌面快捷方式与微件的同步统一在 MainActivity 里做，且只在收藏内容真变时触发）
+        // 收藏的车（小组件 / 快捷方式的同步在应用级收集器里做，这里只显示）
         viewModelScope.launch {
             favorites.favorites.collect { favs ->
-                _uiState.update { it.copy(favorites = favs) }
+                edit { it.copy(favorites = favs) }
             }
         }
 
-        // 观察实时通知栏追踪会话
+        // 收藏合一列表（车和路线排在一起）
+        viewModelScope.launch {
+            favorites.favoriteItems.collect { items ->
+                edit { it.copy(favoriteItems = items) }
+            }
+        }
+
+        // 收藏分组；选中的分组被删了就回到「全部」
+        viewModelScope.launch {
+            favorites.favoriteGroups.collect { groups ->
+                edit { state ->
+                    val selected = state.selectedGroupId?.takeIf { id -> groups.any { it.id == id } }
+                    state.copy(favoriteGroups = groups, selectedGroupId = selected)
+                }
+            }
+        }
+
+        // 追踪：当前这一程 + 整个会话（一起等的几条线）
         viewModelScope.launch {
             trackingRepository.legState.collect { session ->
-                _uiState.update { it.copy(activeTracking = session) }
+                edit { it.copy(activeTracking = session) }
+            }
+        }
+        viewModelScope.launch {
+            trackingRepository.session.collect { session ->
+                edit { it.copy(trackingSession = session) }
             }
         }
 
@@ -188,21 +189,11 @@ class HomeViewModel(
         viewModelScope.launch {
             settings.engineMode.collect { mode ->
                 val prevMode = _uiState.value.engineMode
-                _uiState.update { it.copy(engineMode = mode) }
+                edit { it.copy(engineMode = mode) }
                 if (prevMode != mode) {
                     val state = _uiState.value
                     loadNearbyStops(state.currentLat, state.currentLng)
                     refreshFavoritesRealtime()
-                }
-            }
-        }
-
-        // 观察附近站点展示数量设置变化
-        viewModelScope.launch {
-            settings.nearbyStopsCount.collect { count ->
-                val state = _uiState.value
-                if (state.currentLat > 0.0 && state.currentLng > 0.0) {
-                    loadNearbyStops(state.currentLat, state.currentLng, showLoading = false)
                 }
             }
         }
@@ -212,6 +203,31 @@ class HomeViewModel(
 
         // 刷新 GPS 定位并加载附近站点和收藏实时状态
         refreshLocationAndNearby()
+    }
+
+    /** 页面事件（导航类在 [BusHomeRoute] 里处理，到不了这里） */
+    fun onEvent(event: BusHomeEvent) {
+        when (event) {
+            BusHomeEvent.Refresh -> refresh()
+            BusHomeEvent.RetryLocation -> refreshLocationAndNearby()
+            BusHomeEvent.StopTracking -> stopTracking()
+            is BusHomeEvent.SelectGroup -> selectGroup(event.groupId)
+            BusHomeEvent.TransitCodeClicked -> onTransitCodeClicked()
+            is BusHomeEvent.TransitCodeChosen -> onTransitCodeChosen(event.provider, event.saveAsDefault)
+            BusHomeEvent.TransitCodeSheetDismissed -> edit { it.copy(isTransitCodeSheetOpen = false) }
+            is BusHomeEvent.MessageShown -> onMessageShown(event.id)
+            BusHomeEvent.OpenCityPicker -> setCityPickerOpen(true)
+            BusHomeEvent.CloseCityPicker -> setCityPickerOpen(false)
+            is BusHomeEvent.CitySearchChanged -> updateCitySearchQuery(event.query)
+            is BusHomeEvent.ProvinceSelected -> selectProvince(event.province)
+            is BusHomeEvent.CitySelected -> selectCity(event.city)
+            BusHomeEvent.RelocateCity -> refreshLocationAndNearby(switchCity = true)
+            BusHomeEvent.OpenSearch,
+            is BusHomeEvent.OpenLine,
+            is BusHomeEvent.OpenStop,
+            is BusHomeEvent.OpenRoute,
+            BusHomeEvent.EditFavorites -> Unit
+        }
     }
 
     private fun fallbackCities(): List<TransitCity> = listOf(
@@ -232,9 +248,9 @@ class HomeViewModel(
             val result = realtime.getSupportedCities()
             val list = result.getOrNull()
             if (!list.isNullOrEmpty()) {
-                _uiState.update { it.copy(cities = list) }
+                edit { it.copy(cities = list) }
             } else {
-                _uiState.update { it.copy(cities = fallbackCities()) }
+                edit { it.copy(cities = fallbackCities()) }
             }
         }
     }
@@ -254,12 +270,12 @@ class HomeViewModel(
     ) {
         viewModelScope.launch {
             if (showLoading) {
-                _uiState.update { it.copy(isLoadingNearby = true) }
+                edit { it.copy(isLoadingNearby = true) }
             }
             val targetCity = cityOverride ?: _uiState.value.currentCity
-            val result = realtime.getNearbyStops(targetCity, lat, lng, limit = settings.nearbyStopsCount.value)
+            val result = realtime.getNearbyStops(targetCity, lat, lng, limit = NEARBY_STOPS_LIMIT)
             val stops = result.getOrNull().orEmpty()
-            _uiState.update {
+            edit {
                 it.copy(
                     nearbyStops = stops,
                     isLoadingNearby = false
@@ -273,7 +289,7 @@ class HomeViewModel(
             val result = realtime.refreshFavoritesRealtime()
             val map = result.getOrNull().orEmpty()
             if (map.isNotEmpty()) {
-                _uiState.update { it.copy(favoritesRealtime = map) }
+                edit { it.copy(favoritesRealtime = map) }
             }
         }
     }
@@ -287,11 +303,11 @@ class HomeViewModel(
      */
     fun refresh(switchCity: Boolean = false) {
         viewModelScope.launch {
-            _uiState.update { it.copy(isRefreshing = true, isLocating = true, locationError = null) }
+            edit { it.copy(isRefreshing = true, isLocating = true, locationError = null) }
 
             val favJob = launch {
                 val favResult = realtime.refreshFavoritesRealtime()
-                _uiState.update { it.copy(favoritesRealtime = favResult.getOrNull().orEmpty()) }
+                edit { it.copy(favoritesRealtime = favResult.getOrNull().orEmpty()) }
             }
 
             val gpsLocation = locationRepository.bestFix(forceFresh = true)
@@ -314,7 +330,7 @@ class HomeViewModel(
                     val shouldSwitchCity = switchCity || !settings.hasSavedCity.value
                     if (resolvedCity != null && shouldSwitchCity) {
                         settings.selectCity(resolvedCity)
-                        _uiState.update {
+                        edit {
                             it.copy(
                                 currentCity = resolvedCity,
                                 locatedCity = resolvedCity,
@@ -330,7 +346,7 @@ class HomeViewModel(
                         Triple(lat, lng, resolvedCity)
                     } else {
                         // 保留用户已选城市，只记录定位城市供城市弹窗展示「定位: X」
-                        _uiState.update {
+                        edit {
                             it.copy(
                                 locatedCity = resolvedCity ?: it.locatedCity,
                                 currentLat = lat,
@@ -346,48 +362,51 @@ class HomeViewModel(
                     val state = _uiState.value
                     val lat = if (state.currentLat > 0.0) state.currentLat else ProvinceCityCatalog.getCityCenterCoordinates(currentCity.cityName).first
                     val lng = if (state.currentLng > 0.0) state.currentLng else ProvinceCityCatalog.getCityCenterCoordinates(currentCity.cityName).second
-                    _uiState.update {
+                    edit {
                         it.copy(
                             currentLat = lat,
                             currentLng = lng,
                             isLocating = false,
-                            locationError = "定位不可用，已保留当前位置"
+                            locationError = LOCATION_UNAVAILABLE
                         )
                     }
                     Triple(lat, lng, currentCity)
                 }
 
-                val limit = settings.nearbyStopsCount.value
-                var stops = realtime.getNearbyStops(targetCity, lat, lng, limit = limit).getOrNull().orEmpty()
+                val firstResult = realtime.getNearbyStops(targetCity, lat, lng, limit = NEARBY_STOPS_LIMIT)
+                var stops = firstResult.getOrNull().orEmpty()
 
                 // 人不在已选城市（如出差在外）时，GPS 坐标查不到该城市的站点：改用已选城市中心点再查一次
                 if (stops.isEmpty() && gpsLocation != null && !targetCity.matchesCity(_uiState.value.locatedCity)) {
                     val center = ProvinceCityCatalog.findCityCenterCoordinates(targetCity.cityName)
                     if (center != null) {
-                        stops = realtime.getNearbyStops(targetCity, center.first, center.second, limit = limit)
+                        stops = realtime.getNearbyStops(targetCity, center.first, center.second, limit = NEARBY_STOPS_LIMIT)
                             .getOrNull().orEmpty()
-                        _uiState.update { it.copy(currentLat = center.first, currentLng = center.second) }
+                        edit { it.copy(currentLat = center.first, currentLng = center.second) }
                     }
                 }
 
-                _uiState.update {
+                edit {
                     it.copy(
                         nearbyStops = stops,
                         isLoadingNearby = false
                     )
                 }
+                // 没连上网时附近站会空着：说一句，不然看着像「附近没站」
+                if (firstResult.isFailure && stops.isEmpty()) {
+                    addMessage(NEARBY_FAILED)
+                }
             }
 
             favJob.join()
             nearbyJob.join()
-            _uiState.update { it.copy(isRefreshing = false, isLocating = false, isLoadingNearby = false) }
+            edit { it.copy(isRefreshing = false, isLocating = false, isLoadingNearby = false) }
             lastRealtimeRefreshAtMs = elapsedRealtimeMillis()
         }
     }
 
     /**
-     * 设置轮询是否激活（生命周期感知或显式开关）。
-     * 只应在 App 前台、当前 tab 是首页且首页在回退栈顶时激活（由 MainActivity 控制）。
+     * 设置轮询是否激活（由 [BusHomeRoute] 的 `LifecycleStartEffect` 调：首页 entry 在组合里且 ≥ STARTED 时为 true）。
      * 从暂停恢复时，若距上次刷新已超过一个轮询周期，立即补刷一次，而不是再等一个完整周期。
      */
     fun setPollingActive(active: Boolean) {
@@ -422,7 +441,7 @@ class HomeViewModel(
     }
 
     fun setCityPickerOpen(isOpen: Boolean) {
-        _uiState.update {
+        edit {
             val defaultProvince = if (isOpen) {
                 it.currentCity.province.ifBlank { ProvinceCityCatalog.inferProvince(it.currentCity.cityName) }
             } else {
@@ -433,11 +452,11 @@ class HomeViewModel(
     }
 
     fun updateCitySearchQuery(query: String) {
-        _uiState.update { it.copy(citySearchQuery = query) }
+        edit { it.copy(citySearchQuery = query) }
     }
 
     fun selectProvince(province: String) {
-        _uiState.update { it.copy(selectedProvince = province) }
+        edit { it.copy(selectedProvince = province) }
     }
 
     fun selectCity(city: TransitCity) {
@@ -458,7 +477,7 @@ class HomeViewModel(
                 setEngineMode(EngineMode.CHELAILE)
             }
 
-            _uiState.update {
+            edit {
                 it.copy(
                     currentCity = city,
                     selectedProvince = city.province.ifBlank { ProvinceCityCatalog.inferProvince(city.cityName) },
@@ -474,19 +493,6 @@ class HomeViewModel(
         }
     }
 
-    fun toggleFavorite(item: FavoriteStationLine) {
-        viewModelScope.launch {
-            favorites.toggleFavorite(item)
-            refreshFavoritesRealtime()
-        }
-    }
-
-    fun removeFavorite(id: String) {
-        viewModelScope.launch {
-            favorites.removeFavorite(id)
-        }
-    }
-
     fun setEngineMode(mode: EngineMode) {
         settings.setEngineMode(mode)
     }
@@ -499,12 +505,48 @@ class HomeViewModel(
         setEngineMode(nextMode)
     }
 
+    /** 分组 chips：null =「全部」；不存在的分组当「全部」 */
+    fun selectGroup(groupId: String?) {
+        edit { state ->
+            val valid = groupId?.takeIf { id -> state.favoriteGroups.any { it.id == id } }
+            state.copy(selectedGroupId = valid)
+        }
+    }
+
     fun stopTracking() {
-        // 停止追踪（单线路和分组一样）；仓库会立刻变成未追踪，追踪卡随之消失
+        // 停止追踪（单线路、路线、一起等一样）；仓库会立刻变成未追踪（路线状态一起清），追踪卡随之消失
         try {
             trackingController.stopTracking()
         } catch (_: Exception) {
         }
+    }
+
+    /** 点「乘车码」：选了平台就直接打开；「每次询问」才弹选择（v3，不藏在长按里） */
+    fun onTransitCodeClicked() {
+        when (val provider = settings.preferredTransitCodeProvider.value) {
+            TransitCodeProvider.ASK_ALWAYS -> edit { it.copy(isTransitCodeSheetOpen = true) }
+            else -> transitCodeLauncher.open(provider)
+        }
+    }
+
+    /** 在选择弹层里选了平台；勾了「以后都用这个」就记成默认 */
+    fun onTransitCodeChosen(provider: TransitCodeProvider, saveAsDefault: Boolean) {
+        edit { it.copy(isTransitCodeSheetOpen = false) }
+        if (provider == TransitCodeProvider.ASK_ALWAYS) return
+        if (saveAsDefault) {
+            viewModelScope.launch { settings.setPreferredTransitCodeProvider(provider) }
+        }
+        // 打不开（没装）时 Android 实现自己会弹 Toast，这里不再重复提示
+        transitCodeLauncher.open(provider)
+    }
+
+    fun onMessageShown(id: Long) {
+        edit { state -> state.copy(userMessages = state.userMessages.filterNot { it.id == id }) }
+    }
+
+    private fun addMessage(text: String) {
+        val id = nextMessageId++
+        edit { state -> state.copy(userMessages = state.userMessages + UserMessage(id, text)) }
     }
 
     override fun onCleared() {
@@ -513,18 +555,11 @@ class HomeViewModel(
     }
 
     companion object {
-        const val DEFAULT_NEARBY_STOPS_LIMIT = 4
-        const val MAX_NEARBY_STOPS_LIMIT = 16
-        const val NEARBY_STOPS_LIMIT = 4
+        /** 附近站固定 6 个（v3：删掉「附近站数」设置） */
+        const val NEARBY_STOPS_LIMIT = 6
         const val POLLING_INTERVAL_MS = 15_000L
 
-        /** 主动定位的收集窗口（定位算法已移到 [DefaultLocationRepository]） */
-        const val LOCATION_WINDOW_MS = DefaultLocationRepository.LOCATION_WINDOW_MS
-
-        /** 精度达到该值即可提前结束定位收集 */
-        const val GOOD_ACCURACY_METERS = DefaultLocationRepository.GOOD_ACCURACY_METERS
-
-        /** 兜底使用的旧定位最大年龄 */
-        const val MAX_STALE_LOCATION_AGE_MS = DefaultLocationRepository.MAX_STALE_LOCATION_AGE_MS
+        const val LOCATION_UNAVAILABLE = "定位不可用，已保留当前位置"
+        const val NEARBY_FAILED = "附近站没刷出来，下拉再试一次"
     }
 }

@@ -35,12 +35,12 @@
 
 ## 3. 测试目录与套件清单
 
-`./gradlew test` 共跑 84 个测试类、798 个用例：
+`./gradlew test` 共跑 86 个测试类、816 个用例：
 
 | 模块 | 测试类 | 模块 | 测试类 |
 | :--- | :--- | :--- | :--- |
-| `:androidApp` | 24 | `:core:ui` | 3 |
-| `:composeApp` | 2 | `:feature:bus` | 2 |
+| `:androidApp` | 24 | `:core:ui` | 4 |
+| `:composeApp` | 2 | `:feature:bus` | 3 |
 | `:core:data` | 12 | `:feature:favorites` | 3 |
 | `:core:database` | 1 | `:feature:line` | 5 |
 | `:core:datastore` | 1 | `:feature:me` | 2 |
@@ -100,10 +100,12 @@ Koin 由 `TrackrApp.onCreate` 启动，Robolectric 用例里每个用例都会�
 | 模块 / 目录 | 测试类 | 覆盖范围 | 运行方式 |
 | :--- | :--- | :--- | :--- |
 | `:core:ui` `ui/util` | `PollingCoordinatorTest` | 定时 / 倒计时轮询策略：按周期触发、每秒倒计时到点触发、动作抛异常不打断；协调器生命周期与手动控制、重启倒计时（关了自动轮询也通知 tick）、scope 取消后停止 | commonTest（JVM；iOS 只编译和链接测试，不跑） |
+| `:core:ui` `ui/components/transitcode` | `TransitCodeFabTest` | 乘车码悬浮按钮：默认展开、点一下就打开；往下滑缩成图标（读屏仍读「乘车码」、能点）、往上滑展开；小于 8 px 的抖动不切换、在顶部继续下拉也展开 | Robolectric Compose UI |
 | `:core:ui` `ui/components` | `BusArrivalBadgeTest` | 到站状态徽标文字与高亮（走 `ArrivalText`）：到站、快到算到站、0 站未到算下一站、剩余站数带 / 不带 ETA、3 分钟内高亮、站序无效、优先用状态文字、没车兜底 | androidHostTest（只 JVM） |
 | `:core:ui` `ui/screens/favoritesgroup` | `TransitGroupCardTextTest` | 分组卡片文案：乘车站数（没对齐显示待定）、直达 / 换乘摘要、上车时间（首程 ETA + 乘车站数、步行按 80 米/分、第三程累加前面各程、乘车中以下车站为锚点、前一程没对齐给空）、跟车阶段标签与进度、换乘前下一程实时、卡片大字（等车 / 未追踪 / 乘车中到站） | androidHostTest（只 JVM） |
-| `:feature:bus` `ui/screens/home` | `HomeViewModelTest` | 首页：初始加载已选城市、切城市、城市汉字与拼音过滤、按数据源过滤城市、收藏监听；切数据源立即刷新附近站、附近站数量变了重刷；启动定位（没存城市切到定位城市、存过就保留、离开已存城市回到城市中心）、下拉刷新保留城市、城市选择器里重新定位；结束追踪；轮询暂停恢复，`setPollingActive` 恢复时离上次刷新 ≥15 秒立即补刷、不到不补；没可用定位时报错并保留位置 | commonTest（JVM；iOS 只编译和链接测试，不跑） |
-| `:feature:bus` `ui/components/citypicker` | `CityPickerItemRowTest` | 城市选择列表项渲染与点击、没省份标签时不显示省份 | Robolectric Compose UI |
+| `:feature:bus` `feature/bus/home` | `BusHomeViewModelTest` | 公交首页（第 19 步由 `HomeViewModelTest` 改名，原用例全部保留）：初始加载已选城市、切城市、城市汉字与拼音过滤、按数据源过滤城市、收藏监听；切数据源立即刷新附近站、附近站固定 6 个（「附近站数」设置不再影响首页）；启动定位（没存城市切到定位城市、存过就保留、离开已存城市回到城市中心）、下拉刷新保留城市、城市选择器里重新定位；结束追踪（追踪卡消失、路线状态清掉）；轮询暂停恢复，`setPollingActive` 恢复时离上次刷新 ≥15 秒立即补刷、不到不补；没可用定位时报错并保留位置；收藏合一（车和路线一个列表、分组 chips 筛选、分组删了回到「全部」）、没车时写下一班发车时间、数据没变沿用旧实例；乘车码（选了平台直接开、「每次询问」弹选择、勾「以后都用这个」才记成默认）；附近站请求失败发一次性消息 | commonTest（JVM；iOS 未验） |
+| `:feature:bus` `feature/bus/home` | `BusHomeScreenTest` | 无状态 `BusHomeScreen`：标题是城市名、没有乘车码卡、悬浮按钮发事件；收藏行写上车站和「始发 → 终点」、点开线路页、「编辑」；有分组才显示 chips；没收藏一句话、没有「编辑」；一起等卡最先到的放大、多于 3 条折叠成「还有 N 条」点开展开、「结束」；附近站线路行进线路页、站名进站点页 | Robolectric Compose UI |
+| `:feature:bus` `feature/bus/citypicker` | `CityPickerItemRowTest` | 城市选择列表项渲染与点击、没省份标签时不显示省份 | Robolectric Compose UI |
 | `:feature:search` `ui/screens/search` | `SearchViewModelTest` | 搜索（第 17 步从首页拆出来）：搜索历史加入去重排序、删一条、清空、容量上限；输入防抖 300 ms 后只搜一次、关键字去首尾空格、防抖内换词取消旧的、新词取消进行中的请求、「搜索中」状态；空查询清结果并取消待发的搜索；换城市清结果保留查询词、换数据源有词才重搜；用选中城市和首页当前坐标搜（拆分前读首页的 currentLat / currentLng，经 `HomeCoordinates` 传过来），没有首页坐标时用 GPS、再没有用城市中心 | commonTest（JVM；iOS 只编译和链接测试，不跑） |
 | `:feature:stop` `ui/screens/stopdetail` | `StopDetailViewModelTest` | 站点详情：初次加载站台并解析站名、切物理站台后用那个站台刷新、收藏切换、轮询暂停恢复、上一轮没回来跳过本轮、回到页面只在数据过时时刷新（关了自动轮询不刷） | commonTest（JVM；iOS 只编译和链接测试，不跑） |
 | `:feature:line` `ui/screens/linedetail` | `LineDetailViewModelTest` | 线路详情：初次加载（带目标站序只请求一次、不带时为默认站补一次）、选站并重置倒计时、跟车、走向条横纵切换、收藏切换、乘车码弹层与偏好、提醒站数夹在范围内、开始追踪传单线路目标、车都过了用时刻表补下一班（快来的车不用）、上一轮没回来跳过、回到页面只在过时时刷新 | commonTest（JVM；iOS 只编译和链接测试，不跑） |
@@ -177,7 +179,7 @@ Koin 由 `TrackrApp.onCreate` 启动，Robolectric 用例里每个用例都会�
 
 ```bash
 ./gradlew :feature:line:testAndroidHostTest --tests "com.trackr.ui.screens.linedetail.LineDetailViewModelTest"
-./gradlew :feature:bus:testAndroidHostTest --tests "com.trackr.ui.screens.home.HomeViewModelTest"
+./gradlew :feature:bus:testAndroidHostTest --tests "com.trackr.feature.bus.home.BusHomeViewModelTest"
 ```
 
 ### 运行 Compose UI 测试

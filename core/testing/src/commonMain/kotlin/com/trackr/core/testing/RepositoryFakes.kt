@@ -280,6 +280,9 @@ class FakeRealtimeRepository(
     /** 记录每次附近站点查询的 (城市, 纬度, 经度) */
     val nearbyStopsCalls: MutableList<Triple<TransitCity, Double, Double>> = mutableListOf()
 
+    /** 每次附近站点查询的 limit（和 [nearbyStopsCalls] 一一对应） */
+    val nearbyStopsLimits: MutableList<Int> = mutableListOf()
+
     /** 可按查询坐标返回不同结果；为 null 时统一返回 [nearbyStopsResult] */
     var nearbyStopsResultProvider: ((TransitCity, Double, Double) -> Result<List<NearbyStop>>)? = null
 
@@ -295,6 +298,7 @@ class FakeRealtimeRepository(
         limit: Int
     ): Result<List<NearbyStop>> {
         nearbyStopsCalls += Triple(city, wgsLat, wgsLng)
+        nearbyStopsLimits += limit
         return nearbyStopsResultProvider?.invoke(city, wgsLat, wgsLng) ?: nearbyStopsResult
     }
 

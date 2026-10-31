@@ -1,0 +1,64 @@
+package com.trackr.feature.bus.home
+
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleStartEffect
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.trackr.core.navigation.Navigator
+import com.trackr.core.navigation.ScreenKey
+
+/**
+ * 公交首页的 Route：接 ViewModel、轮询开关和导航，页面本身是无状态的 [BusHomeScreen]。
+ */
+@Composable
+fun BusHomeRoute(viewModel: BusHomeViewModel, navigator: Navigator) {
+    // 首页轮询只在 App 前台、首页显示着时进行（重构计划 §4.4）：首页 entry 在组合里就是「首页页签 + 在栈顶」，
+    // 进详情 / 切页签时 entry 离开组合即停；STARTED 这一档沿用原来 shouldPollHome 的口径
+    LifecycleStartEffect(viewModel) {
+        viewModel.setPollingActive(true)
+        onStopOrDispose { viewModel.setPollingActive(false) }
+    }
+
+    val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val lifecycleOwner = LocalLifecycleOwner.current
+
+    val onEvent: (BusHomeEvent) -> Unit = remember(viewModel, navigator, lifecycleOwner) {
+        { event ->
+            // 导航只在 RESUMED 时执行：防快速连点压两个页面（原 dropUnlessResumed）
+            val canNavigate = lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)
+            when (event) {
+                BusHomeEvent.OpenSearch -> if (canNavigate) navigator.open(ScreenKey.Search)
+                is BusHomeEvent.OpenLine -> if (canNavigate) navigator.open(event.target.toKey())
+                is BusHomeEvent.OpenStop -> if (canNavigate) navigator.open(event.target.toKey())
+                // 「编辑」和路线：新编辑页、路线详情在第 22 步做，先开旧收藏页（第 17 步起它是首页栈的子页）
+                BusHomeEvent.EditFavorites,
+                is BusHomeEvent.OpenRoute -> if (canNavigate) navigator.open(ScreenKey.FavoritesGroup)
+                else -> viewModel.onEvent(event)
+            }
+        }
+    }
+
+    BusHomeScreen(state = state, onEvent = onEvent)
+}
+
+private fun LineTarget.toKey(): ScreenKey.LineDetail = ScreenKey.LineDetail(
+    cityId = cityId,
+    lineId = lineId,
+    targetOrder = targetOrder,
+    stopId = stopId,
+    source = source,
+    lineName = lineName
+)
+
+private fun StopTarget.toKey(): ScreenKey.StopDetail = ScreenKey.StopDetail(
+    cityId = cityId,
+    stopId = stopId,
+    stopName = stopName,
+    physicalStId = physicalStId,
+    namesakeStId = namesakeStId,
+    lat = lat,
+    lng = lng
+)

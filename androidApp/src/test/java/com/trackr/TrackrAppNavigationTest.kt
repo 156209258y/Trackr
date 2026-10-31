@@ -13,12 +13,13 @@ import androidx.compose.ui.test.performClick
 import androidx.test.core.app.ApplicationProvider
 import com.trackr.app.TrackrRoot
 import com.trackr.core.model.TransitCity
+import com.trackr.core.model.FavoriteStationLine
 import com.trackr.core.testing.FakeFavoritesRepository
 import com.trackr.core.testing.FakeLocationRepository
 import com.trackr.core.testing.FakeRealtimeRepository
 import com.trackr.core.testing.FakeSettingsRepository
 import com.trackr.core.testing.FakeUserLocationStore
-import com.trackr.ui.screens.home.HomeViewModel
+import com.trackr.feature.bus.home.BusHomeViewModel
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -53,7 +54,7 @@ class TrackrAppNavigationTest {
     private val settings = FakeSettingsRepository(city)
     private val realtime = FakeRealtimeRepository(currentCity = { settings.selectedCity.value })
     private var now = 1_000_000L
-    private lateinit var homeViewModel: HomeViewModel
+    private lateinit var homeViewModel: BusHomeViewModel
 
     @Before
     fun setUp() {
@@ -66,14 +67,16 @@ class TrackrAppNavigationTest {
         loadKoinModules(
             module {
                 viewModel {
-                    HomeViewModel(
+                    BusHomeViewModel(
                         settings = settings,
-                        favorites = FakeFavoritesRepository(),
+                        // 有一条收藏，首页才显示「编辑」
+                        favorites = FakeFavoritesRepository(initialFavorites = listOf(SAMPLE_FAVORITE)),
                         realtime = realtime,
                         userLocationStore = FakeUserLocationStore(),
                         locationRepository = FakeLocationRepository(),
                         trackingController = get(),
                         trackingRepository = get(),
+                        transitCodeLauncher = get(),
                         enableAutoPolling = true,
                         elapsedRealtimeMillis = { now }
                     )
@@ -129,7 +132,7 @@ class TrackrAppNavigationTest {
     @Test
     fun openSearch_stopsHomePolling_andBackWithinInterval_doesNotRefreshImmediately() {
         launch()
-        composeTestRule.onNodeWithText("公交线路、车站", substring = true).performClick()
+        composeTestRule.onNodeWithText("搜线路、车站").performClick()
         composeTestRule.waitForIdle()
         assertFalse("进搜索页（首页栈上的子页）后首页停轮询", homeViewModel.isPollingActive)
 
@@ -144,18 +147,18 @@ class TrackrAppNavigationTest {
     @Test
     fun favoritesGroup_isChildPageOfHome_andBackReturnsHome() {
         launch()
-        // 「收藏」不再是页签：首页「管理路线组」把旧收藏页压在首页栈上
+        // 「收藏」不再是页签：首页收藏的「编辑」把旧收藏页压在首页栈上（新编辑页第 22 步）
         // 底栏页签带 Selected 语义；不应再有叫「收藏」的页签
         val favoriteTabs = composeTestRule.onAllNodes(
             hasText("收藏") and SemanticsMatcher.keyIsDefined(SemanticsProperties.Selected)
         ).fetchSemanticsNodes()
         assertTrue("底栏不应再有「收藏」页签", favoriteTabs.isEmpty())
-        composeTestRule.onNodeWithText("管理路线组 / 查看全部 ›").performClick()
+        composeTestRule.onNodeWithText("编辑").performClick()
         composeTestRule.waitForIdle()
         assertFalse("收藏页盖住首页：首页停轮询", homeViewModel.isPollingActive)
 
         pressBack()
-        composeTestRule.onNodeWithText("管理路线组 / 查看全部 ›").assertExists()
+        composeTestRule.onNodeWithText("编辑").assertExists()
         assertTrue(homeViewModel.isPollingActive)
     }
 
@@ -175,11 +178,26 @@ class TrackrAppNavigationTest {
         composeTestRule.waitForIdle()
 
         assertNotSame("恢复后是新建的首页 ViewModel", before, homeViewModel)
-        composeTestRule.onNodeWithText("管理路线组 / 查看全部 ›").assertDoesNotExist()
+        composeTestRule.onNodeWithText("编辑").assertDoesNotExist()
         assertFalse("首页没显示：新建的首页 ViewModel 不轮询", homeViewModel.isPollingActive)
 
         composeTestRule.onNodeWithText("首页").performClick()
         composeTestRule.waitForIdle()
         assertTrue("切回首页开始轮询", homeViewModel.isPollingActive)
+    }
+
+    private companion object {
+        val SAMPLE_FAVORITE = FavoriteStationLine(
+            id = "fav_1",
+            cityId = "034",
+            cityName = "上海",
+            lineId = "l1",
+            lineName = "49路",
+            startStop = "A",
+            endStop = "B",
+            targetStopId = "s1",
+            targetStopName = "人民广场",
+            targetOrder = 2
+        )
     }
 }

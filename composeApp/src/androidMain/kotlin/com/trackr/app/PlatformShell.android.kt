@@ -33,7 +33,7 @@ import com.trackr.ui.screens.favoritesedit.FavoritesEditViewModel
 import com.trackr.ui.screens.favoritesgroup.FavoritesGroupScreen
 import com.trackr.ui.screens.routedetail.RouteDetailViewModel
 import com.trackr.ui.navigation.LocalAppViewModelStoreOwner
-import com.trackr.ui.screens.home.HomeViewModel
+import com.trackr.feature.bus.home.BusHomeViewModel
 import com.trackr.ui.screens.routeplan.ProvideAmapMapSession
 import org.koin.compose.viewmodel.koinViewModel
 
@@ -53,7 +53,7 @@ internal actual fun bottomTabIcon(key: ScreenKey): ImageVector = when (key) {
 internal actual fun PermissionOnboarding() {
     val context = LocalContext.current
     // 首页 ViewModel 是 Activity 级的，和首页拿到的是同一个实例
-    val homeViewModel: HomeViewModel = koinViewModel(viewModelStoreOwner = LocalAppViewModelStoreOwner.current)
+    val homeViewModel: BusHomeViewModel = koinViewModel(viewModelStoreOwner = LocalAppViewModelStoreOwner.current)
 
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions()

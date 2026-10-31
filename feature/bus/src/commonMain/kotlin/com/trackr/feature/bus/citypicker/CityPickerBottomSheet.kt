@@ -1,4 +1,4 @@
-package com.trackr.ui.components.citypicker
+package com.trackr.feature.bus.citypicker
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -20,11 +20,6 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.MyLocation
-import androidx.compose.material.icons.filled.Place
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
@@ -43,11 +38,17 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.trackr.core.designsystem.component.DataSourceBadge
+import com.trackr.core.designsystem.component.DataSourceBadgeStyle
 import com.trackr.core.designsystem.component.TrackrBottomSheet
+import com.trackr.core.designsystem.resources.Res
+import com.trackr.core.designsystem.resources.ic_close
+import com.trackr.core.designsystem.resources.ic_my_location
+import com.trackr.core.designsystem.resources.ic_search
 import com.trackr.core.model.DataSourceType
 import com.trackr.core.model.ProvinceCityCatalog
 import com.trackr.core.model.TransitCity
-import com.trackr.ui.components.common.DataSourceBadge
+import org.jetbrains.compose.resources.vectorResource
 
 /**
  * 城市项条目卡片 (统一用于搜索过滤列表与省份展开列表，消除近 100 行重复渲染逻辑)
@@ -154,14 +155,16 @@ fun CityPickerItemRow(
                 }
                 if (city.cityId.isNotBlank()) {
                     DataSourceBadge(
-                        source = DataSourceType.CHELAILE,
+                        style = DataSourceBadgeStyle.CHELAILE,
+                        text = DataSourceType.CHELAILE.displayName,
                         shape = RoundedCornerShape(4.dp),
                         contentPadding = PaddingValues(horizontal = 4.dp, vertical = 1.dp)
                     )
                 }
                 if (!city.mygolbsCityCode.isNullOrBlank()) {
                     DataSourceBadge(
-                        source = DataSourceType.MYGOLBS,
+                        style = DataSourceBadgeStyle.MYGOLBS,
+                        text = DataSourceType.MYGOLBS.displayName,
                         shape = RoundedCornerShape(4.dp),
                         contentPadding = PaddingValues(horizontal = 4.dp, vertical = 1.dp)
                     )
@@ -222,7 +225,7 @@ fun CityPickerBottomSheet(
                     )
                 }
                 IconButton(onClick = onDismiss) {
-                    Icon(imageVector = Icons.Default.Close, contentDescription = "关闭")
+                    Icon(imageVector = vectorResource(Res.drawable.ic_close), contentDescription = "关闭")
                 }
             }
 
@@ -237,12 +240,12 @@ fun CityPickerBottomSheet(
                 singleLine = true,
                 shape = RoundedCornerShape(16.dp),
                 leadingIcon = {
-                    Icon(imageVector = Icons.Default.Search, contentDescription = "搜索")
+                    Icon(imageVector = vectorResource(Res.drawable.ic_search), contentDescription = "搜索")
                 },
                 trailingIcon = {
                     if (searchQuery.isNotEmpty()) {
                         IconButton(onClick = { onSearchQueryChange("") }) {
-                            Icon(imageVector = Icons.Default.Close, contentDescription = "清除")
+                            Icon(imageVector = vectorResource(Res.drawable.ic_close), contentDescription = "清除")
                         }
                     }
                 }
@@ -323,7 +326,7 @@ fun CityPickerBottomSheet(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Icon(
-                                imageVector = Icons.Default.Place,
+                                imageVector = vectorResource(Res.drawable.ic_my_location),
                                 contentDescription = null,
                                 modifier = Modifier.size(14.dp),
                                 tint = MaterialTheme.colorScheme.primary
@@ -349,7 +352,7 @@ fun CityPickerBottomSheet(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Icon(
-                                imageVector = Icons.Default.MyLocation,
+                                imageVector = vectorResource(Res.drawable.ic_my_location),
                                 contentDescription = null,
                                 modifier = Modifier.size(14.dp),
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant

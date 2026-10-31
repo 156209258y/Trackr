@@ -24,7 +24,7 @@
 2. **协程测试**。带轮询的 ViewModel 传入 `enableAutoPolling = false`，避免测试调度器死循环。
 3. **验证命令**
    - 运行全量测试：`./gradlew test`
-   - 运行单个测试类：`./gradlew :feature:bus:testAndroidHostTest --tests "com.trackr.ui.screens.home.HomeViewModelTest"`（`:androidApp` 里的测试用 `./gradlew :androidApp:testDebugUnitTest --tests "com.trackr.TrackrAppNavigationTest"`）
+   - 运行单个测试类：`./gradlew :feature:bus:testAndroidHostTest --tests "com.trackr.feature.bus.home.BusHomeViewModelTest"`（`:androidApp` 里的测试用 `./gradlew :androidApp:testDebugUnitTest --tests "com.trackr.TrackrAppNavigationTest"`）
    - 功能模块 / 根 Composable 的 iOS 只做编译和测试链接：`./gradlew :feature:bus:compileKotlinIosSimulatorArm64`、`./gradlew :feature:bus:linkDebugTestIosSimulatorArm64`（其他 `:feature:*`、`:composeApp`、`:core:ui` 同理）
    - KMP 模块测试：`./gradlew :core:domain:testAndroidHostTest`（JVM，`:core:network`、`:core:data` 同理）、`./gradlew :core:domain:iosSimulatorArm64Test`（需要 Xcode 和 iOS 模拟器运行时）
    - 导航测试：`./gradlew :core:navigation:testAndroidHostTest`（JVM + Robolectric）
@@ -39,9 +39,9 @@
   - 其余：存储（`StorageBackend`、USE_NEW_STORE 开关、旧 SharedPreferences 仓库 `TransitRepository` / `RouteGroupRepository` / `ScheduledReminderRepository`）、定位、高德 Key 存储与同步、更新检查、追踪服务与通知、厂商适配、广播、小组件。
   - 依赖规则：正式代码只依赖 `:composeApp` 和 `:core:*`，不直接依赖 `:feature:*`（`testImplementation` 可以，截图和 Koin 图校验要用）。
 - `:composeApp`（目录 `composeApp/`）：根 Composable，KMP + CMP，Android namespace `com.trackr.composeapp`。`TrackrRoot()`：主题、底栏（3 个页签：首页、路线规划、更多）、`NavDisplay`，把各 feature 的 `xxxEntries` 和 Koin 模块组装起来（`trackrModules` = `routeDataModule` + 各 feature 的 `xxxModule` + 平台模块，Android 多一个 `routeAndroidModule`）。旧收藏页 `FavoritesGroupScreen` 放 `androidMain`（同时用 `:feature:favorites` 和 `:feature:route` 的 ViewModel；不是页签，压在首页栈上，第 22 步删）。依赖全部 `:feature:*` 和 `:core:*`，不依赖 `:androidApp`。测试在 `src/androidHostTest`（Robolectric）。
-- `:core:ui`（目录 `core/ui/`）：业务通用组件，KMP + CMP。两个以上 feature 用的东西放这里：`commonMain` 放纯逻辑（`PollingCoordinator`、`PendingScreen`、导航工具）；第 17 步搬来的旧组件（`BusArrivalBadge`、分组卡片文案）和 `LiveUpdateSettings` 接口先放 `androidMain`。只依赖 `:core:*`。
+- `:core:ui`（目录 `core/ui/`）：业务通用组件，KMP + CMP。两个以上 feature 用的东西放这里：`commonMain` 放纯逻辑（`PollingCoordinator`、`PendingScreen`、导航工具）和 v3 共享组件（第 19 步：`transitcode/TransitCodeFab`、`TransitCodeChooserSheet`，`arrival/ArrivalUi`、`ArrivalTrailing`、`LineBadge`、`arrivalToneColor`）；第 17 步搬来的旧组件（`BusArrivalBadge`、分组卡片文案）和 `LiveUpdateSettings` 接口先放 `androidMain`。只依赖 `:core:*`。
 - `:feature:*`（目录 `feature/<名字>/`）：功能模块，都用 `trackr.kmp.feature`。包名沿用搬来前的（`com.trackr.ui.screens.*`），模块入口在 `com.trackr.feature.<名字>`。
-  - `:feature:bus`：首页（`HomeViewModel`）、城市选择。
+  - `:feature:bus`：v3 公交首页（第 19 步，全在 `commonMain`，包 `com.trackr.feature.bus`）：`BusHomeRoute` + 无状态 `BusHomeScreen(state, onEvent)`、`BusHomeViewModel`、城市选择。
   - `:feature:search`：搜索（`SearchViewModel`）。
   - `:feature:stop`：站点详情（`StopDetailViewModel`）。
   - `:feature:line`：线路详情（`LineDetailViewModel`）、时刻表、走向条、定时提醒入口、乘车码弹层（`androidMain/res` 中英文案）。
