@@ -44,6 +44,9 @@ object SettingsKeys {
 
     /** 追踪通知锁屏显示全部内容（D3，第 13 步新加，旧存储没有这个键）；没有 = 开 */
     val SHOW_ON_LOCK_SCREEN = booleanPreferencesKey("show_on_lock_screen")
+
+    /** 到站前提醒：车离上车站还有几站时提醒（第 25 步「我的」全局设置，1–3，旧存储没有这个键）；没有 = 2 */
+    val ALERT_THRESHOLD_STOPS = intPreferencesKey("alert_threshold_stops")
     val FAVORITES_GROUP_MIGRATION_VERSION = intPreferencesKey("favorites_group_migration_version")
 
     /** 旧 SharedPreferences 的设置导入到第几代（见 LegacySettingsMigration）；没有 = 还没导入 */

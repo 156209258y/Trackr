@@ -18,6 +18,8 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import com.trackr.core.testing.FakeReminderAlarms
+import com.trackr.data.local.SharedPrefsReminderStore
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 
@@ -234,5 +236,26 @@ class ScheduledReminderRepositoryTest {
 
         repository.toggleReminder("record-1", false)
         assertNull(ReminderAlarmScheduler.getLastScheduledTriggerMillis(context, "record-1"))
+    }
+    @Test
+    fun testEditExistingReminder_replacesInPlace_andReschedulesAlarm() = runTest(testDispatcher) {
+        // 第 25 步「我的」里能改提醒：同一个 id 再保存 = 原位替换（顺序不变）+ 按新时间重排闹钟
+        val alarms = FakeReminderAlarms()
+        val repo = ScheduledReminderRepository(SharedPrefsReminderStore(context), alarms, testDispatcher)
+        repo.saveReminder(sampleReminder("edit-1"))
+        repo.saveReminder(sampleReminder("edit-2"))
+        val firstTrigger = alarms.scheduled.getValue("edit-1")
+
+        val edited = repo.getReminderById("edit-1")!!.copy(hour = 9, minute = 40, daysOfWeek = setOf(6, 7), autoStartLiveTracking = true)
+        repo.saveReminder(edited)
+
+        assertEquals(listOf("edit-1", "edit-2"), repo.reminders.value.map { it.id })
+        assertEquals(edited, repo.getReminderById("edit-1"))
+        assertEquals(9 * 3_600_000L + 40 * 60_000L, alarms.scheduled.getValue("edit-1"))
+        assertTrue(alarms.scheduled.getValue("edit-1") != firstTrigger)
+        // 重新打开也是改过的
+        val reloaded = ScheduledReminderRepository(SharedPrefsReminderStore(context), alarms, testDispatcher)
+        assertEquals(edited, reloaded.getReminderById("edit-1"))
+        assertEquals(2, reloaded.reminders.value.size)
     }
 }

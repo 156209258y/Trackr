@@ -18,6 +18,7 @@ import com.trackr.core.model.TransitGroup
 import com.trackr.core.model.TransitLeg
 import com.trackr.core.model.UserFix
 import com.trackr.core.model.WatchLine
+import com.trackr.core.model.withAlertThresholdStops
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -1192,6 +1193,23 @@ class TrackingEngineTest {
         assertEquals("B", state.targetStopId)
         assertEquals(2, state.alertThresholdStops)
         assertEquals(TrackingLegParams(cityId = "hz", lineId = "L1", lineName = "156路", targetStopId = "B", targetOrder = 8), session.leg)
+    }
+
+    @Test
+    fun engine_route_usesTargetAlertThreshold_onEveryLeg() {
+        // 第 25 步：路线每一程都按目标里的到站前提醒（「我的」全局设置），不再写死 2；切到下一程也一样
+        val target = routeTarget().withAlertThresholdStops(3)
+        val first = assertNotNull(TrackingEngine.begin("s1", 1, target, NOW_MILLIS))
+        assertEquals(3, first.state.alertThresholdStops)
+
+        val next = assertNotNull(TrackingEngine.nextLeg(first, NOW_MILLIS + 1))
+        assertEquals(3, next.state.alertThresholdStops)
+
+        // 超出 1–3 夹到范围内；旧会话没这个字段时按 2
+        assertEquals(1, (routeTarget().withAlertThresholdStops(0) as TrackingTarget.Route).alertThresholdStops)
+        assertEquals(2, routeTarget().alertThresholdStops)
+        val single = singleTarget().withAlertThresholdStops(9) as TrackingTarget.SingleLine
+        assertEquals(3, single.alertThresholdStops)
     }
 
     @Test

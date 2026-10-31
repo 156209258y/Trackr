@@ -57,6 +57,7 @@ class NavigationStateRestorationTest {
         line49, stop, ScreenKey.More, ScreenKey.About,
         ScreenKey.RouteDetail(groupId = "g1"), ScreenKey.FavoritesEdit,
         ScreenKey.ChooseBoardedBus(sessionId = "s-1"),
+        ScreenKey.ReminderEdit(reminderId = "r1"), ScreenKey.AmapKey,
     )
 
     class PageViewModel : ViewModel() {
@@ -256,5 +257,7 @@ class NavigationStateRestorationTest {
             is ScreenKey.RouteDetail -> ScreenKey.RouteDetail.serializer()
             ScreenKey.FavoritesEdit -> ScreenKey.FavoritesEdit.serializer()
             is ScreenKey.ChooseBoardedBus -> ScreenKey.ChooseBoardedBus.serializer()
+            is ScreenKey.ReminderEdit -> ScreenKey.ReminderEdit.serializer()
+            ScreenKey.AmapKey -> ScreenKey.AmapKey.serializer()
         }.descriptor.serialName
 }

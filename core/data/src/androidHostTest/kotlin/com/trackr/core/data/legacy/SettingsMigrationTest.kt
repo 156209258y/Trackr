@@ -83,6 +83,18 @@ class SettingsMigrationTest {
     }
 
     @Test
+    fun settings_alertThresholdStops_copiedOnlyWhenPresent() = runBlocking {
+        // 旧版没有这个键（第 25 步新加）：不写，读的时候按默认 2
+        val untouched = LegacySettingsMigration(context, generation = 0).migrate(emptyPreferences())
+        assertNull(untouched[SettingsKeys.ALERT_THRESHOLD_STOPS])
+
+        // 退回旧存储期间改过：再导入时带上
+        LegacyFixtures.prefs(context, LegacyPrefs.TRANSIT).edit().putInt("alert_threshold_stops", 3).commit()
+        val result = LegacySettingsMigration(context, generation = 1).migrate(emptyPreferences())
+        assertEquals(3, result[SettingsKeys.ALERT_THRESHOLD_STOPS])
+    }
+
+    @Test
     fun settings_wrongType_isSkippedWithoutCrash() = runBlocking {
         LegacyFixtures.prefs(context, LegacyPrefs.TRANSIT).edit()
             .putInt("engine_mode", 3)

@@ -3,8 +3,11 @@ package com.trackr.util
 import android.app.AlarmManager
 import android.app.PendingIntent
 import android.content.Context
+import android.content.ActivityNotFoundException
 import android.content.Intent
+import android.net.Uri
 import android.os.Build
+import android.provider.Settings
 import android.util.Log
 import androidx.core.app.AlarmManagerCompat
 import com.trackr.core.data.local.ReminderScheduleStateStore
@@ -32,6 +35,8 @@ class ReminderAlarmScheduler(
 
     override fun canScheduleExact(): Boolean = canScheduleExact(appContext)
 
+    override fun openExactAlarmSettings(): Boolean = openExactAlarmSettings(appContext)
+
     override fun lastScheduledTriggerMillis(reminderId: String): Long? = scheduleState.get(reminderId)
 
     override fun schedule(reminder: ScheduledReminder) = scheduleReminder(appContext, reminder, scheduleState)
@@ -53,6 +58,31 @@ class ReminderAlarmScheduler(
             if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return true
             val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager ?: return false
             return alarmManager.canScheduleExactAlarms()
+        }
+
+        /**
+         * 打开本应用的「闹钟和提醒」授权页（Android 12+）；打不开时退回应用详情页。都打不开返回 false。
+         * Android 12 以下不用授权，直接返回 false（编辑页那时也不会显示「去设置」）。
+         */
+        fun openExactAlarmSettings(context: Context): Boolean {
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return false
+            val packageUri = Uri.fromParts("package", context.packageName, null)
+            val intents = listOf(
+                Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, packageUri),
+                Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, packageUri)
+            )
+            return intents.any { intent ->
+                try {
+                    context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                    true
+                } catch (e: ActivityNotFoundException) {
+                    Log.w(TAG, "Cannot open ${intent.action}", e)
+                    false
+                } catch (e: SecurityException) {
+                    Log.w(TAG, "Cannot open ${intent.action}", e)
+                    false
+                }
+            }
         }
 
         /**

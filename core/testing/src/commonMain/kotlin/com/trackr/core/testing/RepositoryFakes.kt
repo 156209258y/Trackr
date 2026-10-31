@@ -67,6 +67,9 @@ class FakeSettingsRepository(
     private val _showOnLockScreen = MutableStateFlow(true)
     override val showOnLockScreen: StateFlow<Boolean> = _showOnLockScreen.asStateFlow()
 
+    private val _alertThresholdStops = MutableStateFlow(2)
+    override val alertThresholdStops: StateFlow<Int> = _alertThresholdStops.asStateFlow()
+
     override fun setEngineMode(mode: EngineMode) {
         _engineMode.value = mode
     }
@@ -81,6 +84,10 @@ class FakeSettingsRepository(
 
     override fun setShowOnLockScreen(enabled: Boolean) {
         _showOnLockScreen.value = enabled
+    }
+
+    override fun setAlertThresholdStops(stops: Int) {
+        _alertThresholdStops.value = stops.coerceIn(1, 3)
     }
 
     override suspend fun selectCity(city: TransitCity) {

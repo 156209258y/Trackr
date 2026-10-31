@@ -29,6 +29,7 @@ class RoomDataStoreTransitStore(
             nearbyStopsCount = prefs[SettingsKeys.NEARBY_STOPS_COUNT],
             liveNotificationEnabled = prefs[SettingsKeys.LIVE_NOTIFICATION_ENABLED],
             showOnLockScreen = prefs[SettingsKeys.SHOW_ON_LOCK_SCREEN],
+            alertThresholdStops = prefs[SettingsKeys.ALERT_THRESHOLD_STOPS],
             searchHistory = db.searchHistory().getAll().map { it.query }
         )
     }
@@ -55,6 +56,10 @@ class RoomDataStoreTransitStore(
 
     override suspend fun saveShowOnLockScreen(enabled: Boolean) {
         settings.edit { it[SettingsKeys.SHOW_ON_LOCK_SCREEN] = enabled }
+    }
+
+    override suspend fun saveAlertThresholdStops(stops: Int) {
+        settings.edit { it[SettingsKeys.ALERT_THRESHOLD_STOPS] = stops }
     }
 
     override suspend fun saveSearchHistory(list: List<String>) {

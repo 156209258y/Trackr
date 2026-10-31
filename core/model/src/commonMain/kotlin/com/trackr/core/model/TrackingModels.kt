@@ -38,7 +38,9 @@ sealed interface TrackingTarget {
     data class Route(
         val group: TransitGroup,
         val startLeg: Int = 0,
-        val selectedLineIds: Map<Int, String> = emptyMap()
+        val selectedLineIds: Map<Int, String> = emptyMap(),
+        /** 每一程车离上车站 / 下车站还有几站时提醒（第 25 步起取「我的」里的全局设置；旧会话没有这个字段 = 2） */
+        val alertThresholdStops: Int = AlertThreshold.DEFAULT_STOPS
     ) : TrackingTarget
 
     /**
@@ -194,5 +196,22 @@ data class TrackingSession(
             trackingSessionState = state,
             isCompleted = false
         )
+    }
+}
+
+/** 到站前提醒的站数范围（「我的」全局设置、通知上的「切换」按钮都在这个范围里） */
+object AlertThreshold {
+    const val MIN_STOPS: Int = 1
+    const val MAX_STOPS: Int = 3
+    const val DEFAULT_STOPS: Int = 2
+}
+
+/** 换成 [stops] 站提醒（夹到 [AlertThreshold] 范围内）的同一个目标 */
+fun TrackingTarget.withAlertThresholdStops(stops: Int): TrackingTarget {
+    val value = stops.coerceIn(AlertThreshold.MIN_STOPS, AlertThreshold.MAX_STOPS)
+    return when (this) {
+        is TrackingTarget.SingleLine -> copy(alertThresholdStops = value)
+        is TrackingTarget.Route -> copy(alertThresholdStops = value)
+        is TrackingTarget.WatchTogether -> copy(alertThresholdStops = value)
     }
 }

@@ -212,6 +212,16 @@ class FakeReminderAlarms(
 
     override fun canScheduleExact(): Boolean = exactAllowed
 
+    /** 「去设置」被调了几次；[openSettingsResult] 是返回值（false = 打不开） */
+    var openSettingsCount: Int = 0
+        private set
+    var openSettingsResult: Boolean = true
+
+    override fun openExactAlarmSettings(): Boolean {
+        openSettingsCount++
+        return openSettingsResult
+    }
+
     override fun lastScheduledTriggerMillis(reminderId: String): Long? = scheduled[reminderId]
 }
 

@@ -9,6 +9,7 @@ import com.trackr.core.domain.platform.TrackingController
 import com.trackr.core.model.TrackingSession
 import com.trackr.core.model.TrackingTarget
 import com.trackr.core.model.UserFix
+import com.trackr.core.model.withAlertThresholdStops
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -18,6 +19,8 @@ import kotlinx.coroutines.launch
  * `:core:domain` 里 [TrackingController] 的 Android 实现：命令都写进 [TrackingRepository]，
  * 开始追踪时再用 sessionId 启动前台服务 [BusTrackingService]（服务收集仓库里的会话，结束 / 切程不用再发 Intent）。
  *
+ * @param alertThresholdStops 读「我的」里的到站前提醒站数（第 25 步）；每次开始追踪都写进目标，
+ *   线路页、站点页、路线、定时提醒的追踪都按它提醒
  * @param starter 启动前台服务（测试替换）；后台不允许时抛 IllegalStateException（Android 12+ 是
  *   ForegroundServiceStartNotAllowedException）或 SecurityException
  * @param appScope 应用级作用域：冷启动接续要等仓库把盘里的会话读完，不能阻塞 onStart（Koin 的 AppScopeQualifier）
@@ -26,6 +29,7 @@ class AndroidTrackingController(
     context: Context,
     private val repository: TrackingRepository,
     private val arrivalAlerts: ArrivalAlertNotifier? = null,
+    private val alertThresholdStops: () -> Int = { 2 },
     private val starter: (Context, String) -> Unit = { ctx, sessionId ->
         ContextCompat.startForegroundService(ctx, BusTrackingService.startIntent(ctx, sessionId))
     },
@@ -36,7 +40,7 @@ class AndroidTrackingController(
 
     override fun start(target: TrackingTarget): Boolean {
         val previous = repository.session.value
-        val session = repository.start(target) ?: return false
+        val session = repository.start(target.withAlertThresholdStops(alertThresholdStops())) ?: return false
         return try {
             starter(appContext, session.sessionId)
             true

@@ -42,9 +42,14 @@ import androidx.compose.runtime.getValue
 import com.trackr.feature.bus.home.BusHomeViewModel
 import com.trackr.ui.screens.linedetail.LineDetailScreen
 import com.trackr.ui.screens.linedetail.LineDetailViewModel
-import com.trackr.ui.screens.more.AboutScreen
-import com.trackr.ui.screens.more.MoreScreen
-import com.trackr.ui.screens.more.MoreViewModel
+import com.trackr.ui.platform.LiveUpdateAccess
+import com.trackr.ui.platform.LiveUpdateStatus
+import com.trackr.ui.screens.me.AboutScreen
+import com.trackr.ui.screens.me.AboutUiState
+import com.trackr.ui.screens.me.MeNotices
+import com.trackr.ui.screens.me.MeScreen
+import com.trackr.ui.screens.me.MeUiState
+import com.trackr.ui.screens.me.MeViewModel
 import com.trackr.ui.screens.search.SearchScreen
 import com.trackr.ui.screens.search.SearchViewModel
 import com.trackr.di.TransitUserLocationStore
@@ -796,16 +801,12 @@ class ScreenshotGeneratorTest {
 
     @Test
     fun generateMoreScreenLightScreenshot() {
-        val vm = setupMoreViewModel()
+        val state = meScreenshotState()
 
         composeTestRule.setContent {
             TrackrTheme(darkTheme = false) {
                 Surface(modifier = Modifier.fillMaxSize()) {
-                    MoreScreen(
-                        viewModel = vm,
-                        onNavigateToAbout = {},
-                        onNavigateToLineDetail = { _, _, _, _, _, _ -> }
-                    )
+                    MeScreen(state = state, onEvent = {})
                 }
             }
         }
@@ -816,16 +817,12 @@ class ScreenshotGeneratorTest {
 
     @Test
     fun generateMoreScreenDarkScreenshot() {
-        val vm = setupMoreViewModel()
+        val state = meScreenshotState()
 
         composeTestRule.setContent {
             TrackrTheme(darkTheme = true) {
                 Surface(modifier = Modifier.fillMaxSize()) {
-                    MoreScreen(
-                        viewModel = vm,
-                        onNavigateToAbout = {},
-                        onNavigateToLineDetail = { _, _, _, _, _, _ -> }
-                    )
+                    MeScreen(state = state, onEvent = {})
                 }
             }
         }
@@ -839,9 +836,7 @@ class ScreenshotGeneratorTest {
         composeTestRule.setContent {
             TrackrTheme(darkTheme = false) {
                 Surface(modifier = Modifier.fillMaxSize()) {
-                    AboutScreen(
-                        onNavigateBack = {}
-                    )
+                    AboutScreen(state = aboutScreenshotState, onEvent = {})
                 }
             }
         }
@@ -855,9 +850,7 @@ class ScreenshotGeneratorTest {
         composeTestRule.setContent {
             TrackrTheme(darkTheme = true) {
                 Surface(modifier = Modifier.fillMaxSize()) {
-                    AboutScreen(
-                        onNavigateBack = {}
-                    )
+                    AboutScreen(state = aboutScreenshotState, onEvent = {})
                 }
             }
         }
@@ -866,8 +859,10 @@ class ScreenshotGeneratorTest {
         saveScreenshot("12_about_screen_dark.png")
     }
 
-    private fun setupMoreViewModel(): MoreViewModel {
-        val fakeRepo = FakeTransitRepository(initialCity = shanghai)
+    private val aboutScreenshotState = AboutUiState(versionName = "0.0.3", canCheckUpdates = true, showLiveUpdateNote = true)
+
+    /** 「我的」页截图用的状态：两个定时提醒、小米焦点通知没开 */
+    private fun meScreenshotState(): MeUiState {
         val initialReminders = listOf(
             ScheduledReminder(
                 id = "rem_morning",
@@ -902,13 +897,18 @@ class ScreenshotGeneratorTest {
                 autoStartLiveTracking = false
             )
         )
-        val fakeReminderRepo = FakeScheduledReminderRepository(initialReminders = initialReminders)
-        val vm = MoreViewModel(
-            repository = fakeRepo,
-            reminderRepository = fakeReminderRepo,
-            amapKeys = FakeAmapKeyRepository()
+        val vm = MeViewModel(
+            settings = FakeTransitRepository(initialCity = shanghai),
+            reminderRepository = FakeScheduledReminderRepository(initialReminders = initialReminders),
+            amapKeys = FakeAmapKeyRepository(),
+            notices = MeNotices(),
+            liveUpdateAccess = object : LiveUpdateAccess {
+                override fun status() = LiveUpdateStatus(supported = true, allowed = false, systemName = "小米焦点通知")
+                override fun openSettings() = Unit
+            },
+            versionName = "0.0.3"
         )
         mainDispatcherRule.testDispatcher.scheduler.advanceUntilIdle()
-        return vm
+        return vm.uiState.value
     }
 }

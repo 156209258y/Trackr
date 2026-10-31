@@ -16,7 +16,9 @@ import com.trackr.data.repository.ITransitRepository
 import com.trackr.service.vendor.LiveUpdatePromotion
 import com.trackr.service.vendor.OppoFluidCloudAdapter
 import com.trackr.service.vendor.XiaomiFocusAdapter
+import com.trackr.ui.platform.LiveUpdateAccess
 import com.trackr.ui.platform.LiveUpdateSettings
+import com.trackr.ui.platform.LiveUpdateStatus
 import com.trackr.util.SignatureUtils
 import com.trackr.util.TransitCodeHelper
 import kotlinx.coroutines.flow.StateFlow
@@ -32,6 +34,8 @@ val platformBridgeModule: Module = module {
     single<TransitCodeLauncher> { AndroidTransitCodeLauncher(androidContext()) }
     single<AppSigningInfo> { AndroidAppSigningInfo(androidContext()) }
     single<LiveUpdateSettings> { AndroidLiveUpdateSettings }
+    // 「我的」页「状态栏胶囊」那一行（第 25 步）
+    single<LiveUpdateAccess> { AndroidLiveUpdateAccess(androidContext(), get()) }
     single<UserLocationStore> { TransitUserLocationStore(get()) }
     // 收藏分组一次性数据修复的版本号（原来在 viewModelModule 里给 FavoritesGroupViewModel 现建）
     single<LocalMigrationFlags> { StoreMigrationFlags(get()) }
@@ -75,6 +79,46 @@ object AndroidLiveUpdateSettings : LiveUpdateSettings {
     override fun openXiaomiNotificationSettings(context: Context) = XiaomiFocusAdapter.openNotificationSettings(context)
     override fun isColorOs(): Boolean = OppoFluidCloudAdapter.isColorOs()
     override fun openFluidCloudSettings(context: Context): Boolean = OppoFluidCloudAdapter.openFluidCloudSettings(context)
+}
+
+/**
+ * 「我的」页「状态栏胶囊」：判断和跳转和第 17 步「更多」页里的写法一样（经 [LiveUpdateSettings]，用 applicationContext；
+ * 厂商适配对象打开设置页时都带 NEW_TASK）。
+ */
+class AndroidLiveUpdateAccess(
+    context: Context,
+    private val settings: LiveUpdateSettings
+) : LiveUpdateAccess {
+    private val appContext: Context = context.applicationContext ?: context
+
+    private val supported: Boolean
+        get() = settings.isPromotionSupported() || settings.isXiaomiRom() || settings.isColorOs()
+
+    private fun allowed(): Boolean = when {
+        settings.isXiaomiRom() -> settings.canShowXiaomiFocus(appContext)
+        settings.isPromotionSupported() -> settings.canPromote(appContext)
+        else -> false
+    }
+
+    override fun status(): LiveUpdateStatus {
+        if (!supported) return LiveUpdateStatus(supported = false, allowed = false, systemName = "")
+        val name = when {
+            settings.isXiaomiRom() -> "小米焦点通知"
+            settings.isColorOs() -> "OPPO 流体云"
+            else -> "Android 实时活动"
+        }
+        return LiveUpdateStatus(supported = true, allowed = allowed(), systemName = name)
+    }
+
+    override fun openSettings() {
+        when {
+            !supported -> settings.openAppNotificationSettings(appContext)
+            !allowed() -> settings.openPromotionSettings(appContext)
+            settings.isXiaomiRom() -> settings.openXiaomiNotificationSettings(appContext)
+            settings.isColorOs() -> settings.openFluidCloudSettings(appContext)
+            else -> settings.openAppNotificationSettings(appContext)
+        }
+    }
 }
 
 /** 首页定位写入的最近坐标：仍存在 [ITransitRepository] 里，这里只是把那两个成员露给功能模块 */

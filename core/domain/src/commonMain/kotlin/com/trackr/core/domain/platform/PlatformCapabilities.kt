@@ -150,6 +150,12 @@ interface ReminderAlarms {
     /** 能否排精确闹钟（Android 12+ 要用户授权；只有精确闹钟到点才直接开追踪） */
     fun canScheduleExact(): Boolean
 
+    /**
+     * 打开系统的「闹钟和提醒」授权页（第 25 步，提醒编辑页「去设置」）。打不开时返回 false。
+     * 默认不支持：iOS 没有这个权限。
+     */
+    fun openExactAlarmSettings(): Boolean = false
+
     /** 这个提醒上次排的触发时刻（墙钟毫秒）；从没排过或已取消时为 null */
     fun lastScheduledTriggerMillis(reminderId: String): Long?
 }

@@ -52,6 +52,14 @@ sealed interface ScreenKey : NavKey {
     @Serializable
     data object About : ScreenKey
 
+    /** 编辑一个定时提醒（§3.1「我的」页签子页，第 25 步） */
+    @Serializable
+    data class ReminderEdit(val reminderId: String) : ScreenKey
+
+    /** 高德 Key（§3.1「我的」页签子页，第 25 步；原「更多」页的对话框） */
+    @Serializable
+    data object AmapKey : ScreenKey
+
     /** 路线详情（§3.1 公交页签子页，第 22 步做页面；第 17 步只占位） */
     @Serializable
     data class RouteDetail(val groupId: String) : ScreenKey

@@ -178,6 +178,11 @@ class TrackrAppNavigationTest {
         runCatching { GlobalContext.get().get<TrackingRepository>().stop() }
     }
 
+    /** 点底栏页签（第 25 步页签文字改成 公交 / 路线 / 我的；「我的」页标题也叫「我的」，所以只认带 Selected 语义的页签） */
+    private fun clickTab(label: String) {
+        composeTestRule.onNode(hasText(label) and SemanticsMatcher.keyIsDefined(SemanticsProperties.Selected)).performClick()
+    }
+
     private fun pressBack() {
         composeTestRule.activityRule.scenario.onActivity { it.onBackPressedDispatcher.onBackPressed() }
         composeTestRule.waitForIdle()
@@ -190,15 +195,15 @@ class TrackrAppNavigationTest {
     }
 
     @Test
-    fun switchToMoreTab_stopsHomePolling_andBackAfterOneInterval_catchesUpImmediately() {
+    fun switchToMeTab_stopsHomePolling_andBackAfterOneInterval_catchesUpImmediately() {
         launch()
-        composeTestRule.onNodeWithText("更多").performClick()
+        clickTab("我的")
         composeTestRule.waitForIdle()
-        assertFalse("切到「更多」后首页停轮询", homeViewModel.isPollingActive)
+        assertFalse("切到「我的」后首页停轮询", homeViewModel.isPollingActive)
 
         val callsBefore = realtime.nearbyStopsCalls.size
         now += 16_000L
-        composeTestRule.onNodeWithText("首页").performClick()
+        clickTab("公交")
         composeTestRule.waitForIdle()
 
         assertTrue("回到首页恢复轮询", homeViewModel.isPollingActive)
@@ -240,11 +245,11 @@ class TrackrAppNavigationTest {
 
     @Test
     fun restoredOntoAnotherTab_newHomeViewModelDoesNotPoll() {
-        // 进程被杀后恢复到「更多」：首页 ViewModel 是新建的（默认开着轮询），首页 Route 没组合，不能一直在后台轮询
+        // 进程被杀后恢复到「我的」：首页 ViewModel 是新建的（默认开着轮询），首页 Route 没组合，不能一直在后台轮询
         val restorationTester = StateRestorationTester(composeTestRule)
         restorationTester.setContent { Content() }
         composeTestRule.waitForIdle()
-        composeTestRule.onNodeWithText("更多").performClick()
+        clickTab("我的")
         composeTestRule.waitForIdle()
         val before = homeViewModel
 
@@ -257,7 +262,7 @@ class TrackrAppNavigationTest {
         composeTestRule.onNodeWithText("编辑").assertDoesNotExist()
         assertFalse("首页没显示：新建的首页 ViewModel 不轮询", homeViewModel.isPollingActive)
 
-        composeTestRule.onNodeWithText("首页").performClick()
+        clickTab("公交")
         composeTestRule.waitForIdle()
         assertTrue("切回首页开始轮询", homeViewModel.isPollingActive)
     }

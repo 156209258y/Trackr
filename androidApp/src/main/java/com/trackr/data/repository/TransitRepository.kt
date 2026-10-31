@@ -12,6 +12,7 @@ import com.trackr.core.data.repository.FavoritesRepository
 import com.trackr.core.data.repository.PlatformGeocoder
 import com.trackr.core.domain.platform.MonotonicClock
 import com.trackr.core.domain.platform.ProcessMonotonicClock
+import com.trackr.core.model.AlertThreshold
 import com.trackr.core.model.BusLineDetail
 import com.trackr.core.model.BusLineDirection
 import com.trackr.core.model.DataSourceType
@@ -101,6 +102,11 @@ class TransitRepository(
     private val _showOnLockScreen = MutableStateFlow(initial.showOnLockScreen ?: true)
     override val showOnLockScreen: StateFlow<Boolean> = _showOnLockScreen.asStateFlow()
 
+    private val _alertThresholdStops = MutableStateFlow(
+        (initial.alertThresholdStops ?: AlertThreshold.DEFAULT_STOPS).coerceIn(AlertThreshold.MIN_STOPS, AlertThreshold.MAX_STOPS)
+    )
+    override val alertThresholdStops: StateFlow<Int> = _alertThresholdStops.asStateFlow()
+
     private val _userLocation = MutableStateFlow<Pair<Double, Double>?>(null)
     override val userLocation: StateFlow<Pair<Double, Double>?> = _userLocation.asStateFlow()
 
@@ -148,6 +154,12 @@ class TransitRepository(
     override fun setShowOnLockScreen(enabled: Boolean) {
         _showOnLockScreen.value = enabled
         writer.enqueue { store.saveShowOnLockScreen(enabled) }
+    }
+
+    override fun setAlertThresholdStops(stops: Int) {
+        val clamped = stops.coerceIn(AlertThreshold.MIN_STOPS, AlertThreshold.MAX_STOPS)
+        _alertThresholdStops.value = clamped
+        writer.enqueue { store.saveAlertThresholdStops(clamped) }
     }
 
     private fun loadInitialEngineMode(): EngineMode {

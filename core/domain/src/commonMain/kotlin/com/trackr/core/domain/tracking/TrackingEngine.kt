@@ -183,7 +183,7 @@ object TrackingEngine {
                 totalStops = targetOrder.coerceAtLeast(boardOrder),
                 // 上车站 A 作为 WAITING_BOARD 阶段目标
                 startTrackingOrder = if (boardOrder > 0) boardOrder else (targetOrder - 1).coerceAtLeast(1),
-                alertThresholdStops = 2,
+                alertThresholdStops = target.alertThresholdStops,
                 groupId = group.id,
                 groupName = group.name,
                 currentLegIndex = legIndex,

@@ -48,10 +48,19 @@ interface SettingsRepository {
     /** 追踪通知在锁屏显示全部内容（D3），默认开；关了锁屏只显示「追客 · 追踪中」 */
     val showOnLockScreen: StateFlow<Boolean>
 
+    /**
+     * 到站前提醒（第 25 步「我的」全局设置）：车离上车站还有几站时提醒，1–3，默认 2。
+     * 开始追踪时写进追踪目标（Android：`AndroidTrackingController.start`）；通知上的「切换」只改这一次追踪。
+     */
+    val alertThresholdStops: StateFlow<Int>
+
     fun setEngineMode(mode: EngineMode)
     fun setNearbyStopsCount(count: Int)
     fun setLiveNotificationEnabled(enabled: Boolean)
     fun setShowOnLockScreen(enabled: Boolean)
+
+    /** 超出 1–3 时夹到范围内 */
+    fun setAlertThresholdStops(stops: Int)
     suspend fun selectCity(city: TransitCity)
     suspend fun setPreferredTransitCodeProvider(provider: TransitCodeProvider)
 }

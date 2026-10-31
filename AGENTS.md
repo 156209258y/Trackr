@@ -47,7 +47,7 @@
   - `:feature:line`：线路详情（`LineDetailViewModel`）、时刻表、走向条、定时提醒入口、乘车码弹层（`androidMain/res` 中英文案）。
   - `:feature:route`：路线规划（`RoutePlanViewModel`）、路线详情（`RouteDetailViewModel`）；高德 Android SDK 封装（`AmapSdkManager`、`AmapSdkKeyApplier`、`AndroidAmapRouteGateway`、地图会话）放 `androidMain`，Koin 在 `routeAndroidModule`。另依赖 `:core:network`。
   - `:feature:favorites`：编辑收藏（`FavoritesEditViewModel`，页面第 22 步做，现在是占位），以及旧收藏页用的卡片、分组弹窗组件。
-  - `:feature:me`：更多、关于、高德 Key（`MoreViewModel`、`AboutViewModel`）。
+  - `:feature:me`：我的、定时提醒编辑、高德 Key、关于（`MeViewModel`、`ReminderEditViewModel`、`AmapKeyViewModel`、`AboutViewModel`）；页面都在 commonMain。
   - 源集规则：ViewModel、UiState、Koin 模块 `xxxModule`、`expect fun xxxEntries(navigator)` 放 `commonMain`；旧 Screen 原样放 `androidMain`，`actual xxxEntries` 在 `androidMain` 接旧页面、`iosMain` 先放空壳（阶段 D 逐页重写进 `commonMain`）。`commonMain` 不写 `android.*`，要平台能力就经接口注入（`UserLocationStore`、`LiveUpdateSettings`、`MapSdkInitializer`、`AmapSdkKeyApplier`、`AppVersionInfo`）。
   - 依赖规则：feature 只依赖 `:core:*`，feature 之间不互相依赖。两个 feature 都要的东西下沉到 `:core:ui` 或 `:core:data`；同时用两个 feature 的页面放 `:composeApp`。
   - 测试：ViewModel 测试在 `src/commonTest`，Compose UI / SDK 测试在 `src/androidHostTest`（Robolectric，`resources/robolectric.properties` 里 `sdk=34`）。

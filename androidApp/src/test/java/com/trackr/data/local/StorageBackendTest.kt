@@ -172,6 +172,7 @@ class StorageBackendTest {
         val nearby: Int,
         val live: Boolean,
         val lockScreen: Boolean,
+        val alertStops: Int,
         val favorites: List<FavoriteStationLine>,
         val history: List<String>,
         val routes: List<TransitGroup>,
@@ -196,6 +197,7 @@ class StorageBackendTest {
             nearby = transit.nearbyStopsCount.value,
             live = transit.isLiveNotificationEnabled.value,
             lockScreen = transit.showOnLockScreen.value,
+            alertStops = transit.alertThresholdStops.value,
             favorites = transit.favorites.value,
             history = transit.searchHistory.value,
             routes = groups.groups.value,
@@ -269,6 +271,7 @@ class StorageBackendTest {
         transit.setEngineMode(EngineMode.CHELAILE)
         transit.addSearchHistory("万达")
         transit.setShowOnLockScreen(false)
+        transit.setAlertThresholdStops(3)
         backend.amapKeys.setWebKey("web-new")
         transit.flushWrites()
         (backend.amapKeys as com.trackr.core.data.repository.DefaultAmapKeyRepository).flush()
@@ -277,6 +280,7 @@ class StorageBackendTest {
         assertEquals(before, legacySnapshot())
         val reopened = seen(open())
         assertFalse(reopened.lockScreen)
+        assertEquals(3, reopened.alertStops)
         assertEquals(listOf("051_100_7"), reopened.favorites.map { it.id })
         assertEquals(EngineMode.CHELAILE, reopened.engine)
         assertEquals(listOf("万达", "59", "7路"), reopened.history)
@@ -301,6 +305,7 @@ class StorageBackendTest {
         )
         transit.removeFavorite("051_100_7")
         transit.setShowOnLockScreen(false)
+        transit.setAlertThresholdStops(1)
         transit.flushWrites()
         closeAll()
 
@@ -312,6 +317,7 @@ class StorageBackendTest {
         val seenBack = seen(back)
         assertEquals(listOf("mg_1"), seenBack.favorites.map { it.id })
         assertFalse(seenBack.lockScreen)
+        assertEquals(1, seenBack.alertStops)
     }
 
     @Test

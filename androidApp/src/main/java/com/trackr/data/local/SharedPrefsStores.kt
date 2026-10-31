@@ -60,6 +60,7 @@ class SharedPrefsTransitStore(private val prefs: SharedPreferences) : TransitLoc
         nearbyStopsCount = if (prefs.contains(KEY_NEARBY_STOPS_COUNT)) prefs.getInt(KEY_NEARBY_STOPS_COUNT, 4) else null,
         liveNotificationEnabled = if (prefs.contains(KEY_LIVE_NOTIFICATION)) prefs.getBoolean(KEY_LIVE_NOTIFICATION, true) else null,
         showOnLockScreen = if (prefs.contains(KEY_SHOW_ON_LOCK_SCREEN)) prefs.getBoolean(KEY_SHOW_ON_LOCK_SCREEN, true) else null,
+        alertThresholdStops = if (prefs.contains(KEY_ALERT_THRESHOLD_STOPS)) prefs.getInt(KEY_ALERT_THRESHOLD_STOPS, 2) else null,
         searchHistory = decodeOrEmpty(prefs.getString(KEY_SEARCH_HISTORY, null))
     )
 
@@ -87,6 +88,10 @@ class SharedPrefsTransitStore(private val prefs: SharedPreferences) : TransitLoc
         prefs.edit().putBoolean(KEY_SHOW_ON_LOCK_SCREEN, enabled).apply()
     }
 
+    override suspend fun saveAlertThresholdStops(stops: Int) {
+        prefs.edit().putInt(KEY_ALERT_THRESHOLD_STOPS, stops).apply()
+    }
+
     override suspend fun saveSearchHistory(list: List<String>) {
         prefs.edit().putString(KEY_SEARCH_HISTORY, legacyJson.encodeToString(list)).apply()
     }
@@ -110,6 +115,7 @@ class SharedPrefsTransitStore(private val prefs: SharedPreferences) : TransitLoc
         private const val KEY_NEARBY_STOPS_COUNT = "nearby_stops_count"
         private const val KEY_LIVE_NOTIFICATION = "is_live_notification_enabled"
         private const val KEY_SHOW_ON_LOCK_SCREEN = "show_on_lock_screen"
+        private const val KEY_ALERT_THRESHOLD_STOPS = "alert_threshold_stops"
         /** 收藏的车（[SharedPrefsFavoritesStore] 读写） */
         const val KEY_FAVORITES = "favorites_json"
         private const val KEY_SEARCH_HISTORY = "search_history_json"

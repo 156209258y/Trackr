@@ -299,10 +299,10 @@ private fun TrackrNavApp(
     }
 }
 
-/** 底栏文字（第 17 步页签改成 3 个，文字照旧；改名留给第 19 / 25 步） */
+/** 底栏文字（第 25 步按 v3 改成 公交 / 路线 / 我的；Key 名 Home / More 暂不改） */
 internal fun bottomTabLabel(key: ScreenKey): String = when (key) {
-    ScreenKey.Home -> "首页"
-    ScreenKey.RoutePlan -> "路线规划"
-    ScreenKey.More -> "更多"
+    ScreenKey.Home -> "公交"
+    ScreenKey.RoutePlan -> "路线"
+    ScreenKey.More -> "我的"
     else -> error("$key 不是顶层页签")
 }

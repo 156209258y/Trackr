@@ -81,12 +81,13 @@ Koin 由 `TrackrApp.onCreate` 启动，Robolectric 用例里每个用例都会�
 |  | `BackupRulesTest` | `backup_rules.xml` 和 `data_extraction_rules.xml` 两段：排除高德 Key（新旧两个文件）和追踪会话、不排除 `trackr.db` 和设置、没有 include、三段一样、Manifest 都接上了 | Robolectric (JVM) |
 | `data/repository` | `RouteGroupRepositoryTest` | 旧存储（SharedPreferences）上：路线分组与收藏分组增删改排序、并发写入不丢更新、JSON 损坏备份（第 14 步起经收藏合一仓库） | Robolectric (JVM) |
 |  | `RoomRouteGroupRepositoryTest` | 新存储（Room）上：读回逐字段一致（程、候选线、轨迹点）、清理假数据、删分组时路线一起改成不分组、排序和加候选线持久化、并发写入不丢更新 | Robolectric (JVM) |
-|  | `ScheduledReminderRepositoryTest` | 旧存储上：定时提醒增删改与持久化、并发写入不丢更新、JSON 损坏备份、计划触发时间记录 | Robolectric (JVM) |
+|  | `ScheduledReminderRepositoryTest` | 旧存储上：定时提醒增删改与持久化、编辑已有提醒是原位替换并按新时间重排闹钟、并发写入不丢更新、JSON 损坏备份、计划触发时间记录 | Robolectric (JVM) |
 |  | `RoomScheduledReminderRepositoryTest` | 新存储上：增删改与重开读回、并发保存 / 开关不丢更新、计划触发时刻存进 `reminder.lastScheduledTriggerAt` 并且改别的提醒时不被冲掉 | Robolectric (JVM) |
 | `di` | `KoinGraphVerifyTest` | Koin 依赖图：`appModule`、`platformBridgeModule`、`routeDataModule`、各 feature 的 `xxxModule` 和 `routeAndroidModule` 各自 `verify()`，静态检查构造参数都有绑定；`appModules` 就是这些模块按顺序拼起来；Robolectric 里把每个定义实际取一次（带参数的 ViewModel 用样例 key；`SearchViewModel` 给一个 `SavedStateHandle`） | Robolectric (JVM) |
 | `receiver` | `ScheduledReminderReceiverTest` | 定时提醒触发、自动跟车需精确闹钟、传给 `TrackingController` 的单线路目标；降级：非精确闹钟或启动被拒时改发通知并追加「系统限制未能自动开启跟车」提示，点「开启实时追踪」仍失败时保留通知、成功才关掉；点通知发 `trackr://line` 链接、解析出同一条线路详情（第 18 步） | Robolectric (JVM) |
 |  | `BootCompletedReceiverTest` | 开机禁用已错过的一次性提醒、时间变化重新调度、无关广播忽略 | Robolectric (JVM) |
 | `service` | `ArrivalAlertManagerTest` | 到站/临近提醒与实时通知并存时的去重 | Robolectric (JVM) |
+|  | `AndroidTrackingControllerTest` | 开始追踪时把「我的」里的到站前提醒写进目标、每次重读设置、后台不让启动前台服务时不留会话 | Robolectric (JVM) |
 |  | `LiveProgressNotificationHelperTest` | 实时进度通知进度计算与文案；一起等通知：标题写最先到的、正文只带第 2 条线、「我上车了 / 乘车码 / 结束」（乘车码发 `trackr://transit-code` 打开 App）、「上了哪辆？」和乘车中文字；有「上了哪辆？」待选时点通知发 `trackr://tracking/board?session=`、显式指向 `MainActivity`，没有待选照旧只拉起 App | Robolectric (JVM) |
 |  | `BusTrackingServiceTest` | 追踪服务：路线且有精确定位时前台服务带 `location` 类型、等车近站开定位；没有精确定位退回 `specialUse` 且不开定位；单线路不要 `location`；结束追踪时关定位并停服务；过时的启动请求先进前台再停；服务销毁时结束会话；一起等：3 条线每轮只 1 次站点请求、最先到的写进会话、带 `location` 类型，上车后只请求那一条线并以终点为目标 | Robolectric (JVM) |
 | `service/vendor` | `LiveUpdatePromotionTest` | Android 16 Live Update 推广通知构建与厂商识别 | Robolectric (JVM) |
@@ -129,8 +130,10 @@ Koin 由 `TrackrApp.onCreate` 启动，Robolectric 用例里每个用例都会�
 | `:feature:favorites` `ui/screens/favoritesedit` | `FavoritesEditViewModelTest` | 编辑收藏：初始分组与类别筛选、自定义收藏分组增删与筛选、删除 / 保存临时分组、存通勤路线自动在「家」里补返程、通勤与家分开筛选、手动生成返程、一次性数据修复只迁一次旧通勤并记版本；ViewModel 清掉时把进程级的选中收藏分组一起清掉 | commonTest（JVM；iOS 只编译和链接测试，不跑） |
 | `:feature:favorites` `ui/screens/favoritesgroup` | `FavoritesGroupNavigationEventTest` | 分组编辑弹窗：没改动直接关，有改动时点取消 / 按返回键弹放弃确认 | Robolectric Compose UI |
 |  | `TransitGroupCardTrackingTest` | 分组卡片跟车各阶段：未追踪显示首程大字和第二程预计上车时间；等车显示阶段徽标、「我上车了」和「在这」；乘车临近换乘显示下车大字、下一程实时和信号丢失 | Robolectric Compose UI |
-| `:feature:me` `ui/screens/more` | `MoreViewModelTest` | 设置项读写（数据源只有车来了 / 掌上公交二选一、附近站数量夹在范围内、乘车码偏好）、实时通知开关、锁屏显示默认开、定时提醒开关 / 删除；高德 Key 两槽各写各的、清空一槽不动另一槽（两槽都空时底栏没有「路线规划」）、区块状态文字三种 | commonTest（JVM；iOS 只编译和链接测试，不跑） |
-|  | `AboutViewModelTest` | 关于页更新检查：初始空闲、有更新 / 已最新 / 出错、关弹窗回空闲 | commonTest（JVM；iOS 只编译和链接测试，不跑） |
+| `:feature:me` `ui/screens/me` | `MeViewModelTest` | 「我的」页（第 25 步）：数据源只有车来了 / 掌上公交二选一、乘车码偏好、到站前提醒全局设置（1–3 站）、定时提醒行显示最早一条开着的提醒和开关、实时通知 / 锁屏开关、状态栏胶囊（实时通知关着或 iOS 不显示、去设置、回前台重查）、高德 Key 状态文字跟着仓库、子页提示显示一次就删、提醒短文字；长辈版开关位置预留（不显示） | commonTest（JVM） |
+|  | `ReminderEditViewModelTest` | 定时提醒编辑：读出已有提醒、提醒已删、改时间 / 重复日后保存是原位替换并给「我的」发提示、预设重复日、开了「到点自动开始追踪」又没有精确闹钟权限时提示（回前台重查、去设置、打不开设置时给提示）、删除要确认、连点保存只存一次 | commonTest（JVM） |
+|  | `AmapKeyViewModelTest` | 高德 Key 页：包名 + SHA-1 来自 `AppSigningInfo`、iOS 没有 Android 槽和 SHA-1、只写改过的那一槽、清空一槽不动另一槽、长度不对不让存、提示文字跟输入和内置 Key、复制 / 打不开浏览器的提示 | commonTest（JVM） |
+|  | `AboutViewModelTest` | 关于页更新检查：初始空闲、有更新 / 已最新 / 出错、关弹窗回空闲、检查中不重复检查、没有 `UpdateChecker`（iOS）时不显示「检查更新」 | commonTest（JVM） |
 | `:composeApp` `ui/navigation` | `NavigationFlowTest` | D2 底栏「路线规划」：有 / 无 Key、只有 Web Key、只有 Android Key、只有构建时 Key 时显示与否；停在该页签时 Key 被清空回首页并清栈；恢复到该页签但已无 Key 时回首页；后来填了 Key 页签出现但不切过去 | Robolectric Compose UI |
 | `:composeApp` `ui/screens/favoritesgroup` | `FavoritesGroupScreenTest` | 旧收藏页：多线路直达和多程换乘卡片只显示线路胶囊、点胶囊切候选线、同站换乘（步行 0）、分组新建与删除、快速新建分组胶囊、临时追踪置顶卡片且菜单里只有「保存」 | Robolectric Compose UI |
 

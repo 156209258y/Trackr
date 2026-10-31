@@ -35,6 +35,7 @@ data class TransitLocalSnapshot(
     val nearbyStopsCount: Int? = null,
     val liveNotificationEnabled: Boolean? = null,
     val showOnLockScreen: Boolean? = null,
+    val alertThresholdStops: Int? = null,
     val favorites: List<FavoriteStationLine> = emptyList(),
     val searchHistory: List<String> = emptyList()
 )
@@ -48,6 +49,7 @@ interface TransitLocalStore {
     suspend fun saveNearbyStopsCount(count: Int)
     suspend fun saveLiveNotificationEnabled(enabled: Boolean)
     suspend fun saveShowOnLockScreen(enabled: Boolean)
+    suspend fun saveAlertThresholdStops(stops: Int)
     suspend fun saveSearchHistory(list: List<String>)
     suspend fun clearSearchHistory()
 

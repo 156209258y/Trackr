@@ -28,6 +28,7 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
+import com.trackr.ui.screens.me.ReminderEditViewModel
 import org.junit.runner.RunWith
 import org.koin.core.annotation.KoinInternalApi
 import org.koin.core.context.GlobalContext
@@ -151,6 +152,7 @@ class KoinGraphVerifyTest {
         // 页面里由 koinViewModel() 从导航 entry 带进来；这里手动给一个
         SearchViewModel::class -> parametersOf(SavedStateHandle())
         ChooseBoardedBusViewModel::class -> parametersOf(ScreenKey.ChooseBoardedBus(sessionId = "s-1"))
+        ReminderEditViewModel::class -> parametersOf(ScreenKey.ReminderEdit(reminderId = "rem-1"))
         else -> emptyParametersHolder()
     }
 

@@ -56,6 +56,8 @@ class LegacySettingsMigration(
             (legacy[LegacyPrefs.KEY_LIVE_NOTIFICATION] as? Boolean)?.let { target[SettingsKeys.LIVE_NOTIFICATION_ENABLED] = it }
             // 旧版没有这个键；只有退回旧存储期间改过才会有（第 13 步）
             (legacy[LegacyPrefs.KEY_SHOW_ON_LOCK_SCREEN] as? Boolean)?.let { target[SettingsKeys.SHOW_ON_LOCK_SCREEN] = it }
+            // 同上，第 25 步新加
+            (legacy[LegacyPrefs.KEY_ALERT_THRESHOLD_STOPS] as? Int)?.let { target[SettingsKeys.ALERT_THRESHOLD_STOPS] = it }
             (legacy[LegacyPrefs.KEY_FAVORITES_GROUP_MIGRATION_VERSION] as? Int)?.let {
                 target[SettingsKeys.FAVORITES_GROUP_MIGRATION_VERSION] = it
             }
