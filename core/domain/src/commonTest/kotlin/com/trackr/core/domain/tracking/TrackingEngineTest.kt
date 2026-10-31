@@ -17,6 +17,7 @@ import com.trackr.core.model.TrackingTarget
 import com.trackr.core.model.TransitGroup
 import com.trackr.core.model.TransitLeg
 import com.trackr.core.model.UserFix
+import com.trackr.core.model.WatchLine
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -1444,8 +1445,526 @@ class TrackingEngineTest {
     }
 
     @Test
-    fun engine_wantsLocation_onlyForRoutes() {
+    fun engine_wantsLocation_routesAndWatchTogetherOnly() {
         assertTrue(TrackingEngine.wantsLocation(routeTarget()))
         assertFalse(TrackingEngine.wantsLocation(singleTarget()))
+        // Q17：一起等也用定位判上车
+        assertTrue(TrackingEngine.wantsLocation(watchTarget(watchLine("L1", "325"))))
+    }
+
+    // ================================================================ 一起等（第 15 步）
+    // 上车站「科技园站」在每条线上都是第 5 站，坐标 STOP_LAT/STOP_LNG；线路详情第 n 站在 A 以北 (n-5)×111 米
+
+    private fun watchLine(id: String, name: String, order: Int = 5) =
+        WatchLine(lineId = id, lineName = name, stopOrder = order, endStopName = "${name}终点")
+
+    private fun watchTarget(vararg lines: WatchLine) = TrackingTarget.WatchTogether(
+        cityId = "sz",
+        stopId = "st1",
+        stopName = "科技园站",
+        lines = lines.toList(),
+        stopLat = STOP_LAT,
+        stopLng = STOP_LNG
+    )
+
+    private fun watchBegin(vararg lines: WatchLine): TrackingSession =
+        requireNotNull(TrackingEngine.begin("w1", 1, watchTarget(*lines), NOW_MILLIS))
+
+    private val l325 = watchLine("L1", "325")
+    private val lM194 = watchLine("L2", "M194")
+    private val l19 = watchLine("L3", "19")
+
+    /** 站点接口给的来车：没有坐标，order 由「还有几站」算出 */
+    private fun stopBus(id: String, order: Int, eta: Int = -1, arrived: Boolean = false) =
+        LiveBus(busId = id, plateOrFleetNo = id, order = order, etaSeconds = eta, isArrived = arrived)
+
+    /** 线路接口给的车：带坐标（A 以北 [metersNorth] 米） */
+    private fun lineBus(id: String, order: Int, metersNorth: Int, progress: Float = 0.5f, arrived: Boolean = false) =
+        LiveBus(
+            busId = id,
+            plateOrFleetNo = id,
+            order = order,
+            segmentProgress = progress,
+            isArrived = arrived,
+            wgsLat = northOfStop(metersNorth),
+            wgsLng = STOP_LNG
+        )
+
+    private fun stopPoll(vararg lines: Pair<String, List<LiveBus>>, requested: Set<String>? = null) = WatchPoll(
+        requested = requested ?: lines.map { it.first }.toSet(),
+        lines = lines.associate { it.first to LinePoll(buses = it.second) }
+    )
+
+    private fun watchStops(count: Int = 12) =
+        (1..count).map { BusStop(stopId = "s$it", name = "站$it", order = it, wgsLat = northOfStop((it - 5) * 111), wgsLng = STOP_LNG) }
+
+    private fun linePoll(vararg lines: Pair<String, List<LiveBus>>) = WatchPoll(
+        requested = lines.map { it.first }.toSet(),
+        lines = lines.associate { it.first to LinePoll(buses = it.second, fromLineDetail = true, stops = watchStops()) }
+    )
+
+    private fun watchLineDetail(lineId: String, buses: List<LiveBus>) = BusLineDetail(
+        line = BusLineDirection(lineId = lineId, name = lineId, startStop = "站1", endStop = "站12"),
+        stops = watchStops(),
+        buses = buses
+    )
+
+    private fun userFix(metersNorth: Int, accuracy: Float = 10f) =
+        UserFix(northOfStop(metersNorth), STOP_LNG, accuracy, ELAPSED_NOW)
+
+    private fun reduceWatch(
+        session: TrackingSession,
+        poll: WatchPoll,
+        locationEnabled: Boolean = false,
+        fix: UserFix? = null,
+        now: Long = NOW_MILLIS
+    ) = TrackingEngine.reduceWatchPoll(session, poll, locationEnabled, fix, now, ELAPSED_NOW)
+
+    @Test
+    fun watch_begin_dedupesLinesAndWaitsOnFirst() {
+        val session = watchBegin(l325, lM194, l325)
+        assertEquals(listOf("L1", "L2"), session.watchedLines.map { it.line.lineId })
+        assertEquals(LegPhase.WAITING_BOARD, session.state.legPhase)
+        assertEquals("L1", session.leg.lineId)
+        assertEquals(5, session.state.boardStopOrder)
+        assertEquals("科技园站", session.state.boardStopName)
+        assertNull(session.boardChoice)
+        // 一条线都没有：不开始
+        assertNull(TrackingEngine.begin("w2", 1, watchTarget(), NOW_MILLIS))
+    }
+
+    @Test
+    fun watch_multiLine_fastestIsPrimary() {
+        val session = watchBegin(l325, lM194, l19)
+        val result = reduceWatch(
+            session,
+            stopPoll(
+                "L1" to listOf(stopBus("a", order = 1, eta = 600)),
+                "L2" to listOf(stopBus("b", order = 3, eta = 240), stopBus("passed", order = 6, eta = -1)),
+                "L3" to emptyList()
+            )
+        )
+        val next = result.session
+        assertEquals(listOf("L2", "L1", "L3"), next.watchedLines.map { it.line.lineId })
+        assertEquals("L2", next.leg.lineId)
+        assertEquals("M194", next.state.lineName)
+        assertEquals("b", next.state.currentBusId)
+        assertEquals(2, next.state.stopsRemaining)
+        assertEquals(240, next.state.etaSeconds)
+        // 第 3 条线这一轮有数据、只是没车
+        val l3 = next.watchedLines.last()
+        assertTrue(l3.hasData)
+        assertNull(l3.busId)
+        assertEquals(LegPhase.WAITING_BOARD, next.state.legPhase)
+    }
+
+    @Test
+    fun watch_orderChanges_primaryFollows() {
+        val first = reduceWatch(
+            watchBegin(l325, lM194),
+            stopPoll("L1" to listOf(stopBus("a", order = 2, eta = 500)), "L2" to listOf(stopBus("b", order = 3, eta = 300)))
+        ).session
+        assertEquals("L2", first.leg.lineId)
+
+        // M194 堵车，325 反超
+        val second = reduceWatch(
+            first,
+            stopPoll("L1" to listOf(stopBus("a", order = 4, eta = 120)), "L2" to listOf(stopBus("b", order = 3, eta = 400)))
+        ).session
+        assertEquals(listOf("L1", "L2"), second.watchedLines.map { it.line.lineId })
+        assertEquals("L1", second.leg.lineId)
+        assertEquals("325", second.state.lineName)
+        assertEquals("a", second.state.currentBusId)
+        assertEquals(1, second.state.stopsRemaining)
+    }
+
+    @Test
+    fun watch_alerts_approachingOncePerBus_arrivedOnce() {
+        val session = watchBegin(l325, lM194)
+        // 325 还有 2 站（提醒站数 2）：发一次「快到了」
+        val approaching = reduceWatch(session, stopPoll("L1" to listOf(stopBus("a", order = 3, eta = 200)), "L2" to emptyList()))
+        val alert = assertIs<TrackingEngine.Effect.Alert>(approaching.effects.single())
+        assertEquals(TrackingEngine.AlertKind.APPROACHING, alert.kind)
+        assertEquals("325", alert.state.lineName)
+        assertEquals("科技园站", alert.state.targetStopName)
+
+        // 同一辆车再近一站：不再提醒
+        val again = reduceWatch(approaching.session, stopPoll("L1" to listOf(stopBus("a", order = 4, eta = 100)), "L2" to emptyList()))
+        assertTrue(again.effects.isEmpty())
+
+        // 到站：发一次「到站了」；没有定位不自动判上车
+        val arrived = reduceWatch(again.session, stopPoll("L1" to listOf(stopBus("a", order = 5, eta = 20)), "L2" to emptyList()))
+        assertEquals(TrackingEngine.AlertKind.ARRIVED, assertIs<TrackingEngine.Effect.Alert>(arrived.effects.single()).kind)
+        assertEquals(LegPhase.WAITING_BOARD, arrived.session.state.legPhase)
+        assertTrue(arrived.session.state.isBusArrivedAtStop)
+        val still = reduceWatch(arrived.session, stopPoll("L1" to listOf(stopBus("a", order = 5, eta = 10)), "L2" to emptyList()))
+        assertTrue(still.effects.isEmpty())
+    }
+
+    @Test
+    fun watch_withoutLocation_neverAutoBoards() {
+        val session = watchBegin(l325, lM194)
+        val arrived = reduceWatch(
+            session,
+            stopPoll("L1" to listOf(stopBus("a", order = 5, arrived = true)), "L2" to listOf(stopBus("b", order = 5, arrived = true)))
+        ).session
+        assertEquals(LegPhase.WAITING_BOARD, arrived.state.legPhase)
+        assertTrue(arrived.watchedLines.all { it.candidateBusId == null })
+        assertNull(arrived.boardChoice)
+        // 车开走了也不算上车，接着等下一班
+        val left = reduceWatch(arrived, stopPoll("L1" to listOf(stopBus("a2", order = 2, eta = 600)), "L2" to emptyList())).session
+        assertEquals(LegPhase.WAITING_BOARD, left.state.legPhase)
+        assertEquals("a2", left.state.currentBusId)
+    }
+
+    @Test
+    fun watch_onlyOneBusAtStop_confirmBoardedTakesIt() {
+        val waiting = reduceWatch(
+            watchBegin(l325, lM194),
+            stopPoll("L1" to listOf(stopBus("a", order = 3, eta = 300)), "L2" to listOf(stopBus("b", order = 5, arrived = true)))
+        ).session
+        val lineBuses = mapOf(
+            "L1" to listOf(stopBus("a", order = 3, eta = 300)),
+            "L2" to listOf(stopBus("b", order = 5, arrived = true))
+        )
+        val boarded = requireNotNull(TrackingEngine.confirmBoarded(waiting, emptyList(), NOW_MILLIS, lineBuses))
+        assertNull(boarded.boardChoice)
+        assertEquals(LegPhase.ON_BOARD, boarded.state.legPhase)
+        assertEquals("L2", boarded.leg.lineId)
+        assertEquals("b", boarded.state.lockedBusId)
+        // 上车后其他线停止追踪；会话切到这条线，代际号 +1
+        assertTrue(boarded.watchedLines.isEmpty())
+        assertEquals(waiting.generation + 1, boarded.generation)
+        assertNull(TrackingEngine.watchPollPlan(boarded))
+    }
+
+    @Test
+    fun watch_twoBusesAtStop_locationTellsThemApart_noPopup() {
+        val waiting = reduceWatch(
+            watchBegin(l325, lM194),
+            stopPoll("L1" to listOf(stopBus("a", order = 5, arrived = true)), "L2" to listOf(stopBus("b", order = 5, arrived = true)))
+        ).session
+        // 线路接口的车有坐标：用户已坐着 b 离站 150 米，a 还停在站台
+        val lineBuses = mapOf(
+            "L1" to listOf(lineBus("a", order = 5, metersNorth = 0, arrived = true)),
+            "L2" to listOf(lineBus("b", order = 6, metersNorth = 150, progress = 0.1f))
+        )
+        val boarded = requireNotNull(
+            TrackingEngine.confirmBoarded(waiting, emptyList(), NOW_MILLIS, lineBuses, userFix(150), ELAPSED_NOW)
+        )
+        assertNull(boarded.boardChoice)
+        assertEquals(LegPhase.ON_BOARD, boarded.state.legPhase)
+        assertEquals("L2", boarded.leg.lineId)
+        assertEquals("b", boarded.state.lockedBusId)
+    }
+
+    @Test
+    fun watch_twoBusesAtStop_ambiguousOrNoLocation_writesBoardChoice() {
+        val stopBuses = mapOf(
+            "L1" to listOf(stopBus("a", order = 5, arrived = true)),
+            "L2" to listOf(stopBus("b", order = 5, eta = 20)),
+            "L3" to listOf(stopBus("c", order = 2, eta = 600))
+        )
+        val waiting = reduceWatch(
+            watchBegin(l325, lM194, l19),
+            stopPoll(*stopBuses.map { it.key to it.value }.toTypedArray())
+        ).session
+        // 没有定位
+        val noFix = requireNotNull(TrackingEngine.confirmBoarded(waiting, emptyList(), NOW_MILLIS, stopBuses))
+        val choice = assertNotNull(noFix.boardChoice)
+        assertEquals(setOf("a", "b"), choice.options.map { it.busId }.toSet())
+        assertEquals(LegPhase.WAITING_BOARD, noFix.state.legPhase)
+        // Q16：等用户选的时候只请求这两条线的线路接口
+        val plan = assertIs<WatchPollPlan.Lines>(TrackingEngine.watchPollPlan(noFix))
+        assertEquals(setOf("L1", "L2"), plan.lines.map { it.lineId }.toSet())
+
+        // 有定位但两辆都在人身边（站台上并排）：分不清
+        val bothNear = mapOf(
+            "L1" to listOf(lineBus("a", order = 5, metersNorth = 0, arrived = true)),
+            "L2" to listOf(lineBus("b", order = 5, metersNorth = 10, arrived = true))
+        )
+        val ambiguous = requireNotNull(
+            TrackingEngine.confirmBoarded(waiting, emptyList(), NOW_MILLIS, bothNear, userFix(0), ELAPSED_NOW)
+        )
+        assertEquals(2, assertNotNull(ambiguous.boardChoice).options.size)
+
+        // 用户在「上了哪辆？」里选了 b：上 M194
+        val chosen = requireNotNull(TrackingEngine.chooseBoardedBus(noFix, "b", NOW_MILLIS))
+        assertEquals(LegPhase.ON_BOARD, chosen.state.legPhase)
+        assertEquals("L2", chosen.leg.lineId)
+        assertEquals("b", chosen.state.lockedBusId)
+        assertNull(chosen.boardChoice)
+        // 「还没上」：清掉待选，接着等
+        val notYet = requireNotNull(TrackingEngine.chooseBoardedBus(noFix, null, NOW_MILLIS))
+        assertNull(notYet.boardChoice)
+        assertEquals(LegPhase.WAITING_BOARD, notYet.state.legPhase)
+        assertIs<WatchPollPlan.Stop>(TrackingEngine.watchPollPlan(notYet))
+        // 选项外的车不认
+        assertNull(TrackingEngine.chooseBoardedBus(noFix, "c", NOW_MILLIS))
+    }
+
+    @Test
+    fun watch_boardChoice_clearedAfterFiveMinutes_orResolvedByLocation() {
+        val stopBuses = mapOf(
+            "L1" to listOf(stopBus("a", order = 5, arrived = true)),
+            "L2" to listOf(stopBus("b", order = 5, arrived = true))
+        )
+        val waiting = reduceWatch(watchBegin(l325, lM194), stopPoll(*stopBuses.map { it.key to it.value }.toTypedArray())).session
+        val choosing = requireNotNull(TrackingEngine.confirmBoarded(waiting, emptyList(), NOW_MILLIS, stopBuses))
+        assertNotNull(choosing.boardChoice)
+
+        // 后来定位分清了：用户跟着 a 走了 200 米
+        val resolved = reduceWatch(
+            choosing,
+            linePoll(
+                "L1" to listOf(lineBus("a", order = 6, metersNorth = 200, progress = 0.2f)),
+                "L2" to listOf(lineBus("b", order = 5, metersNorth = 0, arrived = true))
+            ),
+            locationEnabled = true,
+            fix = userFix(200),
+            now = NOW_MILLIS + 20_000
+        ).session
+        assertEquals(LegPhase.ON_BOARD, resolved.state.legPhase)
+        assertEquals("L1", resolved.leg.lineId)
+        assertEquals("a", resolved.state.lockedBusId)
+
+        // 一直没选、也分不清：5 分钟后清掉，回到 1 次站点请求
+        val timedOut = reduceWatch(
+            choosing,
+            linePoll(
+                "L1" to listOf(lineBus("a", order = 7, metersNorth = 500, progress = 0.2f)),
+                "L2" to listOf(lineBus("b", order = 7, metersNorth = 520, progress = 0.3f))
+            ),
+            now = NOW_MILLIS + 5 * 60_000
+        ).session
+        assertNull(timedOut.boardChoice)
+        assertEquals(LegPhase.WAITING_BOARD, timedOut.state.legPhase)
+        assertIs<WatchPollPlan.Stop>(TrackingEngine.watchPollPlan(timedOut))
+    }
+
+    @Test
+    fun watch_manualBoard_picksNearestBusWithinAAndAPlus1() {
+        val waiting = watchBegin(l325, lM194)
+        // 325：一辆还差 0.4 站到 A，一辆刚开出 A 0.1 站（同一条线不问，按离 A 最近选）；M194 还远
+        val lineBuses = mapOf(
+            "L1" to listOf(
+                lineBus("coming", order = 5, metersNorth = -40, progress = 0.6f),
+                lineBus("left", order = 6, metersNorth = 11, progress = 0.1f),
+                lineBus("far", order = 3, metersNorth = -250, progress = 0.5f)
+            ),
+            "L2" to listOf(lineBus("m", order = 2, metersNorth = -333, progress = 0.5f))
+        )
+        val boarded = requireNotNull(TrackingEngine.confirmBoarded(waiting, emptyList(), NOW_MILLIS, lineBuses))
+        assertNull(boarded.boardChoice)
+        assertEquals("L1", boarded.leg.lineId)
+        assertEquals("left", boarded.state.lockedBusId)
+    }
+
+    @Test
+    fun watch_noBusToLock_locksOnLaterPoll_andTargetsTerminal() {
+        val waiting = reduceWatch(
+            watchBegin(l325, lM194),
+            stopPoll("L1" to listOf(stopBus("a", order = 2, eta = 500)), "L2" to listOf(stopBus("b", order = 4, eta = 90)))
+        ).session
+        // 一辆在 A..A+1 的车都没有：按排第一的线（M194）进乘车，先不锁车
+        val boarded = requireNotNull(TrackingEngine.confirmBoarded(waiting, emptyList(), NOW_MILLIS, emptyMap()))
+        assertEquals(LegPhase.ON_BOARD, boarded.state.legPhase)
+        assertEquals("L2", boarded.leg.lineId)
+        assertNull(boarded.state.lockedBusId)
+        assertEquals(0, boarded.state.targetOrder) // 还不知道终点
+
+        // 下一次线路详情：补上终点站，按 A..A+1 最近补锁
+        val next = TrackingEngine.reducePoll(
+            boarded,
+            watchLineDetail("L2", listOf(lineBus("b", order = 6, metersNorth = 30, progress = 0.2f))),
+            locationEnabled = false,
+            serviceFix = null,
+            dropFix = null,
+            nowMillis = NOW_MILLIS,
+            nowElapsedMillis = ELAPSED_NOW
+        )
+        assertEquals("b", next.session.state.lockedBusId)
+        assertEquals(12, next.session.state.targetOrder)
+        assertEquals("站12", next.session.state.targetStopName)
+        assertEquals(6, next.session.state.stopsRemaining)
+        assertTrue(next.effects.isEmpty())
+    }
+
+    @Test
+    fun watch_lineWithoutData_sortsLastAndKeepsOthers() {
+        val result = reduceWatch(
+            watchBegin(l325, lM194),
+            stopPoll("L2" to listOf(stopBus("b", order = 3, eta = 300)), requested = setOf("L1", "L2"))
+        ).session
+        assertEquals(listOf("L2", "L1"), result.watchedLines.map { it.line.lineId })
+        val missing = result.watchedLines.last()
+        assertFalse(missing.hasData)
+        assertNull(missing.busId)
+        assertEquals("L2", result.leg.lineId)
+
+        // 全都没数据：会话还在，等下一轮
+        val none = reduceWatch(watchBegin(l325, lM194), stopPoll(requested = setOf("L1", "L2"))).session
+        assertEquals(LegPhase.WAITING_BOARD, none.state.legPhase)
+        assertEquals(-1, none.state.stopsRemaining)
+        assertTrue(none.watchedLines.none { it.hasData })
+    }
+
+    @Test
+    fun watch_tenLines_waitingStillOneStopRequest() {
+        val lines = (1..10).map { watchLine("L$it", "${it}路") }
+        val session = watchBegin(*lines.toTypedArray())
+        // 等车阶段的计划只有 1 次站点请求（站点接口一次带回这个站每条线的来车）
+        assertEquals(WatchPollPlan.Stop(lines), TrackingEngine.watchPollPlan(session))
+        val polled = reduceWatch(
+            session,
+            stopPoll(*lines.mapIndexed { i, l -> l.lineId to listOf(stopBus("bus$i", order = 1 + i % 4, eta = 100 + 60 * i)) }.toTypedArray())
+        ).session
+        assertEquals(10, polled.watchedLines.size)
+        assertEquals(WatchPollPlan.Stop(lines), TrackingEngine.watchPollPlan(polled))
+        assertEquals("L1", polled.leg.lineId)
+    }
+
+    @Test
+    fun watch_withLocation_autoBoards_onlyRequestingLinesAtStop() {
+        val session = watchBegin(l325, lM194)
+        // 325 到站、人在站台：进待确认（Q17），只请求在站这条线的线路接口（Q16）
+        val pending = reduceWatch(
+            session,
+            stopPoll("L1" to listOf(stopBus("a", order = 5, arrived = true)), "L2" to listOf(stopBus("b", order = 2, eta = 600))),
+            locationEnabled = true,
+            fix = userFix(10)
+        ).session
+        assertEquals("a", pending.watchedLines.first().candidateBusId)
+        assertTrue(pending.state.isAwaitingBoardingConfirmation)
+        assertEquals(LocationCadence.Tier.BOARDING_CHECK, TrackingEngine.locationTier(pending.state, locationEnabled = true))
+        val plan = assertIs<WatchPollPlan.Lines>(TrackingEngine.watchPollPlan(pending))
+        assertEquals(listOf("L1"), plan.lines.map { it.lineId })
+
+        // 人跟着车走了两次：上车，会话切到 325，目标是终点站
+        val first = reduceWatch(
+            pending,
+            linePoll("L1" to listOf(lineBus("a", order = 6, metersNorth = 150, progress = 0.3f))),
+            locationEnabled = true,
+            fix = userFix(150),
+            now = NOW_MILLIS + 10_000
+        ).session
+        assertEquals(LegPhase.WAITING_BOARD, first.state.legPhase)
+        // 没请求的 M194 保持上次的数据
+        assertEquals("b", first.watchedLines.first { it.line.lineId == "L2" }.busId)
+        val boarded = reduceWatch(
+            first,
+            linePoll("L1" to listOf(lineBus("a", order = 6, metersNorth = 320, progress = 0.6f))),
+            locationEnabled = true,
+            fix = userFix(310),
+            now = NOW_MILLIS + 20_000
+        ).session
+        assertEquals(LegPhase.ON_BOARD, boarded.state.legPhase)
+        assertEquals("L1", boarded.leg.lineId)
+        assertEquals("a", boarded.state.lockedBusId)
+        assertEquals(12, boarded.state.targetOrder)
+        assertEquals(session.generation + 1, boarded.generation)
+    }
+
+    @Test
+    fun watch_userFarFromStop_busArrives_noCandidate() {
+        val result = reduceWatch(
+            watchBegin(l325, lM194),
+            stopPoll("L1" to listOf(stopBus("a", order = 5, arrived = true)), "L2" to emptyList()),
+            locationEnabled = true,
+            fix = userFix(800)
+        ).session
+        assertTrue(result.watchedLines.all { it.candidateBusId == null })
+        assertIs<WatchPollPlan.Stop>(TrackingEngine.watchPollPlan(result))
+    }
+
+    @Test
+    fun watch_locationOnButNoUsableFix_neverBoardsByTimeout() {
+        val session = watchBegin(l325, lM194)
+        // 开了定位但没有够新够准的定位：车到站不进待确认，接着按 1 次站点请求等
+        val arrived = reduceWatch(
+            session,
+            stopPoll("L1" to listOf(stopBus("a", order = 5, arrived = true)), "L2" to listOf(stopBus("b", order = 2, eta = 600))),
+            locationEnabled = true,
+            fix = null
+        ).session
+        assertTrue(arrived.watchedLines.all { it.candidateBusId == null })
+        assertIs<WatchPollPlan.Stop>(TrackingEngine.watchPollPlan(arrived))
+
+        // 已在待确认、之后定位没了：不计数；5 分钟后放掉，不按超时判上车
+        val pending = reduceWatch(
+            session,
+            stopPoll("L1" to listOf(stopBus("a", order = 5, arrived = true)), "L2" to emptyList()),
+            locationEnabled = true,
+            fix = userFix(10)
+        ).session
+        assertEquals("a", pending.watchedLines.first().candidateBusId)
+        val held = reduceWatch(
+            pending,
+            linePoll("L1" to listOf(lineBus("a", order = 7, metersNorth = 400))),
+            locationEnabled = true,
+            fix = null,
+            now = NOW_MILLIS + 60_000
+        ).session
+        assertEquals("a", held.watchedLines.first().candidateBusId)
+        val released = reduceWatch(
+            held,
+            linePoll("L1" to listOf(lineBus("a", order = 8, metersNorth = 600))),
+            locationEnabled = true,
+            fix = null,
+            now = NOW_MILLIS + 5 * 60_000
+        ).session
+        assertEquals(LegPhase.WAITING_BOARD, released.state.legPhase)
+        assertTrue(released.watchedLines.all { it.candidateBusId == null })
+        assertIs<WatchPollPlan.Stop>(TrackingEngine.watchPollPlan(released))
+    }
+
+    @Test
+    fun watch_singleLegWithoutDropStop_ridesToTerminalThenFinishes() {
+        val waiting = watchBegin(l325)
+        val boarded = requireNotNull(
+            TrackingEngine.confirmBoarded(waiting, emptyList(), NOW_MILLIS, mapOf("L1" to listOf(stopBus("a", order = 5, arrived = true))))
+        )
+        // 没有下一程
+        assertNull(TrackingEngine.nextLeg(boarded, NOW_MILLIS))
+        assertNull(TrackingEngine.nextLegLineName(boarded))
+
+        val riding = TrackingEngine.reducePoll(
+            boarded,
+            watchLineDetail("L1", listOf(lineBus("a", order = 8, metersNorth = 333))),
+            locationEnabled = false,
+            serviceFix = null,
+            dropFix = null,
+            nowMillis = NOW_MILLIS,
+            nowElapsedMillis = ELAPSED_NOW
+        )
+        assertEquals(4, riding.session.state.stopsRemaining)
+        assertTrue(riding.effects.none { it is TrackingEngine.Effect.Finished || it is TrackingEngine.Effect.TransferAlert })
+
+        val end = TrackingEngine.reducePoll(
+            riding.session,
+            watchLineDetail("L1", listOf(lineBus("a", order = 12, metersNorth = 777, arrived = true))),
+            locationEnabled = false,
+            serviceFix = null,
+            dropFix = null,
+            nowMillis = NOW_MILLIS,
+            nowElapsedMillis = ELAPSED_NOW
+        )
+        assertTrue(end.effects.any { it is TrackingEngine.Effect.Finished })
+        assertTrue(end.effects.none { it is TrackingEngine.Effect.TransferAlert })
+    }
+
+    @Test
+    fun watch_staleResultsAfterBoarding_areIgnored() {
+        val boarded = requireNotNull(
+            TrackingEngine.confirmBoarded(
+                watchBegin(l325, lM194),
+                emptyList(),
+                NOW_MILLIS,
+                mapOf("L1" to listOf(stopBus("a", order = 5, arrived = true)))
+            )
+        )
+        val stale = reduceWatch(boarded, stopPoll("L1" to listOf(stopBus("x", order = 1, eta = 900)), "L2" to emptyList()))
+        assertSame(boarded, stale.session)
+        assertTrue(stale.effects.isEmpty())
     }
 }

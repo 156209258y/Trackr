@@ -52,8 +52,11 @@ interface TrackingController {
     /** 结束追踪 */
     fun stopTracking()
 
-    /** 手动「我已上车」（只在路线的等车阶段有效） */
+    /** 手动「我已上车」（只在路线、一起等的等车阶段有效） */
     fun confirmBoarded()
+
+    /** 一起等「上了哪辆？」：选了 [busId]，null =「还没上」（第 15 步；弹层在第 21 步） */
+    fun chooseBoardedBus(busId: String?)
 
     /** 手动切到下一程（只在路线追踪时有效） */
     fun switchToNextLeg()

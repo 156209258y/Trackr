@@ -1,0 +1,152 @@
+package com.trackr.core.data.repository
+
+import com.trackr.core.domain.tracking.LinePoll
+import com.trackr.core.domain.tracking.WatchPoll
+import com.trackr.core.domain.tracking.WatchPollPlan
+import com.trackr.core.model.DataSourceType
+import com.trackr.core.model.NearbyStop
+import com.trackr.core.model.NearbyStopLineStatus
+import com.trackr.core.model.TrackingTarget
+import com.trackr.core.model.TransitCity
+import com.trackr.core.model.WatchLine
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
+
+/**
+ * 一起等的取数（重构计划 §2.5、第 15 步）：按 [WatchPollPlan] 请求，省着用服务器。
+ *
+ * - 等车：只请求 1 次上车站的站点接口（车来了已带该站每条线的来车），条数不影响请求数（Q8）。
+ *   站点结果里缺的线才对那条线单独请求线路接口：结果里没有这条线；有这条线但既没来车也没状态文字；
+ *   或数据源的站点接口不带来车（掌上公交）。单独请求最多同时 [maxConcurrent] 个，用户看不到这个限制。
+ * - 待确认 / 「上了哪辆？」：只请求计划里那几条线的线路接口（Q16）。
+ *
+ * Provider 接口不变；线路详情照样走 [RealtimeRepository] 的 6 秒合并缓存。
+ */
+class WatchTogetherPoller(
+    private val realtime: RealtimeRepository,
+    private val maxConcurrent: Int = MAX_CONCURRENT_LINE_REQUESTS
+) {
+
+    /**
+     * @param city 请求用的城市（服务按会话里的 cityId 拼）
+     * @return 站点请求失败时失败；单条线失败只是这条线没数据。计划里只请求线路且全部失败时也算失败（服务按失败退避）
+     */
+    suspend fun poll(target: TrackingTarget.WatchTogether, plan: WatchPollPlan, city: TransitCity): Result<WatchPoll> =
+        when (plan) {
+            is WatchPollPlan.Stop -> pollStop(target, plan.lines, city)
+            is WatchPollPlan.Lines -> {
+                val lines = fetchLines(target, plan.lines, city)
+                if (lines.isEmpty() && plan.lines.isNotEmpty()) {
+                    Result.failure(IllegalStateException("一起等：在站车辆所在线路的实时数据都没拿到"))
+                } else {
+                    Result.success(WatchPoll(requested = plan.lines.map { it.lineId }.toSet(), lines = lines))
+                }
+            }
+        }
+
+    private suspend fun pollStop(
+        target: TrackingTarget.WatchTogether,
+        lines: List<WatchLine>,
+        city: TransitCity
+    ): Result<WatchPoll> {
+        val stops = realtime.getStopDetail(
+            city = city,
+            stopId = target.stopId.ifBlank { null },
+            stopName = target.stopName.ifBlank { null },
+            physicalStId = target.physicalStId,
+            namesakeStId = target.namesakeStId,
+            stationLat = target.stopLat.takeIf { it > 0.0 },
+            stationLng = target.stopLng.takeIf { it > 0.0 }
+        ).getOrElse { return Result.failure(it) }
+
+        val stop = pickStop(stops, target)
+        val covered = LinkedHashMap<String, LinePoll>()
+        val missing = ArrayList<WatchLine>()
+        for (line in lines) {
+            val status = stop?.lines?.firstOrNull { it.line.lineId == line.lineId }
+            if (stop != null && status != null && carriesBuses(stop, status)) {
+                covered[line.lineId] = linePollOf(status, line)
+            } else {
+                missing += line
+            }
+        }
+        val fetched = if (missing.isEmpty()) emptyMap() else fetchLines(target, missing, city)
+        return Result.success(
+            WatchPoll(
+                requested = lines.map { it.lineId }.toSet(),
+                lines = covered + fetched,
+                stopLat = stop?.wgsLat ?: 0.0,
+                stopLng = stop?.wgsLng ?: 0.0
+            )
+        )
+    }
+
+    /**
+     * 站点接口可能返回同名的几个站台：找和目标同一个站台的；只有一个站台时就是它。
+     * 有好几个站台却对不上时返回 null（不拿对向站台的数据，几条线都按缺线单独请求）。
+     */
+    private fun pickStop(stops: List<NearbyStop>, target: TrackingTarget.WatchTogether): NearbyStop? {
+        if (stops.size == 1) return stops.single()
+        val physical = target.physicalStId?.takeIf { it.isNotBlank() }
+        return physical?.let { id -> stops.firstOrNull { it.physicalStId == id } }
+            ?: stops.firstOrNull { target.stopId.isNotBlank() && it.stopId == target.stopId }
+            ?: stops.firstOrNull().takeIf { physical == null && target.stopId.isBlank() }
+    }
+
+    /** 站点接口给的这条线能不能直接用：有来车；或没来车但有状态文字（如「等待发车」）。掌上公交的站点接口不带来车 */
+    private fun carriesBuses(stop: NearbyStop, status: NearbyStopLineStatus): Boolean {
+        if (stop.source == DataSourceType.MYGOLBS) return false
+        if (status.approachingBuses.isNotEmpty()) return true
+        return status.statusText.isNotBlank() || !status.preArrivalTime.isNullOrBlank()
+    }
+
+    /** 站点接口的来车 `order` 按接口里这条线的站序算；和会话里记的站序不同时平移过去 */
+    private fun linePollOf(status: NearbyStopLineStatus, line: WatchLine): LinePoll {
+        val shift = if (status.targetOrder > 0) line.stopOrder - status.targetOrder else 0
+        val buses = if (shift == 0) {
+            status.approachingBuses
+        } else {
+            status.approachingBuses.map { it.copy(order = (it.order + shift).coerceAtLeast(1)) }
+        }
+        return LinePoll(buses = buses, fromLineDetail = false, statusText = status.statusText)
+    }
+
+    /** 逐条请求线路接口，最多同时 [maxConcurrent] 个；失败的线不放进结果 */
+    private suspend fun fetchLines(
+        target: TrackingTarget.WatchTogether,
+        lines: List<WatchLine>,
+        city: TransitCity
+    ): Map<String, LinePoll> = coroutineScope {
+        val semaphore = Semaphore(maxConcurrent.coerceAtLeast(1))
+        lines.map { line ->
+            async {
+                semaphore.withPermit {
+                    realtime.getLineDetail(
+                        city = city,
+                        lineId = line.lineId,
+                        targetOrder = line.stopOrder,
+                        stationId = line.stopIdOnLine.ifBlank { target.stopId }.ifBlank { null },
+                        source = line.source,
+                        lineNameHint = line.lineName,
+                        directionHint = line.direction
+                    ).getOrNull()?.let { detail ->
+                        line.lineId to LinePoll(
+                            buses = detail.buses,
+                            fromLineDetail = true,
+                            statusText = detail.statusDescription,
+                            stops = detail.stops
+                        )
+                    }
+                }
+            }
+        }.awaitAll().filterNotNull().toMap()
+    }
+
+    companion object {
+        /** 缺线时单独请求线路接口的并发上限 */
+        const val MAX_CONCURRENT_LINE_REQUESTS = 4
+    }
+}

@@ -11,13 +11,16 @@ import androidx.core.app.ServiceCompat
 import androidx.lifecycle.LifecycleService
 import androidx.lifecycle.lifecycleScope
 import com.trackr.core.data.repository.TrackingRepository
+import com.trackr.core.data.repository.WatchTogetherPoller
 import com.trackr.core.domain.platform.LocationSource
 import com.trackr.core.domain.platform.MonotonicClock
 import com.trackr.core.domain.tracking.LocationCadence
 import com.trackr.core.domain.tracking.TrackingEngine
+import com.trackr.core.domain.tracking.WatchPollPlan
 import com.trackr.core.model.LineOperatingState
 import com.trackr.core.model.TrackingSession
 import com.trackr.core.model.TrackingSessionState
+import com.trackr.core.model.TrackingTarget
 import com.trackr.core.model.TransitCity
 import com.trackr.core.model.UserFix
 import com.trackr.data.repository.ITransitRepository
@@ -39,6 +42,9 @@ import kotlin.time.Clock
  * 会话没了（用户结束、路线走完）就停；通知动作和页面的命令都只改仓库。
  * START_STICKY：进程被杀后系统重建服务时从仓库读回会话接着追；系统不让重新进前台就结束这次追踪。
  *
+ * 一起等（第 15 步）：等车阶段每轮按 [TrackingEngine.watchPollPlan] 请求（1 次站点接口；待确认时只请求在站的线），
+ * 结果交给 [TrackingEngine.reduceWatchPoll]；上车后会话切到那条线（代际号 +1），之后和路线乘车一样只请求那条线。
+ *
  * 线程约定：都在主线程（lifecycleScope），只有网络请求切到 IO。
  */
 class BusTrackingService : LifecycleService() {
@@ -52,6 +58,9 @@ class BusTrackingService : LifecycleService() {
     private val monotonicClock: MonotonicClock by inject()
 
     private var pollingJob: Job? = null
+
+    /** 一起等的取数（同一个实时仓库，条数不影响请求数） */
+    private val watchPoller by lazy { WatchTogetherPoller(repository) }
 
     /** 正在轮询的会话；null = 还没接上任何会话 */
     private var attachedSessionId: String? = null
@@ -75,8 +84,8 @@ class BusTrackingService : LifecycleService() {
     /** 服务自己最近一次采用的定位（判上车用） */
     private var serviceFix: UserFix? = null
 
-    /** 上次刷到通知上的状态（相同就不重复刷） */
-    private var lastRendered: TrackingSessionState? = null
+    /** 上次刷到通知上的内容（相同就不重复刷） */
+    private var lastRendered: Pair<TrackingSessionState, LiveProgressNotifier.WatchNotice?>? = null
 
     /** 最近一次 onStartCommand 的 startId：停止时只停到这一次，之后又来的启动请求不受影响 */
     private var lastStartId: Int = 0
@@ -114,7 +123,11 @@ class BusTrackingService : LifecycleService() {
         val shown = session ?: current?.takeIf { it.sessionId == attachedSessionId }
         val wantLocation = shown != null && TrackingEngine.wantsLocation(shown.target) &&
             locationSource.hasPrecisePermission()
-        val notification = liveProgressNotifier.buildNotification(this, shown?.state ?: TrackingSessionState(isActive = true))
+        val notification = liveProgressNotifier.buildNotification(
+            this,
+            shown?.state ?: TrackingSessionState(isActive = true),
+            watch = LiveProgressNotifier.WatchNotice.of(shown)
+        )
         locationTrackingAllowed = enterForeground(notification, wantLocation)
         if (session == null) {
             // 启动请求发出后用户又结束了（或换了新会话，新会话自己会再来一次启动请求）
@@ -122,7 +135,7 @@ class BusTrackingService : LifecycleService() {
                 shutdown()
                 return START_NOT_STICKY
             }
-            render(shown.state, force = true)
+            render(shown, force = true)
             return START_STICKY
         }
         attach(session, force = true)
@@ -139,7 +152,11 @@ class BusTrackingService : LifecycleService() {
             }
             if (attachedSessionId == stored.sessionId) return@launch
             val wantLocation = TrackingEngine.wantsLocation(stored.target) && locationSource.hasPrecisePermission()
-            val notification = liveProgressNotifier.buildNotification(this@BusTrackingService, stored.state)
+            val notification = liveProgressNotifier.buildNotification(
+                this@BusTrackingService,
+                stored.state,
+                watch = LiveProgressNotifier.WatchNotice.of(stored)
+            )
             locationTrackingAllowed = try {
                 enterForeground(notification, wantLocation)
             } catch (e: IllegalStateException) {
@@ -209,7 +226,7 @@ class BusTrackingService : LifecycleService() {
             // 换了新会话：等它自己的启动请求（要按新目标决定前台服务类型）
             session.sessionId != attached -> Unit
             session.generation != pollingGeneration -> attach(session)
-            else -> render(session.state)
+            else -> render(session)
         }
     }
 
@@ -219,7 +236,7 @@ class BusTrackingService : LifecycleService() {
         val sameGeneration = session.sessionId == attachedSessionId && session.generation == pollingGeneration
         if (sameGeneration) {
             // 同一代又来一次启动请求（前台服务类型可能变了）：只刷新通知和定位档位
-            render(session.state, force = true)
+            render(session, force = true)
             return
         }
         pollingJob?.cancel()
@@ -232,7 +249,7 @@ class BusTrackingService : LifecycleService() {
         pollingGeneration = session.generation
         consecutiveFailures = 0
         lastOperatingState = LineOperatingState.RUNNING
-        render(session.state, force = true)
+        render(session, force = true)
         startPolling(session.generation)
     }
 
@@ -263,25 +280,23 @@ class BusTrackingService : LifecycleService() {
     private suspend fun pollOnce(generation: Int) {
         if (!isCurrent(generation)) return
         val session = trackingRepository.session.value ?: return
+        val watchTarget = session.watchTarget
+        val watchPlan = TrackingEngine.watchPollPlan(session)
+        if (watchTarget != null && watchPlan != null) {
+            pollWatch(generation, watchTarget, watchPlan)
+            return
+        }
         val state = session.state
         val leg = session.leg
-        val selectedCity = repository.selectedCity.value
-        val targetCity = if (selectedCity.cityId == leg.cityId) {
-            selectedCity
-        } else {
-            TransitCity(
-                cityId = leg.cityId,
-                cityName = "",
-                mygolbsCityCode = leg.mygolbsCityCode.takeIf { it.isNotEmpty() }
-            )
-        }
+        val targetCity = cityFor(leg.cityId, leg.mygolbsCityCode)
 
         val result = withContext(Dispatchers.IO) {
             repository.getLineDetail(
                 city = targetCity,
                 lineId = leg.lineId,
-                targetOrder = state.targetOrder,
-                stationId = state.targetStopId,
+                // 一起等刚上车、还不知道终点站时 targetOrder 为 0：先按上车站请求，拿到全线站点后引擎补上终点
+                targetOrder = if (state.targetOrder > 0) state.targetOrder else leg.targetOrder,
+                stationId = state.targetStopId.ifBlank { leg.targetStopId },
                 source = leg.source,
                 lineNameHint = state.lineName,
                 directionHint = leg.direction
@@ -328,6 +343,65 @@ class BusTrackingService : LifecycleService() {
         }
     }
 
+    /** 请求用的城市：和当前选的城市一样就用它（带城市名），否则按会话里的 id 拼一个 */
+    private fun cityFor(cityId: String, mygolbsCityCode: String, cityName: String = ""): TransitCity {
+        val selectedCity = repository.selectedCity.value
+        return if (selectedCity.cityId == cityId) {
+            selectedCity
+        } else {
+            TransitCity(
+                cityId = cityId,
+                cityName = cityName,
+                mygolbsCityCode = mygolbsCityCode.takeIf { it.isNotEmpty() }
+            )
+        }
+    }
+
+    /** 一起等等车阶段的一轮：按计划请求（条数不影响请求数），结果交给引擎 */
+    private suspend fun pollWatch(
+        generation: Int,
+        target: TrackingTarget.WatchTogether,
+        plan: WatchPollPlan
+    ) {
+        val city = cityFor(target.cityId, target.mygolbsCityCode, target.cityName)
+        val result = withContext(Dispatchers.IO) { watchPoller.poll(target, plan, city) }
+        if (!isCurrent(generation)) return
+
+        result.onSuccess { poll ->
+            consecutiveFailures = 0
+            // 站点接口没有线路运营状态：按运营中算，节奏只看最先到的那辆
+            lastOperatingState = LineOperatingState.RUNNING
+            trackingRepository.recordLineBuses(generation, poll.lines.mapValues { it.value.buses })
+
+            val locationEnabled = locationTrackingAllowed && locationSource.hasPrecisePermission()
+            val nowMillis = clock.now().toEpochMilliseconds()
+            val nowElapsed = monotonicClock.elapsedMillis()
+            var effects: List<TrackingEngine.Effect> = emptyList()
+            val applied = trackingRepository.update(generation) { current ->
+                val reduced = TrackingEngine.reduceWatchPoll(
+                    session = current,
+                    poll = poll,
+                    locationEnabled = locationEnabled,
+                    serviceFix = serviceFix,
+                    nowMillis = nowMillis,
+                    nowElapsedMillis = nowElapsed
+                )
+                effects = reduced.effects
+                if (reduced.effects.any { it is TrackingEngine.Effect.Finished }) null else reduced.session
+            }
+            if (!applied) return
+            effects.forEach(::runEffect)
+            afterUpdate()
+        }.onFailure { e ->
+            Log.w(TAG, "Failed to refresh watch-together stop", e)
+            consecutiveFailures++
+            val nowMillis = clock.now().toEpochMilliseconds()
+            if (trackingRepository.update(generation) { TrackingEngine.reduceFailure(it, nowMillis) }) {
+                afterUpdate()
+            }
+        }
+    }
+
     private fun runEffect(effect: TrackingEngine.Effect) {
         when (effect) {
             is TrackingEngine.Effect.Alert -> when (effect.kind) {
@@ -349,15 +423,18 @@ class BusTrackingService : LifecycleService() {
             now == null -> shutdown()
             now.sessionId != attachedSessionId -> Unit
             now.generation != pollingGeneration -> attach(now)
-            else -> render(now.state)
+            else -> render(now)
         }
     }
 
     /** 刷新常驻通知与定位档位 */
-    private fun render(state: TrackingSessionState, force: Boolean = false) {
-        if (!force && state == lastRendered) return
-        lastRendered = state
-        liveProgressNotifier.updateNotification(this, state)
+    private fun render(session: TrackingSession, force: Boolean = false) {
+        val state = session.state
+        val watch = LiveProgressNotifier.WatchNotice.of(session)
+        val content = state to watch
+        if (!force && content == lastRendered) return
+        lastRendered = content
+        liveProgressNotifier.updateNotification(this, state, watch)
         updateLocationCadence(state)
     }
 

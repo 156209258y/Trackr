@@ -267,6 +267,16 @@ class FakeRealtimeRepository(
     /** 为 null 时默认返回当前城市 */
     var resolveCityResult: Result<TransitCity?>? = null
 
+    /** [getStopDetail] 被调了几次（一起等：等车阶段每轮应只有 1 次） */
+    var stopDetailCallCount: Int = 0
+        private set
+
+    /** 每次 [getLineDetail] 请求的 lineId（按调用顺序） */
+    val lineDetailCalls: MutableList<String> = mutableListOf()
+
+    /** [getLineDetail] 返回前先跑一下（测试用来挂起、数并发）；null = 直接返回 */
+    var lineDetailHook: (suspend (lineId: String) -> Unit)? = null
+
     /** 记录每次附近站点查询的 (城市, 纬度, 经度) */
     val nearbyStopsCalls: MutableList<Triple<TransitCity, Double, Double>> = mutableListOf()
 
@@ -298,7 +308,10 @@ class FakeRealtimeRepository(
         stationLng: Double?,
         userLat: Double?,
         userLng: Double?
-    ): Result<List<NearbyStop>> = stopDetailResult
+    ): Result<List<NearbyStop>> {
+        stopDetailCallCount++
+        return stopDetailResult
+    }
 
     override suspend fun search(
         city: TransitCity,
@@ -318,6 +331,8 @@ class FakeRealtimeRepository(
         lineNameHint: String,
         directionHint: Int
     ): Result<BusLineDetail> {
+        lineDetailCalls += lineId
+        lineDetailHook?.invoke(lineId)
         lineDetailsMap[lineId]?.let { return Result.success(it) }
         lineDetailResult?.let { return it }
         val direction = BusLineDirection(

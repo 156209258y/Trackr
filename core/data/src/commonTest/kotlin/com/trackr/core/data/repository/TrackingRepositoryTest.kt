@@ -9,6 +9,7 @@ import com.trackr.core.model.TrackingTarget
 import com.trackr.core.model.TransitGroup
 import com.trackr.core.model.TransitLeg
 import com.trackr.core.model.UserFix
+import com.trackr.core.model.WatchLine
 import com.trackr.core.testing.FakeClock
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.test.TestScope
@@ -463,5 +464,95 @@ class TrackingRepositoryTest {
         assertNotNull(second.session.value)
         assertNotNull(second.resume())
         assertTrue(second.legState.value.isActive)
+    }
+
+    // ---------------------------------------------------------------- 一起等（第 15 步）
+
+    private val watch = TrackingTarget.WatchTogether(
+        cityId = "sz",
+        stopId = "st1",
+        stopName = "科技园站",
+        lines = listOf(
+            WatchLine(lineId = "L1", lineName = "325", stopOrder = 5),
+            WatchLine(lineId = "L2", lineName = "M194", stopOrder = 5)
+        )
+    )
+
+    private fun atStop(id: String) = LiveBus(busId = id, plateOrFleetNo = id, order = 5, isArrived = true)
+
+    @Test
+    fun watch_confirmBoarded_twoLinesAtStop_writesBoardChoice_thenChoosingBoards() = runTest {
+        val repo = newRepo()
+        repo.awaitLoaded()
+        val started = assertNotNull(repo.start(watch))
+        assertEquals(2, started.watchedLines.size)
+        repo.recordLineBuses(started.generation, mapOf("L1" to listOf(atStop("a"))))
+        repo.recordLineBuses(started.generation, mapOf("L2" to listOf(atStop("b"))))
+
+        repo.confirmBoarded()
+        val choosing = assertNotNull(repo.session.value)
+        assertEquals(setOf("a", "b"), assertNotNull(choosing.boardChoice).options.map { it.busId }.toSet())
+        assertEquals(started.generation, choosing.generation)
+        assertEquals(LegPhase.WAITING_BOARD, repo.legState.value.legPhase)
+
+        repo.chooseBoardedBus("b")
+        val boarded = assertNotNull(repo.session.value)
+        assertEquals(LegPhase.ON_BOARD, boarded.state.legPhase)
+        assertEquals("L2", boarded.leg.lineId)
+        assertEquals("b", boarded.state.lockedBusId)
+        assertEquals(started.generation + 1, boarded.generation)
+        // 上车前那一代的轮询结果作废
+        assertFalse(repo.update(started.generation) { it })
+        // 没有待选了：再选什么都不做
+        repo.chooseBoardedBus("a")
+        assertEquals(boarded, repo.session.value)
+    }
+
+    @Test
+    fun watch_confirmBoarded_oneLineAtStop_boardsDirectly() = runTest {
+        val repo = newRepo()
+        repo.awaitLoaded()
+        val started = assertNotNull(repo.start(watch))
+        repo.recordLineBuses(started.generation, mapOf("L1" to listOf(bus("far", order = 2)), "L2" to listOf(atStop("b"))))
+
+        repo.confirmBoarded()
+
+        val boarded = assertNotNull(repo.session.value)
+        assertNull(boarded.boardChoice)
+        assertEquals("L2", boarded.leg.lineId)
+        assertEquals("b", repo.legState.value.lockedBusId)
+    }
+
+    @Test
+    fun route_confirmBoarded_keepsGenerationAndUsesLastBuses() = runTest {
+        // 第 15 步回归：路线「我已上车」不切代际号，照旧用 recordBuses 记下的车
+        val repo = newRepo()
+        repo.awaitLoaded()
+        val started = assertNotNull(repo.start(route))
+        repo.recordBuses(started.generation, listOf(bus("near", order = 3, progress = 0.9f)))
+
+        repo.confirmBoarded()
+
+        val boarded = assertNotNull(repo.session.value)
+        assertEquals(started.generation, boarded.generation)
+        assertEquals(LegPhase.ON_BOARD, boarded.state.legPhase)
+        assertEquals("near", boarded.state.lockedBusId)
+        assertNull(boarded.boardChoice)
+        assertTrue(repo.update(started.generation) { it })
+    }
+
+    @Test
+    fun watch_sessionWithWatchedLines_survivesReadBack() = runTest {
+        val first = newRepo()
+        first.awaitLoaded()
+        val started = assertNotNull(first.start(watch))
+        first.flush()
+
+        val second = newRepo()
+        second.awaitLoaded()
+        val resumed = assertNotNull(second.resume())
+        assertEquals(started.sessionId, resumed.sessionId)
+        assertEquals(started.watchedLines, resumed.watchedLines)
+        assertEquals(watch, resumed.target)
     }
 }

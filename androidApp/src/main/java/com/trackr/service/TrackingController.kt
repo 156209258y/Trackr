@@ -53,6 +53,10 @@ class AndroidTrackingController(
         repository.confirmBoarded()
     }
 
+    override fun chooseBoardedBus(busId: String?) {
+        repository.chooseBoardedBus(busId)
+    }
+
     override fun switchToNextLeg() {
         repository.switchToNextLeg()
     }

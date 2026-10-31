@@ -136,7 +136,8 @@ val appModule: Module = module {
             nextLegLineNameOf = { legIndex ->
                 get<TrackingRepository>().session.value?.let { TrackingEngine.nextLegLineName(it, legIndex) }
             },
-            showOnLockScreenSetting = { get<ITransitRepository>().showOnLockScreen.value }
+            showOnLockScreenSetting = { get<ITransitRepository>().showOnLockScreen.value },
+            transitCodeProviderSetting = { get<ITransitRepository>().preferredTransitCodeProvider.value }
         )
     }
     single { ArrivalAlertNotifier(get()) }
@@ -147,7 +148,8 @@ val appModule: Module = module {
         DefaultTrackingRepository(
             store = get<StorageBackend>().trackingSessionStore,
             scope = get(AppScopeQualifier),
-            clock = get()
+            clock = get(),
+            monotonicClock = get()
         )
     }
 

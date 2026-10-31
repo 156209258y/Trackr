@@ -16,8 +16,13 @@ import com.trackr.R
 import com.trackr.core.domain.arrival.ArrivalRules
 import com.trackr.core.domain.arrival.ArrivalState
 import com.trackr.core.domain.arrival.ArrivalText
+import com.trackr.core.model.BoardChoice
 import com.trackr.core.model.LegPhase
+import com.trackr.core.model.TrackingSession
 import com.trackr.core.model.TrackingSessionState
+import com.trackr.core.model.TransitCodeProvider
+import com.trackr.core.model.WatchedLine
+import com.trackr.util.TransitCodeHelper
 import com.trackr.service.vendor.LiveUpdatePromotion
 import com.trackr.service.vendor.OppoFluidCloudAdapter
 import com.trackr.service.vendor.XiaomiFocusAdapter
@@ -30,12 +35,29 @@ import com.trackr.service.vendor.XiaomiFocusAdapter
  * @param liveNotificationSetting 读「实时通知」设置开关（Koin 里接仓库）
  * @param nextLegLineNameOf 第 N 程之后那一程的线路名（Koin 里接 `TrackingRepository` 的会话）
  * @param showOnLockScreenSetting 读「锁屏显示」开关（D3）；读不到按开
+ * @param transitCodeProviderSetting 读「乘车码」默认平台（一起等通知的「乘车码」按钮用）；读不到按「每次询问」
  */
 class LiveProgressNotifier(
     private val liveNotificationSetting: () -> Boolean,
     private val nextLegLineNameOf: (legIndex: Int) -> String?,
-    private val showOnLockScreenSetting: () -> Boolean = { true }
+    private val showOnLockScreenSetting: () -> Boolean = { true },
+    private val transitCodeProviderSetting: () -> TransitCodeProvider = { TransitCodeProvider.ASK_ALWAYS }
 ) {
+
+    /**
+     * 一起等时通知要多写的东西（第 15 步）：等车时的几条线（按到站先后）和「上了哪辆？」待选。
+     * 单线路、路线传 null。
+     */
+    data class WatchNotice(
+        val lines: List<WatchedLine>,
+        val boardChoice: BoardChoice?
+    ) {
+        companion object {
+            /** 会话是一起等（等车或已上车）时给出，否则 null */
+            fun of(session: TrackingSession?): WatchNotice? =
+                session?.takeIf { it.watchTarget != null }?.let { WatchNotice(it.watchedLines, it.boardChoice) }
+        }
+    }
 
     /**
      * 是否开启常驻实时通知，以可注入 provider 的形式提供，
@@ -155,7 +177,8 @@ class LiveProgressNotifier(
     fun buildNotification(
         context: Context,
         state: TrackingSessionState,
-        nextLineName: String? = nextLegLineNameOf(state.currentLegIndex)
+        nextLineName: String? = nextLegLineNameOf(state.currentLegIndex),
+        watch: WatchNotice? = null
     ): Notification {
         ensureNotificationChannel(context)
 
@@ -182,7 +205,7 @@ class LiveProgressNotifier(
             )
 
         // 5~6. 胶囊短文本与标题 / 正文 / 展开文本（按阶段）
-        val texts = buildTexts(state, nextLineName)
+        val texts = if (watch != null) buildWatchTexts(state, watch) else buildTexts(state, nextLineName)
 
         // 7. 通知点击与 Action Intent
         val launchIntent = context.packageManager.getLaunchIntentForPackage(context.packageName)
@@ -219,8 +242,15 @@ class LiveProgressNotifier(
         }
 
         // 按钮（最多 3 个）：等车 = 我已上车 / 提前N站提醒 / 结束；乘车 = 跳到下一程（非最后一程）/ 结束
-        notificationActions(state).forEach { action ->
-            builder.addAction(0, action.label, receiverPendingIntent(context, action.intentAction, action.requestCode))
+        // 一起等：等车 = 我上车了 / 乘车码 / 结束；乘车 = 乘车码 / 结束
+        val actions = if (watch != null) watchNotificationActions(state) else notificationActions(state)
+        actions.forEach { action ->
+            val intent = if (action.opensTransitCode) {
+                transitCodePendingIntent(context, action.requestCode)
+            } else {
+                receiverPendingIntent(context, action.intentAction, action.requestCode)
+            }
+            builder.addAction(0, action.label, intent)
         }
 
         if (isLiveEnabled) {
@@ -256,8 +286,16 @@ class LiveProgressNotifier(
         val shortCriticalText: String
     )
 
-    /** 通知按钮 */
-    data class NotificationAction(val label: String, val intentAction: String, val requestCode: Int)
+    /**
+     * 通知按钮。
+     * @param opensTransitCode true = 点了打开乘车码（打开 App 的乘车码入口，和桌面快捷方式同一个），不发广播
+     */
+    data class NotificationAction(
+        val label: String,
+        val intentAction: String,
+        val requestCode: Int,
+        val opensTransitCode: Boolean = false
+    )
 
     internal fun isArrivedState(state: TrackingSessionState): Boolean =
         ArrivalRules.isSessionArrived(state)
@@ -428,6 +466,95 @@ class LiveProgressNotifier(
         }
     }
 
+    /**
+     * 一起等的通知文字（第 15 步，R6：只写前 2 条）。
+     * - 等车：标题写最先到的那辆（「325 4 分钟到 科技园」），正文写它的小字和第 2 条线（「还有 2 站 · M194 9 分钟」）
+     * - 「上了哪辆？」：标题写哪几条线都在站
+     * - 乘车：没有下车站，写还有几站到终点
+     */
+    fun buildWatchTexts(state: TrackingSessionState, watch: WatchNotice): NotificationTexts {
+        val shortText = shortCriticalTextFor(state)
+        val stopName = state.boardStopName.ifBlank { state.targetStopName }.ifBlank { "上车站" }
+        if (state.legPhase == LegPhase.ON_BOARD) {
+            val title = "已上 ${state.lineName}"
+            val content = when {
+                state.isSignalLost -> "信号丢失，显示的是上次位置"
+                state.lockedBusId == null || state.stopsRemaining < 0 -> state.statusSummary
+                isArrivedState(state) -> "到终点站 ${state.targetStopName} 了"
+                else -> listOfNotNull(
+                    "还有 ${state.stopsRemaining} 站到终点 ${state.targetStopName}",
+                    etaMinutesText(state.etaSeconds)
+                ).joinToString(" · ")
+            }
+            return NotificationTexts(title, content, "一起等 · 乘车", shortText)
+        }
+        val subText = "一起等 ${watch.lines.size.coerceAtLeast(1)} 条"
+        val choice = watch.boardChoice
+        if (choice != null) {
+            val names = choice.options.joinToString("、") { it.lineName }
+            return NotificationTexts("$names 都在 $stopName", "上了哪辆？打开追客选一下", subText, "上了哪辆")
+        }
+        val primaryTexts = buildTexts(state)
+        val title = primaryTexts.title
+        val primaryDetail = when (ArrivalText.stateForSession(state)) {
+            ArrivalState.Loading -> state.statusSummary
+            is ArrivalState.Arriving -> "快去上车，上车后点「我上车了」"
+            else -> primaryTexts.content
+        }
+        val second = watch.lines.drop(1).firstOrNull()?.let(::watchLineShort)
+        return NotificationTexts(title, listOfNotNull(primaryDetail, second).joinToString(" · "), subText, shortText)
+    }
+
+    /** 一起等列表里一条线的短文字：「M194 9 分钟」「M194 3 站」「M194 到站了」「M194 暂无来车」 */
+    internal fun watchLineShort(line: WatchedLine): String {
+        val name = line.line.lineName
+        val minutes = ArrivalText.minutesOf(line.etaSeconds)
+        return when {
+            line.busId == null -> if (line.hasData) "$name 暂无来车" else "$name 暂无数据"
+            line.isArrived -> "$name 到站了"
+            minutes != null -> "$name $minutes 分钟"
+            line.stopsRemaining >= 0 -> "$name ${line.stopsRemaining} 站"
+            else -> name
+        }
+    }
+
+    /** 一起等的通知按钮：等车 = 我上车了 / 乘车码 / 结束；乘车 = 乘车码 / 结束 */
+    fun watchNotificationActions(state: TrackingSessionState): List<NotificationAction> {
+        val transitCode = NotificationAction("乘车码", ACTION_OPEN_TRANSIT_CODE, 205, opensTransitCode = true)
+        val stop = NotificationAction("结束", TrackingActionReceiver.ACTION_STOP_TRACKING, 202)
+        return when (state.legPhase) {
+            LegPhase.WAITING_BOARD -> listOf(
+                NotificationAction("我上车了", TrackingActionReceiver.ACTION_CONFIRM_BOARDED, 203),
+                transitCode,
+                stop
+            )
+            else -> listOf(transitCode, stop)
+        }
+    }
+
+    /**
+     * 「乘车码」按钮：打开 App 的乘车码入口（`MainActivity` 收 [ACTION_OPEN_TRANSIT_CODE]，和桌面快捷方式一样）。
+     * 默认平台选了「每次询问」或读不到时，装了支付宝用支付宝，否则云闪付。
+     */
+    private fun transitCodePendingIntent(context: Context, requestCode: Int): PendingIntent {
+        val provider = when (runCatching { transitCodeProviderSetting() }.getOrDefault(TransitCodeProvider.ASK_ALWAYS)) {
+            TransitCodeProvider.ALIPAY -> TransitCodeProvider.ALIPAY
+            TransitCodeProvider.UNIONPAY -> TransitCodeProvider.UNIONPAY
+            TransitCodeProvider.ASK_ALWAYS ->
+                if (TransitCodeHelper.isAlipayInstalled(context)) TransitCodeProvider.ALIPAY else TransitCodeProvider.UNIONPAY
+        }
+        val intent = Intent(ACTION_OPEN_TRANSIT_CODE)
+            .setClassName(context.packageName, "com.trackr.MainActivity")
+            .putExtra(EXTRA_TRANSIT_CODE_PROVIDER, provider.id)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+        return PendingIntent.getActivity(
+            context,
+            requestCode,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+    }
+
     private fun receiverPendingIntent(context: Context, action: String, requestCode: Int): PendingIntent {
         val intent = Intent(context, TrackingActionReceiver::class.java).apply { this.action = action }
         return PendingIntent.getBroadcast(
@@ -460,12 +587,12 @@ class LiveProgressNotifier(
     /**
      * 刷新已有通知
      */
-    fun updateNotification(context: Context, state: TrackingSessionState) {
+    fun updateNotification(context: Context, state: TrackingSessionState, watch: WatchNotice? = null) {
         if (!state.isActive) {
             cancelNotification(context)
             return
         }
-        val notification = buildNotification(context, state)
+        val notification = buildNotification(context, state, watch = watch)
         try {
             NotificationManagerCompat.from(context).notify(NOTIFICATION_ID_LIVE_PROGRESS, notification)
         } catch (e: SecurityException) {
@@ -505,6 +632,12 @@ class LiveProgressNotifier(
 
         /** 锁屏开关关掉时锁屏上的标题（D3） */
         internal const val LOCK_SCREEN_PUBLIC_TITLE = "追客 · 追踪中"
+
+        /** 打开乘车码（`MainActivity` 和 `res/xml/shortcuts.xml` 用同一个 action） */
+        const val ACTION_OPEN_TRANSIT_CODE = "com.github.u5151561.trackr.action.OPEN_TRANSIT_CODE"
+
+        /** 乘车码平台（`alipay` / `unionpay`），同快捷方式的 extra */
+        const val EXTRA_TRANSIT_CODE_PROVIDER = "extra_provider"
     }
 }
 

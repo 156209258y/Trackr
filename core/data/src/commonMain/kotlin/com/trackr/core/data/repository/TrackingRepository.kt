@@ -2,6 +2,7 @@ package com.trackr.core.data.repository
 
 import androidx.datastore.core.DataStore
 import com.trackr.core.data.local.SerialWriter
+import com.trackr.core.domain.platform.MonotonicClock
 import com.trackr.core.domain.tracking.TrackingEngine
 import com.trackr.core.model.GroupTrackingSessionState
 import com.trackr.core.model.LiveBus
@@ -54,8 +55,14 @@ interface TrackingRepository {
      */
     fun restore(failed: TrackingSession, previous: TrackingSession?)
 
-    /** 手动「我已上车」；不在等车阶段时什么都不做 */
+    /**
+     * 手动「我已上车」；不在等车阶段时什么都不做。
+     * 一起等：不同线的车同时在站、定位分不清时写 `boardChoice`（等 [chooseBoardedBus]），否则上那辆、会话切到那条线。
+     */
     fun confirmBoarded()
+
+    /** 一起等「上了哪辆？」：选了 [busId]，或 null =「还没上」（清掉待选接着等）；没有待选时什么都不做 */
+    fun chooseBoardedBus(busId: String?)
 
     /** 手动切到下一程；不是路线或已是最后一程时什么都不做 */
     fun switchToNextLeg()
@@ -75,6 +82,12 @@ interface TrackingRepository {
 
     /** 追踪服务记下最近一次轮询拿到的车（「我上车了」选车用，不落盘）；代际号不对时忽略 */
     fun recordBuses(generation: Int, buses: List<LiveBus>)
+
+    /**
+     * 一起等：追踪服务记下最近一次轮询每条线的车（lineId -> 车，「我上车了」选车用，不落盘）。
+     * 只更新这次拿到的线，没请求的线保留上次的；代际号不对时忽略。
+     */
+    fun recordLineBuses(generation: Int, lineBuses: Map<String, List<LiveBus>>)
 
     /**
      * 追踪服务接上了一个从盘里读回的（中断的）会话：清掉中断标记，代际号 +1。
@@ -114,12 +127,14 @@ class DataStoreTrackingSessionStore(private val dataStore: DataStore<TrackingSes
  *
  * @param scope 读盘、写盘用的作用域（应用级）
  * @param clock 墙钟（写进 `updatedAtMillis`、判断读回的会话是否太旧）
+ * @param monotonicClock 和定位同一时基的单调时钟（一起等「我上车了」用定位分辨上了哪辆）；null = 不用定位分辨
  * @param newSessionId 新会话的标识
  */
 class DefaultTrackingRepository @OptIn(ExperimentalUuidApi::class) constructor(
     private val store: TrackingSessionStore,
     scope: CoroutineScope,
     private val clock: Clock = Clock.System,
+    private val monotonicClock: MonotonicClock? = null,
     private val newSessionId: () -> String = { Uuid.random().toString() }
 ) : TrackingRepository {
 
@@ -142,6 +157,9 @@ class DefaultTrackingRepository @OptIn(ExperimentalUuidApi::class) constructor(
     private var touched = false
 
     private var lastBuses: List<LiveBus> = emptyList()
+
+    /** 一起等：最近一次轮询每条线的车 */
+    private var lastLineBuses: Map<String, List<LiveBus>> = emptyMap()
 
     private var userFix: UserFix? = null
     override val latestUserFix: UserFix?
@@ -185,6 +203,7 @@ class DefaultTrackingRepository @OptIn(ExperimentalUuidApi::class) constructor(
         lastGeneration = generation
         touched = true
         lastBuses = emptyList()
+        lastLineBuses = emptyMap()
         userFix = null
         publish(created)
         created
@@ -195,6 +214,7 @@ class DefaultTrackingRepository @OptIn(ExperimentalUuidApi::class) constructor(
             touched = true
             if (_session.value != null) nextGeneration()
             lastBuses = emptyList()
+            lastLineBuses = emptyMap()
             userFix = null
             publish(null)
         }
@@ -205,6 +225,7 @@ class DefaultTrackingRepository @OptIn(ExperimentalUuidApi::class) constructor(
             val current = _session.value ?: return
             if (current.sessionId != failed.sessionId || current.generation != failed.generation) return
             lastBuses = emptyList()
+            lastLineBuses = emptyMap()
             if (previous == null) {
                 nextGeneration()
                 publish(null)
@@ -218,9 +239,36 @@ class DefaultTrackingRepository @OptIn(ExperimentalUuidApi::class) constructor(
         synchronized(lock) {
             val current = _session.value ?: return
             if (current.interrupted) return
-            val boarded = TrackingEngine.confirmBoarded(current, lastBuses, nowMillis()) ?: return
-            publish(boarded)
+            val fixForBoarding = monotonicClock?.let { userFix }
+            val boarded = TrackingEngine.confirmBoarded(
+                session = current,
+                lastBuses = lastBuses,
+                nowMillis = nowMillis(),
+                lineBuses = lastLineBuses,
+                fix = fixForBoarding,
+                nowElapsedMillis = monotonicClock?.elapsedMillis() ?: 0L
+            ) ?: return
+            publishMaybeNewGeneration(current, boarded)
         }
+    }
+
+    override fun chooseBoardedBus(busId: String?) {
+        synchronized(lock) {
+            val current = _session.value ?: return
+            if (current.interrupted) return
+            val chosen = TrackingEngine.chooseBoardedBus(current, busId, nowMillis()) ?: return
+            publishMaybeNewGeneration(current, chosen)
+        }
+    }
+
+    /** 调用方已持锁：一起等上车会切到那条线（代际号 +1），上一阶段的车不再用 */
+    private fun publishMaybeNewGeneration(current: TrackingSession, next: TrackingSession) {
+        if (next.generation != current.generation) {
+            lastGeneration = maxOf(lastGeneration, next.generation)
+            lastBuses = emptyList()
+            lastLineBuses = emptyMap()
+        }
+        publish(next)
     }
 
     override fun switchToNextLeg() {
@@ -230,6 +278,7 @@ class DefaultTrackingRepository @OptIn(ExperimentalUuidApi::class) constructor(
             val next = TrackingEngine.nextLeg(current, nowMillis()) ?: return
             lastGeneration = maxOf(lastGeneration, next.generation)
             lastBuses = emptyList()
+            lastLineBuses = emptyMap()
             userFix = null
             publish(next)
         }
@@ -255,11 +304,13 @@ class DefaultTrackingRepository @OptIn(ExperimentalUuidApi::class) constructor(
             if (next == null) {
                 nextGeneration()
                 lastBuses = emptyList()
+                lastLineBuses = emptyMap()
                 userFix = null
             } else if (next.generation != current.generation) {
                 // 引擎切了程：上一程的车和定位都不再用
                 lastGeneration = maxOf(lastGeneration, next.generation)
                 lastBuses = emptyList()
+                lastLineBuses = emptyMap()
                 userFix = null
             }
             publish(next)
@@ -272,11 +323,18 @@ class DefaultTrackingRepository @OptIn(ExperimentalUuidApi::class) constructor(
         }
     }
 
+    override fun recordLineBuses(generation: Int, lineBuses: Map<String, List<LiveBus>>) {
+        synchronized(lock) {
+            if (_session.value?.generation == generation) lastLineBuses = lastLineBuses + lineBuses
+        }
+    }
+
     override fun resume(): TrackingSession? = synchronized(lock) {
         val current = _session.value ?: return@synchronized null
         if (!current.interrupted) return@synchronized current
         val resumed = current.copy(interrupted = false, generation = nextGeneration())
         lastBuses = emptyList()
+        lastLineBuses = emptyMap()
         publish(resumed)
         resumed
     }

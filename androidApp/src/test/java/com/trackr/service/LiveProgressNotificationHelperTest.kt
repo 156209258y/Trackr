@@ -3,8 +3,12 @@ package com.trackr.service
 import android.app.Application
 import android.app.Notification
 import androidx.test.core.app.ApplicationProvider
+import com.trackr.core.model.BoardChoice
+import com.trackr.core.model.BoardOption
 import com.trackr.core.model.LegPhase
 import com.trackr.core.model.TrackingSessionState
+import com.trackr.core.model.WatchLine
+import com.trackr.core.model.WatchedLine
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -278,6 +282,109 @@ class LiveProgressNotificationHelperTest {
         assertEquals(listOf("跳到下一程", "结束"), notification.actions.map { it.title.toString() })
         assertEquals(400, notification.extras.getInt("android.progressMax"))
         assertEquals(200, notification.extras.getInt("android.progress"))
+    }
+
+    // ---------------------------------------------------------------- 一起等（第 15 步）
+
+    private fun watched(id: String, name: String, eta: Int = -1, stops: Int = -1, busId: String? = "b-$id", arrived: Boolean = false) =
+        WatchedLine(
+            line = WatchLine(lineId = id, lineName = name, stopOrder = 5),
+            busId = busId,
+            stopsRemaining = stops,
+            etaSeconds = eta,
+            isArrived = arrived,
+            hasData = true
+        )
+
+    private fun watchWaitingState() = TrackingSessionState(
+        isActive = true,
+        lineId = "L1",
+        lineName = "325",
+        legPhase = LegPhase.WAITING_BOARD,
+        boardStopOrder = 5,
+        boardStopName = "科技园站",
+        targetStopName = "科技园站",
+        targetOrder = 5,
+        startTrackingOrder = 2,
+        currentBusId = "b-L1",
+        currentBusOrder = 3,
+        stopsRemaining = 2,
+        etaSeconds = 240
+    )
+
+    private val threeLines = LiveProgressNotifier.WatchNotice(
+        lines = listOf(
+            watched("L1", "325", eta = 240, stops = 2),
+            watched("L2", "M194", eta = 540, stops = 4),
+            watched("L3", "19", eta = 900, stops = 7)
+        ),
+        boardChoice = null
+    )
+
+    @Test
+    fun watchTogether_waiting_titleIsFastest_contentNamesOnlySecondLine() {
+        val notification = liveNotifier.buildNotification(context, watchWaitingState(), watch = threeLines)
+        assertEquals("325 4 分钟到 科技园站", notification.extras.getCharSequence("android.title")?.toString())
+        val content = notification.extras.getCharSequence("android.text")?.toString().orEmpty()
+        assertTrue(content, content.endsWith("M194 9 分钟"))
+        // R6：只写前 2 条
+        assertFalse(content, content.contains("19 "))
+        assertEquals("一起等 3 条", notification.extras.getCharSequence("android.subText")?.toString())
+        assertEquals(listOf("我上车了", "乘车码", "结束"), notification.actions.map { it.title.toString() })
+    }
+
+    @Test
+    fun watchTogether_actions_transitCodeOpensApp_otherButtonsBroadcast() {
+        val waiting = liveNotifier.watchNotificationActions(watchWaitingState())
+        assertEquals(TrackingActionReceiver.ACTION_CONFIRM_BOARDED, waiting[0].intentAction)
+        assertTrue(waiting[1].opensTransitCode)
+        assertEquals(TrackingActionReceiver.ACTION_STOP_TRACKING, waiting[2].intentAction)
+
+        val riding = liveNotifier.watchNotificationActions(watchWaitingState().copy(legPhase = LegPhase.ON_BOARD))
+        assertEquals(listOf("乘车码", "结束"), riding.map { it.label })
+
+        val notification = liveNotifier.buildNotification(context, watchWaitingState(), watch = threeLines)
+        val transitCode = notification.actions[1].actionIntent
+        val intent = org.robolectric.Shadows.shadowOf(transitCode).savedIntent
+        assertEquals(LiveProgressNotifier.ACTION_OPEN_TRANSIT_CODE, intent.action)
+        assertTrue(org.robolectric.Shadows.shadowOf(transitCode).isActivityIntent)
+    }
+
+    @Test
+    fun watchTogether_boardChoice_andOnBoardTexts() {
+        val choice = LiveProgressNotifier.WatchNotice(
+            lines = threeLines.lines,
+            boardChoice = BoardChoice(
+                options = listOf(
+                    BoardOption(lineId = "L1", lineName = "325", busId = "a"),
+                    BoardOption(lineId = "L2", lineName = "M194", busId = "b")
+                ),
+                sinceMillis = 0L
+            )
+        )
+        val texts = liveNotifier.buildWatchTexts(watchWaitingState(), choice)
+        assertEquals("325、M194 都在 科技园站", texts.title)
+        assertTrue(texts.content.contains("上了哪辆"))
+
+        val onBoard = watchWaitingState().copy(
+            legPhase = LegPhase.ON_BOARD,
+            lockedBusId = "a",
+            targetOrder = 12,
+            targetStopName = "白石洲",
+            stopsRemaining = 6,
+            etaSeconds = -1
+        )
+        val riding = liveNotifier.buildWatchTexts(onBoard, LiveProgressNotifier.WatchNotice(emptyList(), null))
+        assertEquals("已上 325", riding.title)
+        assertEquals("还有 6 站到终点 白石洲", riding.content)
+    }
+
+    @Test
+    fun watchTogether_lineShortTexts() {
+        assertEquals("M194 9 分钟", liveNotifier.watchLineShort(watched("L2", "M194", eta = 540, stops = 4)))
+        assertEquals("M194 3 站", liveNotifier.watchLineShort(watched("L2", "M194", stops = 3)))
+        assertEquals("M194 到站了", liveNotifier.watchLineShort(watched("L2", "M194", stops = 0, arrived = true)))
+        assertEquals("M194 暂无来车", liveNotifier.watchLineShort(watched("L2", "M194", busId = null)))
     }
 
     // D3：锁屏可见性。直接建实例，不走 object 转发

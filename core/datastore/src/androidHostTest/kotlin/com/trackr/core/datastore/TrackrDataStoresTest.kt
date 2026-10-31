@@ -1,7 +1,12 @@
 package com.trackr.core.datastore
 
 import androidx.datastore.preferences.core.edit
+import com.trackr.core.model.BoardChoice
+import com.trackr.core.model.BoardOption
 import com.trackr.core.model.CandidateLine
+import com.trackr.core.model.DataSourceType
+import com.trackr.core.model.WatchLine
+import com.trackr.core.model.WatchedLine
 import com.trackr.core.model.TrackingLegParams
 import com.trackr.core.model.TrackingSession
 import com.trackr.core.model.TrackingSessionState
@@ -119,6 +124,49 @@ class TrackrDataStoresTest {
         reopened.updateData { null }
         assertNull(reopened.data.first())
         assertEquals(0L, File(path).length())
+    }
+
+    @Test
+    fun trackingSession_step12File_withoutWatchFields_readsBackWithDefaults() = runBlocking {
+        // 第 12 步写的会话没有 watchedLines / boardChoice：读回来给默认值，照常接着追
+        val file = File(dir, TrackrDataStoreFiles.TRACKING_SESSION)
+        file.writeText(
+            """{"sessionId":"s1","generation":2,""" +
+                """"target":{"type":"single","cityId":"c","lineId":"L1","lineName":"59","targetOrder":7},""" +
+                """"leg":{"cityId":"c","lineId":"L1","lineName":"59","targetOrder":7},""" +
+                """"state":{"isActive":true,"lineId":"L1","lineName":"59","targetOrder":7,"legPhase":"SINGLE","updatedAtMillis":5},""" +
+                """"interrupted":false}"""
+        )
+
+        val session = requireNotNull(createTrackingSessionDataStore(file.absolutePath, newScope()).data.first())
+        assertEquals("s1", session.sessionId)
+        assertTrue(session.target is TrackingTarget.SingleLine)
+        assertTrue(session.watchedLines.isEmpty())
+        assertNull(session.boardChoice)
+        assertNull(session.watchTarget)
+    }
+
+    @Test
+    fun trackingSession_watchTogether_roundTrip() = runBlocking {
+        val path = File(dir, TrackrDataStoreFiles.TRACKING_SESSION).absolutePath
+        val store = createTrackingSessionDataStore(path, newScope())
+        val lines = listOf(
+            WatchLine(lineId = "L1", lineName = "325", stopOrder = 5),
+            WatchLine(lineId = "L2", lineName = "M194", stopOrder = 9, source = DataSourceType.MYGOLBS)
+        )
+        val session = TrackingSession(
+            sessionId = "w1",
+            generation = 4,
+            target = TrackingTarget.WatchTogether(cityId = "sz", stopId = "st1", stopName = "科技园站", lines = lines, stopLat = 22.5),
+            leg = TrackingLegParams(cityId = "sz", lineId = "L1", lineName = "325", targetOrder = 5),
+            state = TrackingSessionState(isActive = true, lineId = "L1", lineName = "325", targetOrder = 5, updatedAtMillis = 5L),
+            watchedLines = lines.map { WatchedLine(line = it, busId = "b-${it.lineId}", stopsRemaining = 2, hasData = true) },
+            boardChoice = BoardChoice(listOf(BoardOption(lineId = "L1", lineName = "325", busId = "b-L1", order = 5)), sinceMillis = 9L)
+        )
+        store.updateData { session }
+        closeAll()
+
+        assertEquals(session, createTrackingSessionDataStore(path, newScope()).data.first())
     }
 
     @Test

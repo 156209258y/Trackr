@@ -63,6 +63,14 @@ class FakeTrackingController(
         repository?.confirmBoarded()
     }
 
+    /** [chooseBoardedBus] 收到的选择（null =「还没上」） */
+    val boardChoices: MutableList<String?> = mutableListOf()
+
+    override fun chooseBoardedBus(busId: String?) {
+        boardChoices += busId
+        repository?.chooseBoardedBus(busId)
+    }
+
     override fun switchToNextLeg() {
         nextLegCount++
         repository?.switchToNextLeg()

@@ -125,6 +125,9 @@ object TrackingEngine {
                     routeLegSession(sessionId, generation, target, legIndex, nowMillis)
                 }
             }
+
+            // 一起等：只有 1 程、没有下车站的临时路线（第 15 步）
+            is TrackingTarget.WatchTogether -> WatchTogetherTracker.begin(sessionId, generation, target, nowMillis)
         }
 
     /** 路线第 [legIndex] 程的初始会话（WAITING_BOARD 起步）；该程没有候选线时返回 null */
@@ -206,8 +209,43 @@ object TrackingEngine {
         return resolveLineForLeg(nextLeg, nextIndex, target.selectedLineIds)?.lineName
     }
 
-    /** 这次追踪要不要用定位（判上车、下车站辅助）：路线要，单线路不要（Q17：第 15 步一起等也要） */
-    fun wantsLocation(target: TrackingTarget): Boolean = target is TrackingTarget.Route
+    /** 这次追踪要不要用定位（判上车、下车站辅助）：路线和一起等要（Q17），单线路不要 */
+    fun wantsLocation(target: TrackingTarget): Boolean =
+        target is TrackingTarget.Route || target is TrackingTarget.WatchTogether
+
+    // ---------------------------------------------------------------- 一起等（第 15 步）
+
+    /**
+     * 一起等这一轮要请求什么；不是一起等、或已上车（上车后按 [TrackingSession.leg] 请求那一条线）时为 null。
+     * 等车：1 次站点请求，条数不影响请求数（Q8）；待确认 / 「上了哪辆？」：只请求在站车所在的线（Q16）。
+     */
+    fun watchPollPlan(session: TrackingSession): WatchPollPlan? = WatchTogetherTracker.plan(session)
+
+    /**
+     * 处理一轮一起等的数据（等车阶段）。已上车时原样返回（上车前发出的请求，结果过期了）。
+     * 参数同 [reducePoll]；判上车只用 [serviceFix]（≤30 秒、≤50 m）。
+     */
+    fun reduceWatchPoll(
+        session: TrackingSession,
+        poll: WatchPoll,
+        locationEnabled: Boolean,
+        serviceFix: UserFix?,
+        nowMillis: Long,
+        nowElapsedMillis: Long
+    ): Result = WatchTogetherTracker.reduce(
+        session = session,
+        poll = poll,
+        locationEnabled = locationEnabled,
+        fix = usableBoardingFix(serviceFix, nowElapsedMillis),
+        nowMillis = nowMillis
+    )
+
+    /**
+     * 一起等「上了哪辆？」用户选了 [busId]（null = 还没上，清掉待选接着等）。
+     * 没有待选、或 [busId] 不在选项里时返回 null（什么都不做）。
+     */
+    fun chooseBoardedBus(session: TrackingSession, busId: String?, nowMillis: Long): TrackingSession? =
+        WatchTogetherTracker.chooseBoardedBus(session, busId, nowMillis)
 
     // ---------------------------------------------------------------- 轮询
 
@@ -231,6 +269,9 @@ object TrackingEngine {
         nowElapsedMillis: Long
     ): Result {
         val previous = session.state
+        if (session.watchTarget != null) {
+            return reduceWatchOnBoard(session, detail, locationEnabled, serviceFix, nowMillis, nowElapsedMillis)
+        }
         if (previous.legPhase == LegPhase.SINGLE) {
             val update = SingleLegTracker.processPoll(
                 session = previous,
@@ -294,6 +335,55 @@ object TrackingEngine {
         return Result(next, effects)
     }
 
+    /**
+     * 一起等上车后：只追坐上的那一辆（路线的乘车阶段，改锁规则照用）。没有下车站，目标是终点站；
+     * 上车时还不知道终点（手动上车只有站点接口的数据）就用这次线路详情补上。到终点就结束。
+     * 还在等车阶段时原样返回（等车阶段走 [reduceWatchPoll]）。
+     */
+    private fun reduceWatchOnBoard(
+        session: TrackingSession,
+        detail: BusLineDetail,
+        locationEnabled: Boolean,
+        serviceFix: UserFix?,
+        nowMillis: Long,
+        nowElapsedMillis: Long
+    ): Result {
+        var state = session.state
+        if (state.legPhase != LegPhase.ON_BOARD) return Result(session)
+        if (state.targetOrder <= state.boardStopOrder) {
+            val terminal = detail.stops.maxByOrNull { it.order }?.takeIf { it.order > state.boardStopOrder }
+                ?: return Result(
+                    session.copy(
+                        state = state.copy(statusSummary = "已上车，正在获取线路站点…", updatedAtMillis = nowMillis)
+                    )
+                )
+            state = state.copy(
+                targetOrder = terminal.order,
+                totalStops = terminal.order,
+                targetStopId = terminal.stopId,
+                targetStopName = terminal.name
+            )
+        }
+        val boarding = boardingInput(state, detail, locationEnabled, serviceFix, nowMillis, nowElapsedMillis)
+        val update = GroupLegTracker.processPoll(state, detail.buses, boarding, nowMillis)
+        val decision = GroupLegTracker.planAlerts(state, update)
+        val effects = mutableListOf<Effect>()
+        val alertState = decision.alertState
+        if (alertState != null) {
+            when (decision.alert) {
+                GroupLegTracker.AlertKind.DROP_ARRIVED -> effects += Effect.Alert(AlertKind.ARRIVED, alertState)
+                GroupLegTracker.AlertKind.DROP_APPROACHING -> effects += Effect.Alert(AlertKind.APPROACHING, alertState)
+                else -> Unit
+            }
+        }
+        val updated = session.copy(state = decision.state)
+        if (!update.reachedDropStop) return Result(updated, effects)
+        val finished = updated.copy(
+            state = decision.state.copy(statusSummary = "已到终点站 ${decision.state.targetStopName}")
+        )
+        return Result(finished, effects + Effect.Finished)
+    }
+
     /** 轮询失败：保持状态，只改文案 */
     fun reduceFailure(session: TrackingSession, nowMillis: Long): TrackingSession = session.copy(
         state = session.state.copy(
@@ -332,9 +422,24 @@ object TrackingEngine {
      * 手动“我已上车”：锁定待确认的车，否则锁 order 在 A..A+1 且离上车站 A 最近的车，切入 ON_BOARD；
      * 锁不到时下一次轮询按同样规则补锁。不在等车阶段时返回 null（什么都不做）。
      *
+     * 一起等按 §2.6 的一条规则在所有在等的线里选（见 `WatchTogetherTracker.confirmBoarded`）：分不清时写
+     * `boardChoice`、会话仍在等车；选中后会话切到那条线（代际号 +1）。
+     *
      * @param lastBuses 最近一次成功轮询拿到的在途车辆
+     * @param lineBuses 一起等：最近一次轮询每条线的车（lineId -> 车）
+     * @param fix 一起等：最近一次手机定位（判上车按 ≤30 秒、≤50 m 过滤）；拿不到单调时钟时传 null
      */
-    fun confirmBoarded(session: TrackingSession, lastBuses: List<LiveBus>, nowMillis: Long): TrackingSession? {
+    fun confirmBoarded(
+        session: TrackingSession,
+        lastBuses: List<LiveBus>,
+        nowMillis: Long,
+        lineBuses: Map<String, List<LiveBus>> = emptyMap(),
+        fix: UserFix? = null,
+        nowElapsedMillis: Long = 0L
+    ): TrackingSession? {
+        if (session.watchTarget != null) {
+            return WatchTogetherTracker.confirmBoarded(session, lineBuses, usableBoardingFix(fix, nowElapsedMillis), nowMillis)
+        }
         if (session.state.legPhase != LegPhase.WAITING_BOARD) return null
         return session.copy(state = GroupLegTracker.confirmBoarded(session.state, lastBuses, nowMillis))
     }

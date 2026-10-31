@@ -13,7 +13,10 @@ import com.trackr.core.model.BusStop
 import com.trackr.core.model.CandidateLine
 import com.trackr.core.model.LegPhase
 import com.trackr.core.model.LiveBus
+import com.trackr.core.model.NearbyStop
+import com.trackr.core.model.NearbyStopLineStatus
 import com.trackr.core.model.TrackingTarget
+import com.trackr.core.model.WatchLine
 import com.trackr.core.model.TransitGroup
 import com.trackr.core.model.TransitLeg
 import com.trackr.core.testing.FakeLocationSource
@@ -204,6 +207,85 @@ class BusTrackingServiceTest {
 
         assertTrue(shadowOf(service).isStoppedBySelf)
         assertTrue(shadowOf(service).isForegroundStopped)
+    }
+
+    // ---------------------------------------------------------------- 一起等（第 15 步）
+
+    private fun watchTarget() = TrackingTarget.WatchTogether(
+        cityId = "034",
+        stopId = "s5",
+        stopName = "站5",
+        lines = listOf(
+            WatchLine(lineId = "L59", lineName = "59路", stopOrder = 5),
+            WatchLine(lineId = "L60", lineName = "60路", stopOrder = 5),
+            WatchLine(lineId = "L61", lineName = "61路", stopOrder = 5)
+        )
+    )
+
+    private fun stopStatus(lineId: String, buses: List<LiveBus>) = NearbyStopLineStatus(
+        line = BusLineDirection(lineId = lineId, name = lineId, startStop = "始发", endStop = "终点"),
+        targetOrder = 5,
+        targetStopId = "s5",
+        targetStopName = "站5",
+        approachingBuses = buses
+    )
+
+    private fun stopWithLines() = NearbyStop(
+        stopId = "s5",
+        name = "站5",
+        wgsLat = 25.005,
+        wgsLng = 119.0,
+        lines = listOf(
+            stopStatus("L59", listOf(LiveBus(busId = "b1", plateOrFleetNo = "闽B1", order = 2, etaSeconds = 600))),
+            stopStatus("L60", listOf(LiveBus(busId = "b2", plateOrFleetNo = "闽B2", order = 4, etaSeconds = 120))),
+            stopStatus("L61", listOf(LiveBus(busId = "b3", plateOrFleetNo = "闽B3", order = 3, etaSeconds = 300)))
+        )
+    )
+
+    @Test
+    fun watchTogether_onePollIsOneStopRequest_fastestShown_usesLocationType() {
+        transit.realtime.stopDetailResult = Result.success(listOf(stopWithLines()))
+        val session = requireNotNull(trackingRepository.start(watchTarget()))
+        val service = startService(session.sessionId).get()
+
+        // Q17：一起等也要 location 类型
+        assertEquals(
+            ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE or ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION,
+            service.lastForegroundServiceType
+        )
+        waitUntil("第一次轮询写回仓库") { trackingRepository.legState.value.currentBusId == "b2" }
+
+        val polled = requireNotNull(trackingRepository.session.value)
+        assertEquals("L60", polled.leg.lineId)
+        assertEquals(listOf("L60", "L61", "L59"), polled.watchedLines.map { it.line.lineId })
+        // 3 条线只发 1 次站点请求，不请求线路接口
+        assertEquals(1, transit.realtime.stopDetailCallCount)
+        assertTrue(transit.realtime.lineDetailCalls.isEmpty())
+        // 最先到的离站 1 站：开等车近站档定位
+        assertEquals(LocationCadence.Tier.WAITING_NEAR, service.currentLocationTier)
+    }
+
+    @Test
+    fun watchTogether_afterBoarding_pollsOnlyThatLine() {
+        transit.realtime.stopDetailResult = Result.success(listOf(stopWithLines()))
+        transit.realtime.lineDetailsMap["L60"] = lineDetail(
+            "L60",
+            listOf(LiveBus(busId = "b2", plateOrFleetNo = "闽B2", order = 6, segmentProgress = 0.2f, wgsLat = 25.006, wgsLng = 119.0))
+        )
+        val session = requireNotNull(trackingRepository.start(watchTarget()))
+        startService(session.sessionId).get()
+        waitUntil("第一次轮询写回仓库") { trackingRepository.legState.value.currentBusId == "b2" }
+
+        // 通知「我上车了」：没有车在站，按排第一的 60 路上车，先不锁车；服务马上只请求 60 路
+        trackingRepository.confirmBoarded()
+        waitUntil("上车后按 60 路轮询并补锁") { trackingRepository.legState.value.lockedBusId == "b2" }
+
+        val riding = trackingRepository.legState.value
+        assertEquals(LegPhase.ON_BOARD, riding.legPhase)
+        assertEquals("L60", riding.lineId)
+        assertEquals(10, riding.targetOrder) // 没有下车站：目标是终点站
+        assertEquals(listOf("L60"), transit.realtime.lineDetailCalls)
+        assertEquals(1, transit.realtime.stopDetailCallCount)
     }
 
     @Test
