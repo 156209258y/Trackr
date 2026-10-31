@@ -24,6 +24,7 @@ import com.trackr.core.model.TrackingSessionState
 import com.trackr.core.model.TransitCity
 import com.trackr.core.model.TransitGroup
 import com.trackr.core.model.TransitLeg
+import com.trackr.core.testing.FakeAmapKeyRepository
 import com.trackr.data.repository.FakeTransitRepository
 import com.trackr.data.repository.RouteGroupRepository
 import com.trackr.ui.screens.favoritesgroup.FavoritesGroupViewModel
@@ -64,12 +65,13 @@ class RoutePlanScreenTest {
         )
     }
 
-    private fun createViewModel(): FavoritesGroupViewModel {
+    private fun createViewModel(amapKeys: FakeAmapKeyRepository? = null): FavoritesGroupViewModel {
         return FavoritesGroupViewModel(
             groupRepository = groupRepository,
             transitRepository = fakeTransitRepository,
             coordinator = null,
-            enableAutoRefresh = false
+            enableAutoRefresh = false,
+            amapKeys = amapKeys
         )
     }
 
@@ -139,9 +141,9 @@ class RoutePlanScreenTest {
         composeTestRule.onNodeWithText("我的位置 / 输入起点站").assertIsDisplayed()
         composeTestRule.onNodeWithText("输入目的地、商圈或公交地铁站").assertIsDisplayed()
 
-        // 验证规划触发按钮与Key配置按钮
+        // 验证规划触发按钮；「配置Key」胶囊已删（D2：Key 在「更多」页配）
         composeTestRule.onNodeWithTag("btn_trigger_plan").assertIsDisplayed()
-        composeTestRule.onNodeWithTag("btn_key_config").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("btn_key_config").assertDoesNotExist()
 
         // 输入起点
         composeTestRule.onNodeWithTag("input_origin").performTextInput("科技园")
@@ -149,6 +151,36 @@ class RoutePlanScreenTest {
 
         // 验证起点已填充
         composeTestRule.onNodeWithText("科技园").assertIsDisplayed()
+    }
+
+    @Test
+    fun onlyWebKey_showsSearchAndNoMap_noRecenterNoKeyEntry() {
+        // Q18：只有 Web Key 时有路线页，能搜能算，但不画地图（也就没有回中按钮）
+        val viewModel = createViewModel(FakeAmapKeyRepository(webKey = "web_key_abcdef"))
+        composeTestRule.setContent {
+            RoutePlanScreen(viewModel = viewModel)
+        }
+
+        composeTestRule.onNodeWithTag("top_search_console").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("btn_trigger_plan").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("route_plan_no_map").assertExists()
+        composeTestRule.onNodeWithTag("btn_recenter").assertDoesNotExist()
+        composeTestRule.onNodeWithTag("btn_key_config").assertDoesNotExist()
+        composeTestRule.onNodeWithText("配置 Key").assertDoesNotExist()
+    }
+
+    @Test
+    fun androidKeyWithoutMapSession_drawsNoMapAndNoFallbackSketch() {
+        // 有 Android Key 但拿不到地图会话（测试环境 / 设备不支持）：不再退回内置示意图，只留底色
+        val viewModel = createViewModel(FakeAmapKeyRepository(androidKey = "android_key_123456"))
+        assertTrue(viewModel.canShowMap.value)
+        composeTestRule.setContent {
+            RoutePlanScreen(viewModel = viewModel, mapSession = null)
+        }
+
+        composeTestRule.onNodeWithTag("route_plan_no_map").assertExists()
+        composeTestRule.onNodeWithTag("btn_recenter").assertDoesNotExist()
+        composeTestRule.onNodeWithTag("card_map_timeout").assertDoesNotExist()
     }
 
     @Test

@@ -28,7 +28,7 @@ import kotlinx.coroutines.flow.StateFlow
 
 /**
  * 设置：城市、数据源、乘车码渠道、附近站数量、实时通知开关。
- * 高德 Key 两槽在 [AmapKeyRepository]（第 9 步）；`hasMapKey` / `canShowMap`（§2.5）第 11 步加。
+ * 高德 Key 两槽和由它算出的 `hasMapKey` / `canShowMap`（§2.5）在 [AmapKeyRepository]。
  */
 interface SettingsRepository {
     val selectedCity: StateFlow<TransitCity>

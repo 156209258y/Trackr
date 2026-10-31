@@ -9,10 +9,8 @@ import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -50,13 +48,11 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Clear
-import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.DirectionsBus
 import androidx.compose.material.icons.filled.Explore
 import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.SwapVert
 import androidx.compose.material.icons.filled.Warning
@@ -83,7 +79,6 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -95,31 +90,17 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
-import androidx.compose.ui.graphics.drawscope.DrawScope
-import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.toArgb
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -159,12 +140,6 @@ import kotlinx.coroutines.launch
 import java.time.ZoneId
 
 /**
- * 是否运行在 Robolectric/无高德 SDK 的测试环境，用于决定地图是否走矢量降级实现
- */
-internal fun isTestEnvironment(): Boolean =
-    Build.FINGERPRINT.contains("robolectric", ignoreCase = true)
-
-/**
  * 路线规划全屏界面 (RoutePlanScreen - 路线规划 Tab)
  * 采用 全屏矢量地图底座 + 顶部悬浮搜索岛 + 底部方案抽屉 架构
  */
@@ -174,8 +149,7 @@ fun RoutePlanScreen(
     mapSession: AmapMapSession? = null,
     onNavigateToFavorites: () -> Unit = {},
     onNavigateToLineDetail: (cityId: String, lineId: String, targetOrder: Int, stopId: String, source: DataSourceType, lineName: String) -> Unit = { _, _, _, _, _, _ -> },
-    modifier: Modifier = Modifier,
-    useVectorMapFallback: Boolean = isTestEnvironment()
+    modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -186,7 +160,8 @@ fun RoutePlanScreen(
     val isPlanning by viewModel.isPlanningRoute.collectAsStateWithLifecycle()
     val planError by viewModel.planErrorMessage.collectAsStateWithLifecycle()
     val customApiKey by viewModel.customAmapApiKey.collectAsStateWithLifecycle()
-    val customWebApiKey by viewModel.customAmapWebApiKey.collectAsStateWithLifecycle()
+    // 有 Android Key 才画地图；只有 Web Key 时只出搜索和方案（D2、Q18）
+    val canShowMap by viewModel.canShowMap.collectAsStateWithLifecycle()
     val favoriteGroups by viewModel.favoriteGroups.collectAsStateWithLifecycle()
     val currentCity by viewModel.currentCity.collectAsStateWithLifecycle()
     val userLocationWgs by viewModel.userLocation.collectAsStateWithLifecycle()
@@ -218,7 +193,6 @@ fun RoutePlanScreen(
     var selectedDest by remember { mutableStateOf<AmapTipItem?>(null) }
 
     var selectedSchemeIndex by rememberSaveable { mutableIntStateOf(0) }
-    var showKeyDialog by rememberSaveable { mutableStateOf(false) }
     var showSaveGroupDialog by rememberSaveable { mutableStateOf(false) }
 
     var isOriginFocused by remember { mutableStateOf(false) }
@@ -226,8 +200,6 @@ fun RoutePlanScreen(
     var dismissOriginTips by remember { mutableStateOf(false) }
     var dismissDestTips by remember { mutableStateOf(false) }
 
-    var mapScale by remember { mutableFloatStateOf(1f) }
-    var mapOffset by remember { mutableStateOf(Offset.Zero) }
     var recenterTrigger by rememberSaveable { mutableIntStateOf(0) }
 
     val triggerPlan: () -> Unit = {
@@ -246,10 +218,6 @@ fun RoutePlanScreen(
     LaunchedEffect(plannedSchemes) {
         if (selectedSchemeIndex >= plannedSchemes.size) {
             selectedSchemeIndex = 0
-        }
-        if (plannedSchemes.isNotEmpty()) {
-            mapScale = 1f
-            mapOffset = Offset.Zero
         }
     }
 
@@ -302,12 +270,10 @@ fun RoutePlanScreen(
         }
     }
 
-    // 地图可用性判定：
-    // - 硬失败（缺 Key / ABI 不支持 / 原生库异常）→ 直接降级为内置矢量示意图；
+    // 地图可用性（D2：不再有内置示意图）：
+    // - 没有 Android Key（只有 Web Key）、没有地图会话（测试环境）、设备 ABI 不支持 → 不画地图区，只出搜索和方案；
+    // - 地图实例创建失败 → 同样不画，浮层说明原因并可重试；
     // - 软失败（底图 15s 未就绪）→ 保留真实地图，浮层提示，避免把“加载慢”误判成“用不了”。
-    val isSdkKeyConfigured = remember(customApiKey) {
-        AmapSdkManager.isAndroidKeyConfigured(customApiKey)
-    }
     val mapUnavailableReason = remember(customApiKey) {
         AmapSdkManager.mapUnavailableReason(customApiKey)
     }
@@ -316,35 +282,12 @@ fun RoutePlanScreen(
     var mapRetryToken by remember(customApiKey) { mutableIntStateOf(0) }
     var showMapDiagnostics by remember { mutableStateOf(false) }
 
-    val fallbackReason = mapUnavailableReason ?: mapRuntimeError
-    // mapSession 为 null（如测试环境）时直接走内置示意图，避免依赖真实地图实例
-    val useFallbackMap = useVectorMapFallback || mapSession == null || fallbackReason != null
+    val canDrawMap = canShowMap && mapSession != null && mapUnavailableReason == null
+    val showMap = canDrawMap && mapRuntimeError == null
 
     Box(modifier = modifier.fillMaxSize()) {
-        // 1. 全屏矢量地图视窗 (真实高德 3D 矢量地图 / 降级 Canvas 示意图)
-        if (useFallbackMap) {
-            RoutePlanVectorMapCanvas(
-                selectedScheme = currentScheme,
-                scale = mapScale,
-                offset = mapOffset,
-                onTransform = { pan, zoom ->
-                    mapScale = (mapScale * zoom).coerceIn(0.5f, 3.5f)
-                    mapOffset += pan
-                },
-                modifier = Modifier.fillMaxSize()
-            )
-            if (!useVectorMapFallback && fallbackReason != null) {
-                MapUnavailableNotice(
-                    reason = fallbackReason,
-                    showKeyAction = !isSdkKeyConfigured,
-                    onConfigureKey = { showKeyDialog = true },
-                    onRetry = { mapRuntimeError = null; mapRetryToken++ },
-                    modifier = Modifier
-                        .align(Alignment.Center)
-                        .padding(horizontal = 24.dp)
-                )
-            }
-        } else {
+        // 1. 全屏高德 3D 矢量地图；不画地图时只留底色
+        if (showMap && mapSession != null) {
             AmapRealVectorMapView(
                 session = mapSession,
                 schemes = visibleSchemes,
@@ -360,45 +303,55 @@ fun RoutePlanScreen(
                 onRuntimeError = { mapRuntimeError = it },
                 modifier = Modifier.fillMaxSize()
             )
+        } else {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(MaterialTheme.colorScheme.surfaceContainerLow)
+                    .testTag("route_plan_no_map")
+            )
         }
 
-        // 底图迟迟未就绪：浮层提示但不销毁地图，用户可以直接重试或查看诊断信息
-        if (!useFallbackMap && mapLoadTimeout != null) {
+        // 地图实例创建失败 / 底图迟迟未就绪：浮层提示，用户可以直接重试或查看诊断信息
+        val mapNotice = if (canDrawMap) mapRuntimeError ?: mapLoadTimeout else null
+        if (mapNotice != null) {
             MapLoadTimeoutNotice(
-                reason = mapLoadTimeout.orEmpty(),
+                reason = mapNotice,
                 onRetry = {
+                    mapRuntimeError = null
                     mapLoadTimeout = null
                     mapRetryToken++
                 },
                 onShowDiagnostics = { showMapDiagnostics = true },
-                onDismiss = { mapLoadTimeout = null },
+                onDismiss = {
+                    mapLoadTimeout = null
+                    mapRuntimeError = null
+                },
                 modifier = Modifier
                     .align(Alignment.Center)
                     .padding(horizontal = 24.dp)
             )
         }
 
-        // 地图浮动工具按键 (右侧：单一居中重置 FAB)
-        FloatingActionButton(
-            onClick = {
-                recenterTrigger++
-                mapScale = 1f
-                mapOffset = Offset.Zero
-            },
-            modifier = Modifier
-                .align(Alignment.CenterEnd)
-                .padding(end = 16.dp)
-                .size(42.dp)
-                .testTag("btn_recenter"),
-            shape = CircleShape,
-            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
-            contentColor = MaterialTheme.colorScheme.primary
-        ) {
-            Icon(
-                imageVector = Icons.Default.MyLocation,
-                contentDescription = "居中重置",
-                modifier = Modifier.size(20.dp)
-            )
+        // 地图浮动工具按键 (右侧：单一居中重置 FAB)，只在画地图时有
+        if (showMap) {
+            FloatingActionButton(
+                onClick = { recenterTrigger++ },
+                modifier = Modifier
+                    .align(Alignment.CenterEnd)
+                    .padding(end = 16.dp)
+                    .size(42.dp)
+                    .testTag("btn_recenter"),
+                shape = CircleShape,
+                containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
+                contentColor = MaterialTheme.colorScheme.primary
+            ) {
+                Icon(
+                    imageVector = Icons.Default.MyLocation,
+                    contentDescription = "居中重置",
+                    modifier = Modifier.size(20.dp)
+                )
+            }
         }
 
         // 2. 顶部悬浮搜索岛 (Top Floating Search Console)
@@ -623,43 +576,6 @@ fun RoutePlanScreen(
                                 modifier = Modifier.size(20.dp)
                             )
                         }
-                    }
-                }
-            }
-
-            // 独立的小胶囊配置按钮
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 6.dp, end = 4.dp),
-                horizontalArrangement = Arrangement.End
-            ) {
-                Surface(
-                    onClick = { showKeyDialog = true },
-                    shape = RoundedCornerShape(12.dp),
-                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.90f),
-                    shadowElevation = 2.dp,
-                    modifier = Modifier.testTag("btn_key_config")
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Settings,
-                            contentDescription = "高德Key配置",
-                            tint = if (!isSdkKeyConfigured) MaterialTheme.colorScheme.outline else MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(13.dp)
-                        )
-                        Text(
-                            text = if (!isSdkKeyConfigured) "配置Key" else "Key已生效",
-                            style = MaterialTheme.typography.labelSmall.copy(
-                                fontSize = 11.sp,
-                                color = if (!isSdkKeyConfigured) MaterialTheme.colorScheme.outline else MaterialTheme.colorScheme.primary,
-                                fontWeight = FontWeight.Medium
-                            )
-                        )
                     }
                 }
             }
@@ -909,286 +825,13 @@ fun RoutePlanScreen(
         )
     }
 
-    // 5. 高德 Key 与 SHA-1 配置对话框
-    if (showKeyDialog) {
-        AmapApiKeyConfigDialog(
-            customApiKey = customApiKey,
-            customWebApiKey = customWebApiKey,
-            onSaveCustomApiKey = { viewModel.saveCustomAmapApiKey(it) },
-            onSaveCustomWebApiKey = { viewModel.saveCustomAmapWebApiKey(it) },
-            onDismiss = { showKeyDialog = false }
-        )
-    }
-
-    // 6. 地图诊断信息（核对包名 / SHA-1 / 生效 Key 是否与控制台一致）
+    // 5. 地图诊断信息（核对包名 / SHA-1 / 生效 Key 是否与控制台一致）
     if (showMapDiagnostics) {
         MapDiagnosticsDialog(
             androidKey = customApiKey,
             onDismiss = { showMapDiagnostics = false }
         )
     }
-}
-
-/**
- * 全屏矢量地图 Canvas 渲染器
- * 绘制底图路网道路网格、干道、公交折线与起点、换乘中转站、终点 Marker
- */
-@Composable
-fun RoutePlanVectorMapCanvas(
-    selectedScheme: AmapTransitSchemeResult?,
-    scale: Float,
-    offset: Offset,
-    onTransform: (pan: Offset, zoom: Float) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val textMeasurer = rememberTextMeasurer()
-
-    // 调色盘：全部取自主题，随深浅色切换
-    val colorScheme = MaterialTheme.colorScheme
-    val extendedColors = MaterialTheme.extendedColors
-    val bgColor = colorScheme.surfaceContainerHigh
-    val gridColor = colorScheme.outlineVariant.copy(alpha = 0.5f)
-    val arterialRoadColor = colorScheme.surface
-    val arterialCasingColor = colorScheme.outlineVariant
-
-    val transitLeg1Color = colorScheme.primary
-    val transitLeg2Color = extendedColors.legSecondary
-    val walkingColor = extendedColors.walk
-
-    val originColor = extendedColors.success
-    val transferColor = extendedColors.legSecondary
-    val destColor = colorScheme.error
-
-    Canvas(
-        modifier = modifier
-            .background(bgColor)
-            .pointerInput(Unit) {
-                detectTransformGestures { _, pan, zoom, _ ->
-                    onTransform(pan, zoom)
-                }
-            }
-    ) {
-        val w = size.width
-        val h = size.height
-
-        withTransform({
-            translate(offset.x, offset.y)
-            scale(scaleX = scale, scaleY = scale, pivot = center)
-        }) {
-            // 1. 绘制网格线底纹 (Stylized Grid)
-            val gridSize = 60.dp.toPx()
-            var x = -gridSize * 4
-            while (x < w + gridSize * 4) {
-                drawLine(
-                    color = gridColor,
-                    start = Offset(x, -gridSize * 4),
-                    end = Offset(x, h + gridSize * 4),
-                    strokeWidth = 1.dp.toPx()
-                )
-                x += gridSize
-            }
-            var y = -gridSize * 4
-            while (y < h + gridSize * 4) {
-                drawLine(
-                    color = gridColor,
-                    start = Offset(-gridSize * 4, y),
-                    end = Offset(w + gridSize * 4, y),
-                    strokeWidth = 1.dp.toPx()
-                )
-                y += gridSize
-            }
-
-            // 2. 绘制城市主要干道弧线 (Arterial Roads)
-            val roadPath1 = Path().apply {
-                moveTo(-100f, h * 0.28f)
-                quadraticTo(w * 0.4f, h * 0.38f, w + 120f, h * 0.22f)
-            }
-            val roadPath2 = Path().apply {
-                moveTo(w * 0.28f, -100f)
-                quadraticTo(w * 0.35f, h * 0.52f, w * 0.82f, h + 120f)
-            }
-
-            // 道路外边沿 (Casing)
-            drawPath(roadPath1, arterialCasingColor, style = Stroke(width = 24.dp.toPx(), cap = StrokeCap.Round))
-            drawPath(roadPath2, arterialCasingColor, style = Stroke(width = 28.dp.toPx(), cap = StrokeCap.Round))
-
-            // 道路实体 (Core)
-            drawPath(roadPath1, arterialRoadColor, style = Stroke(width = 18.dp.toPx(), cap = StrokeCap.Round))
-            drawPath(roadPath2, arterialRoadColor, style = Stroke(width = 22.dp.toPx(), cap = StrokeCap.Round))
-
-            // 3. 规划轨迹折线与起终点投影
-            if (selectedScheme != null) {
-                val legs = selectedScheme.group.legs
-                val originName = selectedScheme.group.originStopName.ifBlank { "起点" }
-                val destName = selectedScheme.group.destinationStopName.ifBlank { "终点" }
-
-                // 计算或采用自适应 Procedural 布局坐标
-                val pOrigin = Offset(w * 0.22f, h * 0.36f)
-                val pDest = Offset(w * 0.76f, h * 0.70f)
-
-                if (legs.size <= 1) {
-                    // 直达方案：一段公交实线
-                    val transitPath = Path().apply {
-                        moveTo(pOrigin.x, pOrigin.y)
-                        cubicTo(w * 0.28f, h * 0.52f, w * 0.60f, h * 0.56f, pDest.x, pDest.y)
-                    }
-                    // 轨迹外描边抗锯齿
-                    drawPath(transitPath, Color.White, style = Stroke(width = 9.dp.toPx(), cap = StrokeCap.Round))
-                    drawPath(transitPath, transitLeg1Color, style = Stroke(width = 6.dp.toPx(), cap = StrokeCap.Round))
-
-                    // 起终点 Marker
-                    drawMarkerBadge(textMeasurer, pOrigin, "🟢 起点: $originName", originColor)
-                    drawMarkerBadge(textMeasurer, pDest, "🚩 终点: $destName", destColor)
-                } else {
-                    // 换乘方案：第 1 程 -> 步行接驳 -> 第 2 程
-                    val pTransfer1 = Offset(w * 0.46f, h * 0.49f)
-                    val pTransfer2 = Offset(w * 0.52f, h * 0.54f)
-                    val transferStopName = legs.firstOrNull()?.toStopName ?: "中转站"
-
-                    // 第 1 程 (公交实线)
-                    val pathLeg1 = Path().apply {
-                        moveTo(pOrigin.x, pOrigin.y)
-                        quadraticTo(w * 0.30f, h * 0.44f, pTransfer1.x, pTransfer1.y)
-                    }
-                    drawPath(pathLeg1, Color.White, style = Stroke(width = 9.dp.toPx(), cap = StrokeCap.Round))
-                    drawPath(pathLeg1, transitLeg1Color, style = Stroke(width = 6.dp.toPx(), cap = StrokeCap.Round))
-
-                    // 换乘步行接驳段 (点状虚线)
-                    val pathWalk = Path().apply {
-                        moveTo(pTransfer1.x, pTransfer1.y)
-                        lineTo(pTransfer2.x, pTransfer2.y)
-                    }
-                    val dashEffect = PathEffect.dashPathEffect(floatArrayOf(12f, 10f), 0f)
-                    drawPath(pathWalk, walkingColor, style = Stroke(width = 3.5.dp.toPx(), pathEffect = dashEffect, cap = StrokeCap.Round))
-
-                    // 第 2 程 (公交/地铁实线，紫罗兰色)
-                    val pathLeg2 = Path().apply {
-                        moveTo(pTransfer2.x, pTransfer2.y)
-                        quadraticTo(w * 0.68f, h * 0.60f, pDest.x, pDest.y)
-                    }
-                    drawPath(pathLeg2, Color.White, style = Stroke(width = 9.dp.toPx(), cap = StrokeCap.Round))
-                    drawPath(pathLeg2, transitLeg2Color, style = Stroke(width = 6.dp.toPx(), cap = StrokeCap.Round))
-
-                    // 起点 Marker
-                    drawMarkerBadge(textMeasurer, pOrigin, "🟢 起点: $originName", originColor)
-
-                    // 换乘站 Badge
-                    val pTransferMid = Offset((pTransfer1.x + pTransfer2.x) / 2, (pTransfer1.y + pTransfer2.y) / 2)
-                    drawTransferBadge(textMeasurer, pTransferMid, "🔄 $transferStopName", transferColor)
-
-                    // 终点 Marker
-                    drawMarkerBadge(textMeasurer, pDest, "🚩 终点: $destName", destColor)
-                }
-            }
-        }
-    }
-}
-
-/**
- * 在 Canvas 绘制高质感 Marker 胶囊徽标
- */
-private fun DrawScope.drawMarkerBadge(
-    textMeasurer: androidx.compose.ui.text.TextMeasurer,
-    pos: Offset,
-    label: String,
-    badgeColor: Color
-) {
-    val textLayout = textMeasurer.measure(
-        text = AnnotatedString(label),
-        style = TextStyle(
-            fontSize = 11.sp,
-            fontWeight = FontWeight.Bold,
-            color = Color.White
-        )
-    )
-
-    val padH = 10.dp.toPx()
-    val padV = 5.dp.toPx()
-    val badgeWidth = textLayout.size.width + padH * 2
-    val badgeHeight = textLayout.size.height + padV * 2
-
-    val badgeTopLeft = Offset(pos.x - badgeWidth / 2, pos.y - badgeHeight - 8.dp.toPx())
-
-    // 徽标阴影与实体背景
-    drawRoundRect(
-        color = Color.Black.copy(alpha = 0.2f),
-        topLeft = badgeTopLeft.copy(y = badgeTopLeft.y + 2.dp.toPx()),
-        size = Size(badgeWidth, badgeHeight),
-        cornerRadius = CornerRadius(badgeHeight / 2, badgeHeight / 2)
-    )
-    drawRoundRect(
-        color = badgeColor,
-        topLeft = badgeTopLeft,
-        size = Size(badgeWidth, badgeHeight),
-        cornerRadius = CornerRadius(badgeHeight / 2, badgeHeight / 2)
-    )
-
-    // 定位小尖角
-    val arrowPath = Path().apply {
-        moveTo(pos.x - 5.dp.toPx(), badgeTopLeft.y + badgeHeight)
-        lineTo(pos.x + 5.dp.toPx(), badgeTopLeft.y + badgeHeight)
-        lineTo(pos.x, pos.x * 0 + pos.y)
-        close()
-    }
-    drawPath(arrowPath, badgeColor)
-
-    // 文字
-    drawText(
-        textLayoutResult = textLayout,
-        topLeft = Offset(badgeTopLeft.x + padH, badgeTopLeft.y + padV)
-    )
-
-    // 地面定位白心锚点
-    drawCircle(Color.White, radius = 4.dp.toPx(), center = pos)
-    drawCircle(badgeColor, radius = 2.dp.toPx(), center = pos)
-}
-
-/**
- * 在 Canvas 绘制换乘中转站双环 Badge
- */
-private fun DrawScope.drawTransferBadge(
-    textMeasurer: androidx.compose.ui.text.TextMeasurer,
-    pos: Offset,
-    label: String,
-    badgeColor: Color
-) {
-    // 双环圆圈
-    drawCircle(Color.White, radius = 9.dp.toPx(), center = pos)
-    drawCircle(badgeColor, radius = 7.dp.toPx(), center = pos)
-    drawCircle(Color.White, radius = 3.dp.toPx(), center = pos)
-
-    val textLayout = textMeasurer.measure(
-        text = AnnotatedString(label),
-        style = TextStyle(
-            fontSize = 10.sp,
-            fontWeight = FontWeight.Bold,
-            color = badgeColor
-        )
-    )
-
-    val padH = 6.dp.toPx()
-    val padV = 2.dp.toPx()
-    val badgeWidth = textLayout.size.width + padH * 2
-    val badgeHeight = textLayout.size.height + padV * 2
-    val badgeTopLeft = Offset(pos.x - badgeWidth / 2, pos.y + 11.dp.toPx())
-
-    drawRoundRect(
-        color = Color.White.copy(alpha = 0.95f),
-        topLeft = badgeTopLeft,
-        size = Size(badgeWidth, badgeHeight),
-        cornerRadius = CornerRadius(4.dp.toPx(), 4.dp.toPx())
-    )
-    drawRoundRect(
-        color = badgeColor.copy(alpha = 0.3f),
-        topLeft = badgeTopLeft,
-        size = Size(badgeWidth, badgeHeight),
-        cornerRadius = CornerRadius(4.dp.toPx(), 4.dp.toPx()),
-        style = Stroke(width = 1.dp.toPx())
-    )
-    drawText(
-        textLayoutResult = textLayout,
-        topLeft = Offset(badgeTopLeft.x + padH, badgeTopLeft.y + padV)
-    )
 }
 
 /**
@@ -1314,328 +957,6 @@ fun SaveFavoriteGroupDialog(
             }
         }
     )
-}
-
-/**
- * 高德 Key 与 SHA-1 签名配置对话框。
- *
- * 高德开放平台的「Android 平台 Key」与「Web 服务 Key」互不通用，这里分两个输入框分别保存：
- * 前者决定地图能否出图，后者决定云端公交算路能否走 HTTP 接口。
- */
-@Composable
-fun AmapApiKeyConfigDialog(
-    customApiKey: String?,
-    customWebApiKey: String?,
-    onSaveCustomApiKey: (String) -> Unit,
-    onSaveCustomWebApiKey: (String) -> Unit,
-    onDismiss: () -> Unit
-) {
-    val context = LocalContext.current
-    val clipboardManager = LocalClipboardManager.current
-    val uriHandler = LocalUriHandler.current
-    var inputKey by remember(customApiKey) { mutableStateOf(customApiKey.orEmpty()) }
-    var inputWebKey by remember(customWebApiKey) { mutableStateOf(customWebApiKey.orEmpty()) }
-    val currentSha1 = remember { SignatureUtils.getSigningCertificateSha1(context) }
-
-    // 高德 Key 为 32 位字母数字组合，长度不符时直接拦下，省得用户以为“填了就该出图”
-    fun isKeyFormatAcceptable(key: String): Boolean =
-        key.isBlank() || key.length == 32 && key.all { it.isLetterOrDigit() }
-
-    val isAndroidKeyFormatValid = isKeyFormatAcceptable(inputKey.trim())
-    val isWebKeyFormatValid = isKeyFormatAcceptable(inputWebKey.trim())
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = Icons.Default.Settings,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = "高德地图 Key 配置",
-                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
-                )
-            }
-        },
-        text = {
-            LazyColumn(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                item {
-                    Text(
-                        text = "本应用开源分发、不内置任何 Key，每位用户用自己的高德账号申请即可（个人开发者免费额度足够日常使用）。" +
-                            "地图底图由「Android 平台 Key」鉴权，必须与下方包名 + SHA-1 完全一致；" +
-                            "「Web 服务 Key」只用于云端公交算路，两者不能混填。",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-
-                item {
-                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                        Text(
-                            text = "申请步骤：① 复制包名 + SHA-1 → ② 控制台创建「Android 平台」Key，发布版 / 调试版 SHA-1 都填上 → ③ 把 Key 填到下面 → ④ 保存",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.outline
-                        )
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
-                            TextButton(
-                                onClick = {
-                                    val text = "包名：${context.packageName}\nSHA-1：$currentSha1"
-                                    clipboardManager.setText(AnnotatedString(text))
-                                    Toast.makeText(context, "包名与 SHA-1 已复制", Toast.LENGTH_SHORT).show()
-                                },
-                                contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp),
-                                modifier = Modifier.testTag("btn_copy_pkg_sha1")
-                            ) {
-                                Text("复制包名 + SHA-1", style = MaterialTheme.typography.labelSmall)
-                            }
-                            TextButton(
-                                onClick = {
-                                    runCatching {
-                                        uriHandler.openUri("https://console.amap.com/dev/key/app")
-                                    }.onFailure {
-                                        Toast.makeText(context, "未找到可用浏览器，请手动访问 console.amap.com", Toast.LENGTH_SHORT).show()
-                                    }
-                                },
-                                contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp),
-                                modifier = Modifier.testTag("btn_open_amap_console")
-                            ) {
-                                Text("打开高德控制台", style = MaterialTheme.typography.labelSmall)
-                            }
-                        }
-                    }
-                }
-
-                item {
-                    Card(
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
-                        shape = RoundedCornerShape(10.dp)
-                    ) {
-                        Column(modifier = Modifier.padding(10.dp)) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = "Package Name",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.outline
-                                    )
-                                    Text(
-                                        text = context.packageName,
-                                        style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
-                                    )
-                                }
-                                IconButton(
-                                    onClick = {
-                                        clipboardManager.setText(AnnotatedString(context.packageName))
-                                        Toast.makeText(context, "包名已复制", Toast.LENGTH_SHORT).show()
-                                    },
-                                    modifier = Modifier.size(32.dp)
-                                ) {
-                                    Icon(Icons.Default.ContentCopy, contentDescription = "复制包名", modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
-                                }
-                            }
-
-                            Spacer(modifier = Modifier.height(6.dp))
-
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = "SHA-1 签名指纹",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.outline
-                                    )
-                                    Text(
-                                        text = currentSha1.ifBlank { "正在读取…" },
-                                        style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace, fontSize = 11.sp),
-                                        maxLines = 2,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                }
-                                IconButton(
-                                    onClick = {
-                                        if (currentSha1.isNotBlank()) {
-                                            clipboardManager.setText(AnnotatedString(currentSha1))
-                                            Toast.makeText(context, "SHA-1 已复制", Toast.LENGTH_SHORT).show()
-                                        }
-                                    },
-                                    enabled = currentSha1.isNotBlank(),
-                                    modifier = Modifier.size(32.dp)
-                                ) {
-                                    Icon(Icons.Default.ContentCopy, contentDescription = "复制 SHA-1", modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
-                                }
-                            }
-                        }
-                    }
-                }
-
-                item {
-                    OutlinedTextField(
-                        value = inputKey,
-                        onValueChange = { inputKey = it.trim() },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .testTag("input_amap_android_key"),
-                        label = { Text("高德 Android Key（地图）") },
-                        placeholder = { Text("粘贴 32 位 Android 平台 Key") },
-                        isError = !isAndroidKeyFormatValid,
-                        supportingText = {
-                            Text(
-                                text = when {
-                                    !isAndroidKeyFormatValid -> "Key 应为 32 位字母数字，请检查是否粘贴完整"
-                                    AmapSdkManager.isAndroidKeyConfigured(inputKey) -> "已配置，地图将使用该 Key 出图"
-                                    else -> "未配置时地图降级为内置示意图"
-                                },
-                                style = MaterialTheme.typography.labelSmall
-                            )
-                        },
-                        trailingIcon = {
-                            if (inputKey.isNotBlank()) {
-                                IconButton(onClick = { inputKey = "" }) {
-                                    Icon(Icons.Default.Clear, contentDescription = "清空 Android Key", modifier = Modifier.size(16.dp))
-                                }
-                            }
-                        },
-                        singleLine = true
-                    )
-                }
-
-                item {
-                    OutlinedTextField(
-                        value = inputWebKey,
-                        onValueChange = { inputWebKey = it.trim() },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .testTag("input_amap_web_key"),
-                        label = { Text("高德 Web 服务 Key（可选）") },
-                        placeholder = { Text("用于云端公交算路，不绑定包名") },
-                        isError = !isWebKeyFormatValid,
-                        supportingText = {
-                            Text(
-                                text = when {
-                                    !isWebKeyFormatValid -> "Key 应为 32 位字母数字，请检查是否粘贴完整"
-                                    AmapSdkManager.isWebServiceKeyConfigured(inputWebKey) -> "已配置"
-                                    else -> "未配置时仅使用本地 + SDK 引擎算路"
-                                },
-                                style = MaterialTheme.typography.labelSmall
-                            )
-                        },
-                        trailingIcon = {
-                            if (inputWebKey.isNotBlank()) {
-                                IconButton(onClick = { inputWebKey = "" }) {
-                                    Icon(Icons.Default.Clear, contentDescription = "清空 Web Key", modifier = Modifier.size(16.dp))
-                                }
-                            }
-                        },
-                        singleLine = true
-                    )
-                }
-            }
-        },
-        confirmButton = {
-            Button(
-                enabled = isAndroidKeyFormatValid && isWebKeyFormatValid,
-                onClick = {
-                    onSaveCustomApiKey(inputKey.trim())
-                    onSaveCustomWebApiKey(inputWebKey.trim())
-                    Toast.makeText(context, "Key 已保存，正在重新加载地图", Toast.LENGTH_SHORT).show()
-                    onDismiss()
-                }
-            ) {
-                Text("保存生效")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("取消")
-            }
-        }
-    )
-}
-
-/**
- * 地图不可用提示：说明原因并给出配置入口，避免空白底图让人摸不着头脑。
- */
-@Composable
-fun MapUnavailableNotice(
-    reason: String,
-    showKeyAction: Boolean,
-    onConfigureKey: () -> Unit,
-    onRetry: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Card(
-        modifier = modifier.testTag("card_map_unavailable"),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f)),
-        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = Icons.Default.Warning,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.error,
-                    modifier = Modifier.size(18.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = "底图未加载",
-                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold)
-                )
-            }
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = reason,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Spacer(modifier = Modifier.height(6.dp))
-            Text(
-                text = "当前展示的是内置矢量示意图，路线与站点信息仍然可用。",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.outline
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = "提示：刚填完 Key 仍不出图时，请彻底退出应用再打开一次（高德 SDK 会缓存首次初始化结果）。",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.outline
-            )
-            Spacer(modifier = Modifier.height(12.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                if (showKeyAction) {
-                    Button(
-                        onClick = onConfigureKey,
-                        modifier = Modifier.testTag("btn_map_configure_key")
-                    ) {
-                        Text("配置 Key")
-                    }
-                }
-                TextButton(
-                    onClick = onRetry,
-                    modifier = Modifier.testTag("btn_map_retry")
-                ) {
-                    Text("重试")
-                }
-            }
-        }
-    }
 }
 
 /**
@@ -1774,7 +1095,7 @@ fun MapDiagnosticsDialog(
  * @param retryToken 变化时丢弃当前实例并重建（用户点“重试”）
  * @param onMapLoaded 底图首次就绪回调
  * @param onLoadTimeout 底图超时未就绪回调（软失败，外层以浮层提示，不销毁地图）
- * @param onRuntimeError 地图实例创建失败（如设备 ABI 缺 arm 库、原生库加载失败）回调，外层切换为矢量示意图
+ * @param onRuntimeError 地图实例创建失败（如设备 ABI 缺 arm 库、原生库加载失败）回调，外层不画地图并浮层提示、可重试
  */
 @Composable
 fun AmapRealVectorMapView(

@@ -77,7 +77,8 @@ import java.util.UUID
 fun FavoritesGroupScreen(
     viewModel: FavoritesGroupViewModel,
     onNavigateToLineDetail: (cityId: String, lineId: String, targetOrder: Int, stopId: String, source: DataSourceType, lineName: String) -> Unit = { _, _, _, _, _, _ -> },
-    onNavigateToRoutePlan: () -> Unit = {},
+    /** 为 null 时不显示「路线规划」按钮（D2：没有高德 Key 时没有路线规划页签） */
+    onNavigateToRoutePlan: (() -> Unit)? = null,
     onNavigateBack: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
@@ -332,10 +333,12 @@ fun FavoritesGroupScreen(
                             )
                             Spacer(modifier = Modifier.height(20.dp))
                             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                Button(onClick = onNavigateToRoutePlan) {
-                                    Icon(imageVector = Icons.AutoMirrored.Filled.AltRoute, contentDescription = null)
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text("路线规划")
+                                if (onNavigateToRoutePlan != null) {
+                                    Button(onClick = onNavigateToRoutePlan) {
+                                        Icon(imageVector = Icons.AutoMirrored.Filled.AltRoute, contentDescription = null)
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text("路线规划")
+                                    }
                                 }
                                 OutlinedButton(onClick = { showCreateGroupDialog = true }) {
                                     Icon(imageVector = Icons.Default.Add, contentDescription = null)

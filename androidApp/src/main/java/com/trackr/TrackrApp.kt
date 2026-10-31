@@ -2,6 +2,7 @@ package com.trackr
 
 import android.app.Application
 import com.trackr.data.local.StorageBackend
+import com.trackr.data.remote.amap.AmapSdkKeySync
 import com.trackr.data.remote.amap.AmapSdkManager
 import com.trackr.data.repository.IRouteGroupRepository
 import com.trackr.data.repository.IScheduledReminderRepository
@@ -30,6 +31,8 @@ class TrackrApp : Application() {
         runCatching {
             AmapSdkManager.initialize(applicationContext, storage.amapKeys.androidKey.value)
         }
+        // 之后用户在「更多」页改 Android Key 时重新注入
+        get<AmapSdkKeySync>().start()
 
         // 三个仓库按原来的顺序在这里取一次（构建时读盘）
         get<ITransitRepository>()

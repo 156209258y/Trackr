@@ -24,6 +24,7 @@ import com.trackr.core.model.ScheduledReminder
 import com.trackr.core.model.TrackingSessionState
 import com.trackr.core.model.TransitCity
 import com.trackr.core.model.TransitSearchResult
+import com.trackr.core.testing.FakeAmapKeyRepository
 import com.trackr.data.location.AndroidLocationSource
 import com.trackr.data.location.AndroidMonotonicClock
 import com.trackr.data.repository.FakeScheduledReminderRepository
@@ -862,7 +863,8 @@ class ScreenshotGeneratorTest {
         val vm = MoreViewModel(
             application = app,
             repository = fakeRepo,
-            reminderRepository = fakeReminderRepo
+            reminderRepository = fakeReminderRepo,
+            amapKeys = FakeAmapKeyRepository()
         )
         mainDispatcherRule.testDispatcher.scheduler.advanceUntilIdle()
         return vm

@@ -48,7 +48,7 @@ class AmapSdkTransitService(
             // 动态注入自备 Key 与隐私合规
             val hasKey = AmapSdkManager.applyApiKey(context, customApiKey)
             if (!hasKey) {
-                throw IllegalStateException("未配置有效的高德 Android Key，请在弹窗中配置自备 Key")
+                throw IllegalStateException("未配置有效的高德 Android Key，请在「更多」页配置自备 Key")
             }
 
             val cityTrimmed = city.trim()
@@ -102,7 +102,7 @@ class AmapSdkTransitService(
         runCatching {
             val hasKey = AmapSdkManager.applyApiKey(context, customApiKey)
             if (!hasKey) {
-                throw IllegalStateException("未配置有效的高德 Android Key，请在弹窗中配置自备 Key")
+                throw IllegalStateException("未配置有效的高德 Android Key，请在「更多」页配置自备 Key")
             }
 
             val originParts = originLngLat.split(",")

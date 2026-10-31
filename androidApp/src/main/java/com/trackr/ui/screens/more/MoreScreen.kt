@@ -597,6 +597,11 @@ fun MoreScreen(
                 }
             }
 
+            // 地图与路线规划：高德 Key（第 11 步从路线规划页挪来，见 AmapKeySection）
+            item(key = "amap_key_section", contentType = "more_section") {
+                AmapKeySection(viewModel = viewModel)
+            }
+
             // 3. 关于与支持分组 (About & Support)
             item(key = "about_support_section", contentType = "more_section") {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {

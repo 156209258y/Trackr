@@ -27,6 +27,7 @@ import com.trackr.core.data.local.StoreMigrationFlags
 import com.trackr.data.location.AndroidLocationSource
 import com.trackr.data.location.AndroidMonotonicClock
 import com.trackr.data.remote.amap.AmapSdkKeyApplier
+import com.trackr.data.remote.amap.AmapSdkKeySync
 import com.trackr.data.remote.amap.AmapSdkTransitService
 import com.trackr.data.remote.amap.AndroidAmapSdkKeyApplier
 import com.trackr.data.remote.update.GithubUpdateChecker
@@ -137,6 +138,8 @@ val appModule: Module = module {
     single<LocationRepository> { DefaultLocationRepository(source = get(), clock = AndroidMonotonicClock) }
     single<TrackingController> { AndroidTrackingController(androidContext()) }
     single<AmapSdkKeyApplier> { AndroidAmapSdkKeyApplier(androidContext()) }
+    // 用户改了 Android Key 就重新注入 SDK（第 11 步：Key 对话框在「更多」页，不再由规划页 VM 注入）
+    single { AmapSdkKeySync(get(), get(), get(AppScopeQualifier)) }
 
     // 原来每个 AboutViewModel 都新建一个检查器，这里保持 factory
     factory<UpdateChecker> { GithubUpdateChecker(get()) }
@@ -161,7 +164,6 @@ val viewModelModule: Module = module {
             amapSdkService = runCatching { AmapSdkTransitService(context) }.getOrNull(),
             migrationFlags = StoreMigrationFlags(get()),
             amapKeys = get(),
-            amapSdkKeyApplier = get(),
             locationRepository = get()
         )
     }
@@ -189,7 +191,7 @@ val viewModelModule: Module = module {
             repository = get()
         )
     }
-    viewModel { MoreViewModel(androidApplication(), get(), get()) }
+    viewModel { MoreViewModel(androidApplication(), get(), get(), get()) }
     viewModel { AboutViewModel(androidApplication(), get()) }
 }
 

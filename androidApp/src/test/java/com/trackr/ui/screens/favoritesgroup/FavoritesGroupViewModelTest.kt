@@ -292,22 +292,33 @@ class FavoritesGroupViewModelTest {
     }
 
     @Test
-    fun customAmapApiKey_doesNotFallBackToLegacyWebSlot() {
+    fun amapKeys_followRepository_legacyWebSlotNotUsedAsAndroidKey() {
+        // 第 11 步：Key 在「更多」页改，这个 VM 只读、跟着仓库走。
+        // 两槽规则本身（原 customAmapApiKey_doesNotFallBackToLegacyWebSlot）在 :core:data 的 AmapKeyRepositoryTest
         val sharedPrefs = context.getSharedPreferences("test_prefs_legacy", Context.MODE_PRIVATE)
         sharedPrefs.edit().clear().putString("custom_amap_web_key", "legacy_single_key").commit()
+        val amapKeys = sharedPrefsAmapKeys(sharedPrefs)
 
         val viewModel = FavoritesGroupViewModel(
             groupRepository = groupRepository,
             transitRepository = fakeTransitRepository,
             amapSdkService = null,
             migrationFlags = StoreMigrationFlags(SharedPrefsTransitStore(sharedPrefs)),
-            amapKeys = sharedPrefsAmapKeys(sharedPrefs),
+            amapKeys = amapKeys,
             enableAutoRefresh = false
         )
 
-        // Android Key 与 Web Key 严格分槽：Web 槽位里的值不再被当作 Android Key 喂给 SDK
+        // 旧存储里 Web 槽的值不当作 Android Key；只有 Web Key 不画地图
         assertNull(viewModel.customAmapApiKey.value)
         assertEquals("legacy_single_key", viewModel.customAmapWebApiKey.value)
+        assertFalse(viewModel.canShowMap.value)
+
+        // 别处（「更多」页）改了 Key，这里马上是新值，并且各写各的槽
+        amapKeys.setAndroidKey("test_key_123456")
+        assertEquals("test_key_123456", viewModel.customAmapApiKey.value)
+        assertTrue(viewModel.canShowMap.value)
+        assertEquals("test_key_123456", sharedPrefs.getString("custom_amap_android_key", null))
+        assertEquals("legacy_single_key", sharedPrefs.getString("custom_amap_web_key", null))
     }
 
     @Test
@@ -577,44 +588,6 @@ class FavoritesGroupViewModelTest {
         viewModel.deleteGroup("temp_1")
         testScheduler.runCurrent()
         assertNull(groupRepository.getGroupById("temp_1"))
-    }
-
-    @Test
-    fun testCustomAmapApiKeyPersistence() {
-        val sharedPrefs = context.getSharedPreferences("test_prefs", Context.MODE_PRIVATE)
-        val viewModel = FavoritesGroupViewModel(
-            groupRepository = groupRepository,
-            transitRepository = fakeTransitRepository,
-            migrationFlags = StoreMigrationFlags(SharedPrefsTransitStore(sharedPrefs)),
-            amapKeys = sharedPrefsAmapKeys(sharedPrefs),
-            enableAutoRefresh = false
-        )
-
-        assertNull(viewModel.customAmapApiKey.value)
-        viewModel.saveCustomAmapApiKey("test_key_123456")
-        assertEquals("test_key_123456", viewModel.customAmapApiKey.value)
-        // Android 平台 Key 与 Web 服务 Key 分槽存储，避免两类 Key 混用
-        assertEquals("test_key_123456", sharedPrefs.getString("custom_amap_android_key", null))
-        assertNull(sharedPrefs.getString("custom_amap_web_key", null))
-    }
-
-    @Test
-    fun testCustomAmapWebApiKeyStoredIndependently() {
-        val sharedPrefs = context.getSharedPreferences("test_prefs_web", Context.MODE_PRIVATE)
-        val viewModel = FavoritesGroupViewModel(
-            groupRepository = groupRepository,
-            transitRepository = fakeTransitRepository,
-            migrationFlags = StoreMigrationFlags(SharedPrefsTransitStore(sharedPrefs)),
-            amapKeys = sharedPrefsAmapKeys(sharedPrefs),
-            enableAutoRefresh = false
-        )
-
-        assertNull(viewModel.customAmapWebApiKey.value)
-        viewModel.saveCustomAmapWebApiKey("web_key_abcdef")
-        assertEquals("web_key_abcdef", viewModel.customAmapWebApiKey.value)
-        assertEquals("web_key_abcdef", sharedPrefs.getString("custom_amap_web_key", null))
-        // 保存 Web Key 不应污染 Android 平台 Key
-        assertNull(viewModel.customAmapApiKey.value)
     }
 
     @Test

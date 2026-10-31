@@ -249,4 +249,30 @@ class NavigatorTest {
         assertFalse(state.isShowingRootOf(ScreenKey.Home), "切页签停轮询")
         assertTrue(state.isShowingRootOf(ScreenKey.More))
     }
+
+    @Test
+    fun visibleTabs_withoutMapKey_dropsOnlyRoutePlan_keepingOrder() {
+        assertEquals(TopLevel.tabs, TopLevel.visibleTabs(hasMapKey = true))
+        assertEquals(
+            listOf(ScreenKey.Home, ScreenKey.FavoritesGroup, ScreenKey.More),
+            TopLevel.visibleTabs(hasMapKey = false)
+        )
+        assertTrue(TopLevel.start in TopLevel.visibleTabs(hasMapKey = false), "起始页签总在")
+    }
+
+    @Test
+    fun visibleTabs_keyClearedWhileOnRoutePlan_returnsHome_andKeyBackLeavesStateAlone() {
+        val state = newState()
+        val navigator = Navigator(state)
+        navigator.selectTab(ScreenKey.RoutePlan)
+        navigator.open(line49)
+
+        navigator.onTabsChanged(TopLevel.visibleTabs(hasMapKey = false).toSet())
+        assertEquals(ScreenKey.Home, state.topLevel)
+        assertEquals(listOf<NavKey>(ScreenKey.RoutePlan), state.stacks.getValue(ScreenKey.RoutePlan).toList())
+
+        // Key 填回来：页签重新出现，但不自动切过去
+        navigator.onTabsChanged(TopLevel.visibleTabs(hasMapKey = true).toSet())
+        assertEquals(ScreenKey.Home, state.topLevel)
+    }
 }

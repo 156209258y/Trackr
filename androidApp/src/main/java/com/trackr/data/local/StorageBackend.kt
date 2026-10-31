@@ -2,6 +2,7 @@ package com.trackr.data.local
 
 import android.content.Context
 import android.util.Log
+import com.trackr.BuildConfig
 import com.trackr.core.data.legacy.LegacyAmapKeyMigration
 import com.trackr.core.data.legacy.LegacyLibraryMigration
 import com.trackr.core.data.legacy.LegacySettingsMigration
@@ -14,6 +15,7 @@ import com.trackr.core.data.local.RoomRouteGroupStore
 import com.trackr.core.data.local.RouteGroupStore
 import com.trackr.core.data.local.SerialWriter
 import com.trackr.core.data.local.TransitLocalStore
+import com.trackr.core.data.repository.AmapKeyDefaults
 import com.trackr.core.data.repository.AmapKeyRepository
 import com.trackr.core.data.repository.DefaultAmapKeyRepository
 import com.trackr.core.database.TrackrDatabase
@@ -74,6 +76,13 @@ class StorageBackend private constructor(
             return openLegacy(appContext, writeScope)
         }
 
+        /** 构建时注入的高德 Key（local.properties / 环境变量），两槽各自兜底（§2.5） */
+        private fun amapKeyDefaults() = AmapKeyDefaults(
+            androidKey = BuildConfig.AMAP_ANDROID_KEY,
+            webKey = BuildConfig.AMAP_WEB_KEY,
+            hasAndroidMapSdk = true
+        )
+
         private fun newWriter(scope: CoroutineScope) = SerialWriter(scope).apply {
             onError = { Log.e(TAG, "写盘失败", it) }
         }
@@ -81,7 +90,7 @@ class StorageBackend private constructor(
         private fun openLegacy(context: Context, writeScope: CoroutineScope): StorageBackend {
             StoreSwitch.recordOldStoreSession(context)
             val amapKeys = runBlocking(Dispatchers.IO) {
-                DefaultAmapKeyRepository.create(SharedPrefsAmapKeyStore(context), newWriter(writeScope))
+                DefaultAmapKeyRepository.create(SharedPrefsAmapKeyStore(context), newWriter(writeScope), amapKeyDefaults())
             }
             return StorageBackend(
                 usesNewStore = false,
@@ -131,7 +140,7 @@ class StorageBackend private constructor(
                             RoomReminderScheduleStateStore(database),
                             newWriter(writeScope)
                         ),
-                        amapKeys = DefaultAmapKeyRepository.create(DataStoreAmapKeyStore(keys), newWriter(writeScope)),
+                        amapKeys = DefaultAmapKeyRepository.create(DataStoreAmapKeyStore(keys), newWriter(writeScope), amapKeyDefaults()),
                         migrationReport = report,
                         onClose = {
                             dataStoreScope.cancel()

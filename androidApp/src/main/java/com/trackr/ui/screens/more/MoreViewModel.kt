@@ -3,6 +3,7 @@ package com.trackr.ui.screens.more
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.trackr.core.data.repository.AmapKeyRepository
 import com.trackr.core.model.EngineMode
 import com.trackr.core.model.ScheduledReminder
 import com.trackr.core.model.TransitCodeProvider
@@ -28,7 +29,8 @@ data class MoreUiState(
 class MoreViewModel(
     application: Application,
     private val repository: ITransitRepository,
-    private val reminderRepository: IScheduledReminderRepository
+    private val reminderRepository: IScheduledReminderRepository,
+    private val amapKeys: AmapKeyRepository
 ) : AndroidViewModel(application) {
 
     val engineMode: StateFlow<EngineMode> = repository.engineMode
@@ -100,5 +102,29 @@ class MoreViewModel(
         viewModelScope.launch {
             reminderRepository.deleteReminder(id)
         }
+    }
+
+    // 高德 Key 两槽（第 11 步从路线规划页挪来）：各写各的，互不回落；不进 [uiState]，「高德 Key」区块单独收集
+
+    /** 用户填的 Android 槽（地图 / SDK） */
+    val amapAndroidKey: StateFlow<String?> = amapKeys.androidKey
+
+    /** 用户填的 Web 槽（云端算路 / 输入提示） */
+    val amapWebKey: StateFlow<String?> = amapKeys.webKey
+
+    /** 有没有可用的 Key（含构建时注入的）：决定底栏有没有「路线规划」 */
+    val hasMapKey: StateFlow<Boolean> = amapKeys.hasMapKey
+
+    /** 有没有 Android Key：路线规划页画不画地图 */
+    val canShowMap: StateFlow<Boolean> = amapKeys.canShowMap
+
+    /** 只写 Android 槽；空串等于清空。改完由 `AmapSdkKeySync` 注入 SDK */
+    fun saveAmapAndroidKey(key: String) {
+        amapKeys.setAndroidKey(key.trim().ifBlank { null })
+    }
+
+    /** 只写 Web 槽；空串等于清空 */
+    fun saveAmapWebKey(key: String) {
+        amapKeys.setWebKey(key.trim().ifBlank { null })
     }
 }

@@ -5,6 +5,7 @@ import androidx.test.core.app.ApplicationProvider
 import com.trackr.core.model.EngineMode
 import com.trackr.core.model.ScheduledReminder
 import com.trackr.core.model.TransitCodeProvider
+import com.trackr.core.testing.FakeAmapKeyRepository
 import com.trackr.data.repository.FakeScheduledReminderRepository
 import com.trackr.data.repository.FakeTransitRepository
 import com.trackr.util.MainDispatcherRule
@@ -12,6 +13,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
@@ -29,6 +31,7 @@ class MoreViewModelTest {
     private lateinit var app: Application
     private lateinit var fakeTransitRepository: FakeTransitRepository
     private lateinit var fakeReminderRepository: FakeScheduledReminderRepository
+    private lateinit var fakeAmapKeys: FakeAmapKeyRepository
     private lateinit var viewModel: MoreViewModel
 
     @Before
@@ -36,10 +39,12 @@ class MoreViewModelTest {
         app = ApplicationProvider.getApplicationContext()
         fakeTransitRepository = FakeTransitRepository()
         fakeReminderRepository = FakeScheduledReminderRepository()
+        fakeAmapKeys = FakeAmapKeyRepository()
         viewModel = MoreViewModel(
             application = app,
             repository = fakeTransitRepository,
-            reminderRepository = fakeReminderRepository
+            reminderRepository = fakeReminderRepository,
+            amapKeys = fakeAmapKeys
         )
     }
 
@@ -176,5 +181,50 @@ class MoreViewModelTest {
         viewModel.setShowOnLockScreen(true)
         testScheduler.runCurrent()
         assertTrue(viewModel.showOnLockScreen.value)
+    }
+
+    @Test
+    fun amapKeys_androidAndWebSlotsAreWrittenSeparately() {
+        assertNull(viewModel.amapAndroidKey.value)
+        assertNull(viewModel.amapWebKey.value)
+        assertFalse(viewModel.hasMapKey.value)
+
+        // 只填 Web Key：有「路线规划」，不画地图；Android 槽不动
+        viewModel.saveAmapWebKey("  web_key_abcdef  ")
+        assertEquals("web_key_abcdef", viewModel.amapWebKey.value)
+        assertNull(viewModel.amapAndroidKey.value)
+        assertTrue(viewModel.hasMapKey.value)
+        assertFalse(viewModel.canShowMap.value)
+        assertTrue(fakeAmapKeys.androidKeyWrites.isEmpty())
+
+        // 再填 Android Key：画地图；Web 槽不被覆盖
+        viewModel.saveAmapAndroidKey("android_key_123456")
+        assertEquals("android_key_123456", viewModel.amapAndroidKey.value)
+        assertEquals("web_key_abcdef", viewModel.amapWebKey.value)
+        assertTrue(viewModel.canShowMap.value)
+        assertEquals(listOf<String?>("web_key_abcdef"), fakeAmapKeys.webKeyWrites)
+    }
+
+    @Test
+    fun amapKeys_blankClearsOnlyThatSlot_andBothEmptyHidesRouteTab() {
+        viewModel.saveAmapAndroidKey("android_key_123456")
+        viewModel.saveAmapWebKey("web_key_abcdef")
+
+        viewModel.saveAmapAndroidKey("   ")
+        assertNull(viewModel.amapAndroidKey.value)
+        assertEquals("web_key_abcdef", viewModel.amapWebKey.value)
+        assertTrue(viewModel.hasMapKey.value)
+        assertFalse(viewModel.canShowMap.value)
+
+        viewModel.saveAmapWebKey("")
+        assertNull(viewModel.amapWebKey.value)
+        assertFalse(viewModel.hasMapKey.value)
+    }
+
+    @Test
+    fun amapKeyStatusText_coversThreeStates() {
+        assertEquals("未配置，不显示「路线规划」", amapKeyStatusText(hasMapKey = false, canShowMap = false))
+        assertEquals("只有 Web 服务 Key：能算路线，不显示地图", amapKeyStatusText(hasMapKey = true, canShowMap = false))
+        assertEquals("已配置，路线规划显示地图", amapKeyStatusText(hasMapKey = true, canShowMap = true))
     }
 }

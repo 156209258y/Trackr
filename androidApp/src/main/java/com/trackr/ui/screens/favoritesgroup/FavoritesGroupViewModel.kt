@@ -34,8 +34,6 @@ import com.trackr.core.network.provider.model.LineDetailRequest
 import com.trackr.core.network.provider.model.StopDetailRequest
 import com.trackr.core.network.remote.amap.AmapLruCache
 import com.trackr.core.network.remote.amap.AmapTransitApiClient
-import com.trackr.data.remote.amap.AmapKeyStore
-import com.trackr.data.remote.amap.AmapSdkKeyApplier
 import com.trackr.data.remote.amap.AmapSdkManager
 import com.trackr.data.remote.amap.AmapSdkTransitService
 import com.trackr.data.repository.IRouteGroupRepository
@@ -88,21 +86,16 @@ class FavoritesGroupViewModel(
     amapGatewayOverride: AmapRouteGateway? = null,
     /** 墙钟（毫秒），用于算路缓存时间桶与对齐缓存过期；测试可替换 */
     private val wallClockMillis: () -> Long = { System.currentTimeMillis() },
-    /** 高德 Key 两槽（单独文件，备份时排除）；为 null 时两个 Key 都当没填、保存只改内存（测试用） */
+    /**
+     * 高德 Key 两槽（单独文件，备份时排除）；为 null 时两个 Key 都当没填（测试用）。
+     * 第 11 步起这里只读：Key 在「更多」页改，改完由 `AmapSdkKeySync` 注入 SDK。
+     */
     private val amapKeys: AmapKeyRepository? = null,
-    /** 把 Android Key 注入高德 SDK；测试默认不注入 */
-    private val amapSdkKeyApplier: AmapSdkKeyApplier = AmapSdkKeyApplier { },
     /** 「我的位置」兜底用的系统 lastKnown 定位；为 null 时没有兜底 */
     private val locationRepository: LocationRepository? = null
 ) : ViewModel() {
 
     companion object {
-        @Deprecated("历史槽位，等同于 web 服务 Key")
-        const val PREF_KEY_AMAP_KEY = AmapKeyStore.KEY_WEB
-
-        /** 高德 Android 平台 Key（地图 / 搜索 / 定位 SDK） */
-        const val PREF_KEY_AMAP_ANDROID_KEY = AmapKeyStore.KEY_ANDROID
-
         /** 一次性数据迁移版本号，避免每次 ViewModel 重建都全量重跑迁移逻辑 */
         const val PREF_KEY_MIGRATION_VERSION = "favorites_group_migration_version"
         const val CURRENT_MIGRATION_VERSION = 2
@@ -274,25 +267,25 @@ class FavoritesGroupViewModel(
         _trackingMessage.value = null
     }
 
-    /** 高德 Android 平台 Key（地图渲染 / 搜索 / 定位 SDK），与包名 + SHA-1 绑定；严格分槽，不回落 Web 槽位 */
-    private val _customAmapApiKey = MutableStateFlow(amapKeys?.androidKey?.value)
-    val customAmapApiKey: StateFlow<String?> = _customAmapApiKey.asStateFlow()
+    /**
+     * 用户填的高德 Android 平台 Key（地图渲染 / 搜索 / 定位 SDK），与包名 + SHA-1 绑定；严格分槽，不回落 Web 槽位。
+     * 直接跟着仓库走：在「更多」页改了，这里马上是新值。
+     */
+    val customAmapApiKey: StateFlow<String?> = amapKeys?.androidKey ?: MutableStateFlow(null)
 
-    /** 高德 Web 服务 Key（restapi.amap.com 公交算路 / 输入提示），不绑定包名 */
-    private val _customAmapWebApiKey = MutableStateFlow(amapKeys?.webKey?.value)
-    val customAmapWebApiKey: StateFlow<String?> = _customAmapWebApiKey.asStateFlow()
+    /** 用户填的高德 Web 服务 Key（restapi.amap.com 公交算路 / 输入提示），不绑定包名 */
+    val customAmapWebApiKey: StateFlow<String?> = amapKeys?.webKey ?: MutableStateFlow(null)
+
+    /** 路线页是否画地图（有 Android Key，§2.5）；只有 Web Key 时只出搜索和方案（Q18） */
+    val canShowMap: StateFlow<Boolean> = amapKeys?.canShowMap ?: MutableStateFlow(false)
 
     /** 当前生效的 Web 服务 Key：判断可用与实际发请求统一用它（用户配置 > BuildConfig） */
     private fun effectiveWebServiceKey(): String =
-        AmapSdkManager.getEffectiveWebServiceKey(_customAmapWebApiKey.value)
+        AmapSdkManager.getEffectiveWebServiceKey(customAmapWebApiKey.value)
 
     private val amapGateway: AmapRouteGateway = amapGatewayOverride ?: DefaultAmapRouteGateway()
 
     init {
-        // SDK Key 已在 TrackrApp 启动阶段完成注入，这里只在运行期配置变更后重新对齐一次
-        runCatching {
-            amapSdkKeyApplier.apply(_customAmapApiKey.value)
-        }
         if (enableAutoMigration) {
             runDataMigrationIfNeeded()
         }
@@ -409,27 +402,6 @@ class FavoritesGroupViewModel(
     }
 
     /**
-     * 保存高德 Android 平台 Key（地图 / 搜索 / 定位 SDK 使用）
-     */
-    fun saveCustomAmapApiKey(key: String) {
-        val trimmed = key.trim().ifBlank { null }
-        amapKeys?.setAndroidKey(trimmed)
-        _customAmapApiKey.value = trimmed
-        runCatching {
-            amapSdkKeyApplier.apply(trimmed)
-        }
-    }
-
-    /**
-     * 保存高德 Web 服务 Key（restapi.amap.com 公交算路 / 输入提示）
-     */
-    fun saveCustomAmapWebApiKey(key: String) {
-        val trimmed = key.trim().ifBlank { null }
-        amapKeys?.setWebKey(trimmed)
-        _customAmapWebApiKey.value = trimmed
-    }
-
-    /**
      * 搜索起点关键字候选项（优先高德，失败则智能降级至本地站点搜索）。
      * 只记录关键字；真正的请求经 300ms 防抖、去重后在 [observeTipsQuery] 里发出，旧请求会被取消。
      */
@@ -508,7 +480,7 @@ class FavoritesGroupViewModel(
      */
     private inner class DefaultAmapRouteGateway : AmapRouteGateway {
         private fun sdkUsable(): Boolean =
-            amapSdkService != null && AmapSdkManager.isAndroidKeyConfigured(_customAmapApiKey.value)
+            amapSdkService != null && AmapSdkManager.isAndroidKeyConfigured(customAmapApiKey.value)
 
         override fun isConfigured(): Boolean = sdkUsable() || effectiveWebServiceKey().isNotEmpty()
 
@@ -520,7 +492,7 @@ class FavoritesGroupViewModel(
             var sdkFailure: Throwable? = null
             val sdk = amapSdkService
             if (sdk != null && sdkUsable()) {
-                val result = sdk.searchPoiTips(keyword, cityName, _customAmapApiKey.value, location)
+                val result = sdk.searchPoiTips(keyword, cityName, customAmapApiKey.value, location)
                 currentCoroutineContext().ensureActive()
                 if (result.isSuccess) return result
                 sdkFailure = result.exceptionOrNull()
@@ -550,7 +522,7 @@ class FavoritesGroupViewModel(
                     originName = originName,
                     destName = destName,
                     city = cityName,
-                    customApiKey = _customAmapApiKey.value,
+                    customApiKey = customAmapApiKey.value,
                     cityd = cityd
                 )
                 currentCoroutineContext().ensureActive()

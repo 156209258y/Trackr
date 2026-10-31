@@ -62,6 +62,7 @@ import androidx.lifecycle.compose.dropUnlessResumed
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.ui.NavDisplay
+import com.trackr.core.data.repository.AmapKeyRepository
 import com.trackr.core.designsystem.theme.TrackrTheme
 import com.trackr.core.model.DataSourceType
 import com.trackr.core.model.TransitCodeProvider
@@ -72,6 +73,7 @@ import com.trackr.core.navigation.TrackrTransitions
 import com.trackr.core.navigation.rememberNavigationState
 import com.trackr.ui.navigation.PendingDeepLink
 import com.trackr.ui.navigation.dropUnlessResumed
+import com.trackr.ui.navigation.rememberVisibleTabs
 import com.trackr.ui.screens.favoritesgroup.FavoritesGroupScreen
 import com.trackr.ui.screens.favoritesgroup.FavoritesGroupViewModel
 import com.trackr.ui.screens.home.HomeScreen
@@ -87,6 +89,7 @@ import com.trackr.ui.screens.search.SearchScreen
 import com.trackr.ui.screens.stopdetail.StopDetailScreen
 import com.trackr.ui.screens.stopdetail.StopDetailViewModel
 import com.trackr.util.TransitCodeHelper
+import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
 import org.koin.core.parameter.parametersOf
 
@@ -163,10 +166,10 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-/** 底栏页签（顺序同 [TopLevel.tabs]）。 */
+/** 底栏页签（顺序同 [TopLevel.tabs]；没有高德 Key 时不含「路线规划」，见 [TopLevel.visibleTabs]）。 */
 private data class BottomTab(val key: ScreenKey, val label: String, val icon: ImageVector)
 
-private val bottomTabs: List<BottomTab> = TopLevel.tabs.map { key ->
+private val allBottomTabs: Map<ScreenKey, BottomTab> = TopLevel.tabs.associateWith { key ->
     when (key) {
         ScreenKey.Home -> BottomTab(key, "首页", Icons.Default.DirectionsBus)
         ScreenKey.RoutePlan -> BottomTab(key, "路线规划", Icons.AutoMirrored.Filled.AltRoute)
@@ -218,6 +221,10 @@ fun TrackrNavApp(
 
     val homeViewModel: HomeViewModel = koinViewModel()
     val favoritesGroupViewModel: FavoritesGroupViewModel = koinViewModel()
+
+    // D2：没有高德 Key 就不显示「路线规划」；Key 被清空且正停在那个页签时回首页、清掉它的栈
+    val visibleTabs = rememberVisibleTabs(koinInject<AmapKeyRepository>(), navigator)
+    val hasMapKey = ScreenKey.RoutePlan in visibleTabs
 
     // 首页轮询只在 App 前台、当前 tab 是首页且首页在回退栈顶时进行；切 tab / 进详情 / 回桌面即暂停
     val lifecycleState by lifecycleOwner.lifecycle.currentStateAsState()
@@ -394,7 +401,8 @@ fun TrackrNavApp(
                         translationY = navBarTranslationY * size.height
                     }
                 ) {
-                    bottomTabs.forEach { tab ->
+                    visibleTabs.forEach { key ->
+                        val tab = allBottomTabs.getValue(key)
                         NavigationBarItem(
                             selected = navigationState.topLevel == tab.key,
                             // 点当前页签回到它的根页；点别的页签切过去，各自的返回栈保留
@@ -474,9 +482,9 @@ fun TrackrNavApp(
                 entry<ScreenKey.FavoritesGroup> {
                     FavoritesGroupScreen(
                         viewModel = favoritesGroupViewModel,
-                        onNavigateToRoutePlan = dropUnlessResumed {
-                            navigator.selectTab(ScreenKey.RoutePlan)
-                        },
+                        onNavigateToRoutePlan = if (hasMapKey) {
+                            dropUnlessResumed { navigator.selectTab(ScreenKey.RoutePlan) }
+                        } else null,
                         onNavigateBack = if (navigationState.currentStack.size > 1) {
                             dropUnlessResumed { popChildPage() }
                         } else null,

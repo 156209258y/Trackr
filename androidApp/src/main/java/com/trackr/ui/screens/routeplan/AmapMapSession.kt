@@ -49,7 +49,7 @@ class AmapMapSession(private val activity: Activity) {
     /** 底图首帧是否已渲染完成（onMapLoaded） */
     val isLoadedState = mutableStateOf(false)
 
-    /** 创建失败原因（如设备 ABI 缺原生库），外层据此降级为矢量示意图 */
+    /** 创建失败原因（如设备 ABI 缺原生库），外层据此不画地图并提示 */
     val runtimeErrorState = mutableStateOf<String?>(null)
 
     // 取景状态同样跨页面保留：否则切走再回来会把相机重新拉回定位点，
