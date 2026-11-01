@@ -35,7 +35,7 @@ class MainActivity : ComponentActivity() {
             window.isNavigationBarContrastEnforced = false
         }
 
-        // 页面跳转只在首次启动时处理（配置变更 / 进程重建后恢复时不再追加到栈上）；乘车码和原来一样总是处理
+        // 页面跳转和乘车码都只在新 Intent 上处理；配置变更 / 进程重建恢复时不重放历史链接。
         handleIntent(intent, navigate = savedInstanceState == null)
 
         // 根 Composable（主题、底栏、导航）第 17 步搬进 :composeApp 的 TrackrRoot
@@ -56,8 +56,8 @@ class MainActivity : ComponentActivity() {
     private fun handleIntent(intent: Intent?, navigate: Boolean) {
         when (val link = DeepLinkIntents.parse(intent)) {
             null -> return
-            // 不入栈，直接拉起支付宝 / 云闪付乘车码
-            is DeepLink.TransitCode -> TransitCodeHelper.openTransitCode(this, link.provider)
+            // 不入栈，只有新点击才拉起支付宝 / 云闪付乘车码。
+            is DeepLink.TransitCode -> if (navigate) TransitCodeHelper.openTransitCode(this, link.provider)
             else -> if (navigate) pendingDeepLink = link
         }
         // 一次性消费：清掉 Intent 里的链接，杜绝重放
