@@ -12,11 +12,13 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Icon
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -33,6 +35,7 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.dropUnlessResumed
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
 import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.entryProvider
@@ -71,7 +74,8 @@ import org.koin.compose.viewmodel.koinViewModel
 @Composable
 fun TrackrRoot(
     deepLink: DeepLink? = null,
-    onDeepLinkConsumed: () -> Unit = {}
+    onDeepLinkConsumed: () -> Unit = {},
+    onAmapPrivacyAccepted: () -> Unit = {}
 ) {
     TrackrTheme {
         Surface(modifier = Modifier.fillMaxSize()) {
@@ -81,10 +85,13 @@ fun TrackrRoot(
             }
             CompositionLocalProvider(LocalAppViewModelStoreOwner provides appViewModelStoreOwner) {
                 // Android：地图会话（切页签不销毁地图）；iOS：直接显示
-                PlatformHost {
+                val amapKeys = koinInject<AmapKeyRepository>()
+                val privacyConsent by amapKeys.privacyConsent.collectAsStateWithLifecycle()
+                PlatformHost(enabled = privacyConsent == true) {
                     TrackrNavApp(
                         deepLink = deepLink,
-                        onDeepLinkConsumed = onDeepLinkConsumed
+                        onDeepLinkConsumed = onDeepLinkConsumed,
+                        onAmapPrivacyAccepted = onAmapPrivacyAccepted
                     )
                 }
             }
@@ -95,7 +102,8 @@ fun TrackrRoot(
 @Composable
 private fun TrackrNavApp(
     deepLink: DeepLink?,
-    onDeepLinkConsumed: () -> Unit
+    onDeepLinkConsumed: () -> Unit,
+    onAmapPrivacyAccepted: () -> Unit
 ) {
     // 3 个页签各一条返回栈 + 当前页签，跨进程重建恢复（:core:navigation，重构计划 §3.3）
     val navigationState = rememberNavigationState()
@@ -117,6 +125,17 @@ private fun TrackrNavApp(
     // D2：没有高德 Key 就不显示「路线规划」；Key 被清空且正停在那个页签时回首页、清掉它的栈
     val visibleTabs = rememberVisibleTabs(koinInject<AmapKeyRepository>(), navigator)
     val hasMapKey = ScreenKey.RoutePlan in visibleTabs
+    val amapKeys = koinInject<AmapKeyRepository>()
+    val privacyConsent by amapKeys.privacyConsent.collectAsStateWithLifecycle()
+    var showAmapPrivacyDialog by rememberSaveable { mutableStateOf(false) }
+
+    // 恢复到路线页但还没同意时回首页，并在用户主动进入路线页时再显示说明。
+    LaunchedEffect(navigationState.topLevel, privacyConsent, hasMapKey) {
+        if (hasMapKey && navigationState.topLevel == ScreenKey.RoutePlan && privacyConsent != true) {
+            navigator.selectTab(ScreenKey.Home)
+            showAmapPrivacyDialog = true
+        }
+    }
 
     // 收藏变化后同步桌面快捷方式与小组件：第 4 步起在应用级作用域里做（见 FavoritesShortcutWidgetSync）
     // 首页轮询开关：第 17 步起由首页 Route 的 LifecycleStartEffect 控制（重构计划 §4.4）
@@ -216,7 +235,13 @@ private fun TrackrNavApp(
                         NavigationBarItem(
                             selected = navigationState.topLevel == key,
                             // 点当前页签回到它的根页；点别的页签切过去，各自的返回栈保留
-                            onClick = dropUnlessResumed { navigator.selectTab(key) },
+                            onClick = dropUnlessResumed {
+                                if (key == ScreenKey.RoutePlan && privacyConsent != true) {
+                                    showAmapPrivacyDialog = true
+                                } else {
+                                    navigator.selectTab(key)
+                                }
+                            },
                             icon = {
                                 Icon(
                                     imageVector = bottomTabIcon(key),
@@ -249,6 +274,27 @@ private fun TrackrNavApp(
             transitionSpec = TrackrTransitions.push,
             popTransitionSpec = TrackrTransitions.pop,
             predictivePopTransitionSpec = TrackrTransitions.predictivePop
+        )
+    }
+
+    if (showAmapPrivacyDialog && hasMapKey && privacyConsent != true) {
+        AlertDialog(
+            onDismissRequest = { showAmapPrivacyDialog = false },
+            title = { Text("高德地图隐私说明") },
+            text = {
+                Text("路线规划会使用高德地图与公交服务获取地图、地点提示和公交路线。相关请求会包含你输入的地点及必要的位置信息，请阅读并同意高德隐私政策后继续。")
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    amapKeys.setPrivacyConsent(true)
+                    showAmapPrivacyDialog = false
+                    onAmapPrivacyAccepted()
+                    navigator.selectTab(ScreenKey.RoutePlan)
+                }) { Text("同意并继续") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showAmapPrivacyDialog = false }) { Text("暂不使用") }
+            }
         )
     }
 }

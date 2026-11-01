@@ -148,4 +148,10 @@ class DataStoreAmapKeyStore(private val keys: DataStore<Preferences>) : AmapKeyS
         val value = key?.trim()?.ifBlank { null }
         keys.edit { if (value == null) it.remove(AmapKeyKeys.WEB) else it[AmapKeyKeys.WEB] = value }
     }
+
+    override suspend fun loadPrivacyConsent(): Boolean? = keys.data.first()[AmapKeyKeys.PRIVACY_CONSENT]
+
+    override suspend fun savePrivacyConsent(consented: Boolean) {
+        keys.edit { it[AmapKeyKeys.PRIVACY_CONSENT] = consented }
+    }
 }

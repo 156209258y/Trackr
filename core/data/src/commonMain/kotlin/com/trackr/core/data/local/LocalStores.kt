@@ -113,6 +113,8 @@ interface AmapKeyStore {
     suspend fun loadWebKey(): String?
     suspend fun saveAndroidKey(key: String?)
     suspend fun saveWebKey(key: String?)
+    suspend fun loadPrivacyConsent(): Boolean? = null
+    suspend fun savePrivacyConsent(consented: Boolean) = Unit
 }
 
 /**

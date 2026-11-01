@@ -34,9 +34,13 @@ interface AmapKeyRepository {
     /** 路线页是否画地图：要 Android Key（地图 SDK 只认它）；没有 Android 地图 SDK 的平台恒为 false */
     val canShowMap: StateFlow<Boolean>
 
+    /** 高德隐私说明同意状态；null 表示尚未询问。 */
+    val privacyConsent: StateFlow<Boolean?>
+
     /** 立刻生效，后台按顺序写盘；空串等于清空 */
     fun setAndroidKey(key: String?)
     fun setWebKey(key: String?)
+    fun setPrivacyConsent(consented: Boolean)
 }
 
 /**
@@ -88,7 +92,8 @@ class DefaultAmapKeyRepository private constructor(
     private val writer: SerialWriter,
     private val defaults: AmapKeyDefaults,
     initialAndroidKey: String?,
-    initialWebKey: String?
+    initialWebKey: String?,
+    initialPrivacyConsent: Boolean?
 ) : AmapKeyRepository {
 
     private val _androidKey = MutableStateFlow(initialAndroidKey)
@@ -106,6 +111,8 @@ class DefaultAmapKeyRepository private constructor(
     override val hasMapKey: StateFlow<Boolean> = _hasMapKey.asStateFlow()
     private val _canShowMap = MutableStateFlow(initialStatus.canShowMap)
     override val canShowMap: StateFlow<Boolean> = _canShowMap.asStateFlow()
+    private val _privacyConsent = MutableStateFlow(initialPrivacyConsent)
+    override val privacyConsent: StateFlow<Boolean?> = _privacyConsent.asStateFlow()
 
     override fun setAndroidKey(key: String?) {
         val value = key?.trim()?.ifBlank { null }
@@ -119,6 +126,11 @@ class DefaultAmapKeyRepository private constructor(
         _webKey.value = value
         refreshStatus()
         writer.enqueue { store.saveWebKey(value) }
+    }
+
+    override fun setPrivacyConsent(consented: Boolean) {
+        _privacyConsent.value = consented
+        writer.enqueue { store.savePrivacyConsent(consented) }
     }
 
     /** 同步算，调用 setter 后马上读到新值（不用另开协程收集） */
@@ -139,6 +151,13 @@ class DefaultAmapKeyRepository private constructor(
             writer: SerialWriter,
             defaults: AmapKeyDefaults = AmapKeyDefaults.NONE
         ): DefaultAmapKeyRepository =
-            DefaultAmapKeyRepository(store, writer, defaults, store.loadAndroidKey(), store.loadWebKey())
+            DefaultAmapKeyRepository(
+                store,
+                writer,
+                defaults,
+                store.loadAndroidKey(),
+                store.loadWebKey(),
+                store.loadPrivacyConsent()
+            )
     }
 }

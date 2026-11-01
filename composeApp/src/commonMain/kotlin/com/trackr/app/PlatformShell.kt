@@ -9,7 +9,7 @@ import com.trackr.core.navigation.ScreenKey
 
 /** 包在 NavDisplay 外面的平台部分。Android：Activity 级的高德地图会话（切页签不销毁地图，§3.4） */
 @Composable
-internal expect fun PlatformHost(content: @Composable () -> Unit)
+internal expect fun PlatformHost(enabled: Boolean, content: @Composable () -> Unit)
 
 /** 首次打开时的定位 / 通知权限说明与申请。Android：原 MainActivity 里那段；iOS 阶段 G 再做 */
 @Composable

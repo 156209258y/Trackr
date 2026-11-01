@@ -34,6 +34,9 @@ class FakeAmapKeyRepository(
     private val _canShowMap = MutableStateFlow(status.canShowMap)
     override val canShowMap: StateFlow<Boolean> = _canShowMap.asStateFlow()
 
+    private val _privacyConsent = MutableStateFlow<Boolean?>(null)
+    override val privacyConsent: StateFlow<Boolean?> = _privacyConsent.asStateFlow()
+
     /** 每次 setter 收到的值（原样，未 trim） */
     val androidKeyWrites: MutableList<String?> = mutableListOf()
     val webKeyWrites: MutableList<String?> = mutableListOf()
@@ -48,6 +51,10 @@ class FakeAmapKeyRepository(
         webKeyWrites += key
         _webKey.value = key?.trim()?.ifBlank { null }
         refresh()
+    }
+
+    override fun setPrivacyConsent(consented: Boolean) {
+        _privacyConsent.value = consented
     }
 
     private fun refresh() {

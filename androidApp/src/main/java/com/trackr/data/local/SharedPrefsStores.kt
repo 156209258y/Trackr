@@ -316,4 +316,15 @@ class SharedPrefsAmapKeyStore(private val prefs: SharedPreferences?) : AmapKeySt
     override suspend fun saveAndroidKey(key: String?) = LegacyAmapKeyStore.writeAndroidKey(prefs, key)
 
     override suspend fun saveWebKey(key: String?) = LegacyAmapKeyStore.writeWebKey(prefs, key)
+
+    override suspend fun loadPrivacyConsent(): Boolean? = prefs?.takeIf { it.contains(KEY_PRIVACY_CONSENT) }
+        ?.getBoolean(KEY_PRIVACY_CONSENT, false)
+
+    override suspend fun savePrivacyConsent(consented: Boolean) {
+        prefs?.edit()?.putBoolean(KEY_PRIVACY_CONSENT, consented)?.apply()
+    }
+
+    private companion object {
+        const val KEY_PRIVACY_CONSENT = "amap_privacy_consent"
+    }
 }

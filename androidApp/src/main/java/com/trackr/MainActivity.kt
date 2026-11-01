@@ -12,8 +12,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.trackr.app.TrackrRoot
 import com.trackr.core.navigation.deeplink.DeepLink
+import com.trackr.core.data.repository.AmapKeyRepository
+import com.trackr.core.domain.platform.MapSdkInitializer
 import com.trackr.deeplink.DeepLinkIntents
 import com.trackr.util.TransitCodeHelper
+import org.koin.android.ext.android.get
 
 /**
  * 应用唯一的 Activity：edge-to-edge、把 Intent 交给 [DeepLinkIntents] / `DeepLinkParser`（小组件、快捷方式、通知的
@@ -42,7 +45,13 @@ class MainActivity : ComponentActivity() {
         setContent {
             TrackrRoot(
                 deepLink = pendingDeepLink,
-                onDeepLinkConsumed = { pendingDeepLink = null }
+                onDeepLinkConsumed = { pendingDeepLink = null },
+                onAmapPrivacyAccepted = {
+                    val keys = get<AmapKeyRepository>()
+                    runCatching {
+                        get<MapSdkInitializer>().initialize(keys.androidKey.value)
+                    }
+                }
             )
         }
     }

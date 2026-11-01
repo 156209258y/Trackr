@@ -31,7 +31,11 @@ class AmapSdkKeySync(
         job = appScope.launch(dispatcher) {
             amapKeys.androidKey
                 .drop(1)
-                .collect { key -> runCatching { applier.apply(key) } }
+                .collect { key ->
+                    if (amapKeys.privacyConsent.value == true) {
+                        runCatching { applier.apply(key) }
+                    }
+                }
         }
     }
 }

@@ -28,15 +28,16 @@ class AndroidAmapRouteGateway(
         AmapSdkManager.getEffectiveWebServiceKey(amapKeys?.webKey?.value)
 
     private fun sdkUsable(): Boolean =
-        amapSdkService != null && AmapSdkManager.isAndroidKeyConfigured(customAmapApiKey)
+        amapKeys?.privacyConsent?.value == true && amapSdkService != null && AmapSdkManager.isAndroidKeyConfigured(customAmapApiKey)
 
-    override fun isConfigured(): Boolean = sdkUsable() || effectiveWebServiceKey().isNotEmpty()
+    override fun isConfigured(): Boolean = amapKeys?.privacyConsent?.value == true && (sdkUsable() || effectiveWebServiceKey().isNotEmpty())
 
     override suspend fun searchTips(
         keyword: String,
         cityName: String,
         location: String?
     ): Result<List<AmapTipItem>> {
+        if (amapKeys?.privacyConsent?.value != true) return Result.failure(IllegalStateException("未同意高德隐私说明"))
         var sdkFailure: Throwable? = null
         val sdk = amapSdkService
         if (sdk != null && sdkUsable()) {
@@ -61,6 +62,7 @@ class AndroidAmapRouteGateway(
         cityName: String,
         cityd: String?
     ): Result<List<AmapTransitSchemeResult>> {
+        if (amapKeys?.privacyConsent?.value != true) return Result.failure(IllegalStateException("未同意高德隐私说明"))
         var sdkFailure: Throwable? = null
         val sdk = amapSdkService
         if (sdk != null && sdkUsable()) {

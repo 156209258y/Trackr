@@ -60,6 +60,7 @@ object SettingsKeys {
 object AmapKeyKeys {
     val ANDROID = stringPreferencesKey("custom_amap_android_key")
     val WEB = stringPreferencesKey("custom_amap_web_key")
+    val PRIVACY_CONSENT = booleanPreferencesKey("privacy_consent")
 
     /** 旧 Key 导入到第几代；没有 = 还没导入 */
     val LEGACY_IMPORT_GEN = intPreferencesKey("legacy_import_gen")

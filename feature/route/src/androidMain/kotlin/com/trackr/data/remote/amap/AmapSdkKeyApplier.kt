@@ -22,8 +22,11 @@ class AndroidMapSdkInitializer(context: Context) : MapSdkInitializer {
 
     private val appContext: Context = context.applicationContext ?: context
 
-    override fun initialize(userAndroidKey: String?, builtInAndroidKey: String, builtInWebKey: String) {
+    override fun configureBuiltInKeys(builtInAndroidKey: String, builtInWebKey: String) {
         AmapSdkManager.setBuiltInKeys(androidKey = builtInAndroidKey, webKey = builtInWebKey)
+    }
+
+    override fun initialize(userAndroidKey: String?) {
         AmapSdkManager.initialize(appContext, userAndroidKey)
     }
 }

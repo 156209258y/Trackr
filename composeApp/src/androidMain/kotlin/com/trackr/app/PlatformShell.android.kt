@@ -38,7 +38,8 @@ import com.trackr.ui.screens.routeplan.ProvideAmapMapSession
 import org.koin.compose.viewmodel.koinViewModel
 
 @Composable
-internal actual fun PlatformHost(content: @Composable () -> Unit) = ProvideAmapMapSession(content)
+internal actual fun PlatformHost(enabled: Boolean, content: @Composable () -> Unit) =
+    if (enabled) ProvideAmapMapSession(content) else content()
 
 @Composable
 internal actual fun bottomTabIcon(key: ScreenKey): ImageVector = when (key) {

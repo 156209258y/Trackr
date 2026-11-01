@@ -26,17 +26,12 @@ class TrackrApp : Application() {
         // 打开本地存储（第 9 步：USE_NEW_STORE 开时先把旧 SharedPreferences 导入 Room / DataStore，只读不删）
         val storage = get<StorageBackend>()
 
-        // 高德 SDK 必须在任何地图/搜索/定位实例创建之前完成隐私合规与 Key 注入，
-        // 否则首次进入路线规划页会因未鉴权而只显示空白底图。Key 从存储读，所以放在存储打开之后
-        // （SDK 封装第 17 步搬进 :feature:route，经 MapSdkInitializer 调；构建时的 Key 从这里传进去）
-        runCatching {
-            get<MapSdkInitializer>().initialize(
-                userAndroidKey = storage.amapKeys.androidKey.value,
-                builtInAndroidKey = BuildConfig.AMAP_ANDROID_KEY,
-                builtInWebKey = BuildConfig.AMAP_WEB_KEY
-            )
+        // 先只配置构建时 Key，不触碰高德 SDK；隐私说明同意后由 MainActivity 初始化。
+        get<MapSdkInitializer>().configureBuiltInKeys(BuildConfig.AMAP_ANDROID_KEY, BuildConfig.AMAP_WEB_KEY)
+        if (storage.amapKeys.privacyConsent.value == true) {
+            runCatching { get<MapSdkInitializer>().initialize(storage.amapKeys.androidKey.value) }
         }
-        // 之后用户在「更多」页改 Android Key 时重新注入
+        // 之后用户在「更多」页改 Android Key 时重新注入（已同意时）。
         get<AmapSdkKeySync>().start()
 
         // 三个仓库按原来的顺序在这里取一次（构建时读盘）
