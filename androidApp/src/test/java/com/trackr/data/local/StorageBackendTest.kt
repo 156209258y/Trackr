@@ -325,7 +325,8 @@ class StorageBackendTest {
         val backend = open()
         assertFalse(backend.usesNewStore)
         assertEquals(favorites, seen(backend).favorites)
-        // 这次用了旧存储：代数 +1，下次新存储能打开时会重新导入
-        assertEquals(1, StoreSwitch.generation(context))
+        // 自动回退只为本次启动兜底，不应把旧存储会话代数加一；否则下次新存储打开
+        // 会把这次并未主动使用旧存储的数据重新导入并覆盖用户改动。
+        assertEquals(0, StoreSwitch.generation(context))
     }
 }

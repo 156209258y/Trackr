@@ -79,11 +79,20 @@ class StorageBackend private constructor(
         fun open(context: Context, writeScope: CoroutineScope, forceLegacy: Boolean = false): StorageBackend {
             val appContext = context.applicationContext ?: context
             if (!forceLegacy && StoreSwitch.useNewStore(appContext)) {
-                try {
-                    return openNew(appContext, writeScope)
-                } catch (e: Exception) {
-                    Log.e(TAG, "新存储打开或迁移失败，这次启动退回旧存储（旧数据未改动）", e)
+                // Room/DataStore may fail transiently (for example while the process is
+                // being restored). Retry once before falling back. The fallback is an
+                // automatic safety net and must not advance the legacy generation: doing
+                // so would make a later successful open overwrite new-store data from a
+                // legacy snapshot that was never intentionally used.
+                repeat(2) { attempt ->
+                    try {
+                        return openNew(appContext, writeScope)
+                    } catch (e: Exception) {
+                        Log.e(TAG, "新存储打开或迁移失败（第 ${attempt + 1} 次）", e)
+                    }
                 }
+                Log.e(TAG, "新存储重试仍失败，这次启动退回旧存储（旧数据未改动）")
+                return openLegacy(appContext, writeScope, recordSession = false)
             }
             return openLegacy(appContext, writeScope)
         }
@@ -99,8 +108,12 @@ class StorageBackend private constructor(
             onError = { Log.e(TAG, "写盘失败", it) }
         }
 
-        private fun openLegacy(context: Context, writeScope: CoroutineScope): StorageBackend {
-            StoreSwitch.recordOldStoreSession(context)
+        private fun openLegacy(
+            context: Context,
+            writeScope: CoroutineScope,
+            recordSession: Boolean = true
+        ): StorageBackend {
+            if (recordSession) StoreSwitch.recordOldStoreSession(context)
             val amapKeys = runBlocking(Dispatchers.IO) {
                 DefaultAmapKeyRepository.create(SharedPrefsAmapKeyStore(context), newWriter(writeScope), amapKeyDefaults())
             }
