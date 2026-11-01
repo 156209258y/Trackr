@@ -46,6 +46,20 @@ class ArrivalAlertNotifier(
         runCatching { NotificationManagerCompat.from(context).notify(NOTIFICATION_ID_TRANSFER, notification) }
     }
 
+    fun triggerTrackingInterrupted(context: Context, state: TrackingSessionState) {
+        ensureNotificationChannel(context)
+        val notification = NotificationCompat.Builder(context, CHANNEL_ID_ALERT)
+            .setSmallIcon(R.drawable.ic_stat_trackr)
+            .setContentTitle("追踪已中断")
+            .setContentText("${state.lineName} 追踪未能自动接续，请打开应用重试。")
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setCategory(NotificationCompat.CATEGORY_STATUS)
+            .setAutoCancel(true)
+            .setContentIntent(createMainActivityPendingIntent(context, NOTIFICATION_ID_TRANSFER))
+            .build()
+        runCatching { NotificationManagerCompat.from(context).notify(NOTIFICATION_ID_TRANSFER, notification) }
+    }
+
     /**
      * 确保高优先级预警渠道创建完毕
      */

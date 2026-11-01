@@ -117,7 +117,7 @@ class BusTrackingService : LifecycleService() {
     }
 
     private fun handleStart(sessionId: String?): Int {
-        val current = trackingRepository.session.value?.takeIf { !it.interrupted }
+        val current = trackingRepository.session.value
         val session = current?.takeIf { it.sessionId == sessionId }
         // startForegroundService 要求尽快 startForeground：即使这个会话已经没了，也要先进前台再停。
         // 已经在追别的会话时（启动请求过时了），前台通知仍显示正在追的那个
@@ -139,7 +139,12 @@ class BusTrackingService : LifecycleService() {
             render(shown, force = true)
             return START_STICKY
         }
-        attach(session, force = true)
+        val resumed = if (session.interrupted) trackingRepository.resume() else session
+        if (resumed == null) {
+            shutdown()
+            return START_NOT_STICKY
+        }
+        attach(resumed, force = true)
         return START_STICKY
     }
 

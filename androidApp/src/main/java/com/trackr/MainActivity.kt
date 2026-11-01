@@ -14,6 +14,7 @@ import com.trackr.app.TrackrRoot
 import com.trackr.core.navigation.deeplink.DeepLink
 import com.trackr.core.data.repository.AmapKeyRepository
 import com.trackr.core.domain.platform.MapSdkInitializer
+import com.trackr.core.domain.platform.TrackingController
 import com.trackr.deeplink.DeepLinkIntents
 import com.trackr.util.TransitCodeHelper
 import org.koin.android.ext.android.get
@@ -60,6 +61,11 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         handleIntent(intent, navigate = true)
+    }
+
+    override fun onStart() {
+        super.onStart()
+        get<TrackingController>().resumeInterrupted()
     }
 
     private fun handleIntent(intent: Intent?, navigate: Boolean) {

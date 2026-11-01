@@ -19,6 +19,7 @@ import com.trackr.core.model.UserFix
 class AndroidTrackingController(
     context: Context,
     private val repository: TrackingRepository,
+    private val arrivalAlerts: ArrivalAlertNotifier? = null,
     private val starter: (Context, String) -> Unit = { ctx, sessionId ->
         ContextCompat.startForegroundService(ctx, BusTrackingService.startIntent(ctx, sessionId))
     }
@@ -41,6 +42,18 @@ class AndroidTrackingController(
         } catch (e: SecurityException) {
             Log.w(TAG, "Cannot start tracking service", e)
             repository.restore(session, previous)
+            false
+        }
+    }
+
+    override fun resumeInterrupted(): Boolean {
+        val session = repository.session.value?.takeIf { it.interrupted } ?: return false
+        return try {
+            starter(appContext, session.sessionId)
+            true
+        } catch (e: Exception) {
+            Log.w(TAG, "Cannot resume interrupted tracking", e)
+            arrivalAlerts?.triggerTrackingInterrupted(appContext, session.state)
             false
         }
     }
