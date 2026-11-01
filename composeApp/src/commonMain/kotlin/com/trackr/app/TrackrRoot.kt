@@ -232,7 +232,7 @@ private fun TrackrNavApp(
     ) { _ ->
         NavDisplay(
             // 只显示当前页签的栈（和第 16 步之前一样）：非首页页签根页按返回交给系统，切页签走横向滑动
-            entries = navigationState.toDecoratedEntries(startUnderneath = false, entryProvider = entryProvider {
+            entries = navigationState.toDecoratedEntries(startUnderneath = true, entryProvider = entryProvider {
                 busEntries(navigator)
                 routeEntries(navigator)
                 favoritesGroupEntries(navigator, hasMapKey = hasMapKey)
