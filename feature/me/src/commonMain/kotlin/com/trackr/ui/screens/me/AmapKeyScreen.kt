@@ -1,0 +1,294 @@
+@file:OptIn(ExperimentalMaterial3Api::class)
+
+package com.trackr.ui.screens.me
+
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import com.trackr.core.designsystem.resources.Res
+import com.trackr.core.designsystem.resources.ic_back
+import com.trackr.core.designsystem.resources.ic_chevron_right
+import org.jetbrains.compose.resources.vectorResource
+
+/**
+ * 高德 Key 子页（第 25 步把原来的对话框改成「我的」页签里的子页）。
+ *
+ * 两个槽各写各的、互不回落：Android 平台 Key 决定地图出不出图，Web 服务 Key 只给云端算路用。
+ * 页面只显示平台确实有的槽（`showAndroidSlot`）；包名和签名 SHA-1 由 ViewModel 从平台能力读出来，方便复制去控制台绑定。
+ */
+@Composable
+fun AmapKeyScreen(
+    state: AmapKeyUiState,
+    onEvent: (AmapKeyEvent) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val clipboard = LocalClipboardManager.current
+    val uriHandler = LocalUriHandler.current
+    val snackbarHostState = remember { SnackbarHostState() }
+    UserMessageEffect(state.userMessages, snackbarHostState) { onEvent(AmapKeyEvent.MessageShown(it)) }
+
+    fun copy(text: String, what: String) {
+        clipboard.setText(AnnotatedString(text))
+        onEvent(AmapKeyEvent.Copied(what))
+    }
+
+    Scaffold(
+        modifier = modifier,
+        contentWindowInsets = WindowInsets.safeDrawing,
+        snackbarHost = { SnackbarHost(snackbarHostState) },
+        topBar = {
+            TopAppBar(
+                title = { Text(text = "高德 Key", fontWeight = FontWeight.Bold) },
+                navigationIcon = {
+                    IconButton(onClick = { onEvent(AmapKeyEvent.Back) }) {
+                        Icon(
+                            imageVector = vectorResource(Res.drawable.ic_back),
+                            contentDescription = "返回"
+                        )
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surface
+                )
+            )
+        },
+        bottomBar = {
+            Surface(color = MaterialTheme.colorScheme.surface) {
+                Button(
+                    onClick = { onEvent(AmapKeyEvent.Save) },
+                    enabled = state.canSave,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 12.dp)
+                        .height(48.dp)
+                        .testTag("btn_amap_key_save")
+                ) {
+                    Text("保存生效")
+                }
+            }
+        }
+    ) { innerPadding ->
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(
+                start = 16.dp,
+                top = innerPadding.calculateTopPadding() + 8.dp,
+                end = 16.dp,
+                bottom = innerPadding.calculateBottomPadding() + 24.dp
+            ),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            item(key = "intro") {
+                Text(
+                    text = "本应用开源分发、不内置任何 Key，用自己的高德账号申请即可（个人开发者免费额度够日常使用）。" +
+                        "地图底图由「Android 平台 Key」鉴权，必须和下面的包名 + SHA-1 完全一致；" +
+                        "「Web 服务 Key」只用于云端公交算路，两者不能混填。",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            item(key = "identity") {
+                Card(
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+                    )
+                ) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Text(
+                            text = "高德控制台需要绑定的信息",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        IdentityRow(
+                            label = "包名",
+                            value = state.appId,
+                            onCopy = { copy(state.appId, "包名") }
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        IdentityRow(
+                            label = "SHA-1 签名指纹",
+                            value = state.sha1?.takeIf { it.isNotBlank() } ?: "读不到",
+                            onCopy = state.sha1?.takeIf { it.isNotBlank() }?.let { sha1 ->
+                                { copy(sha1, "SHA-1") }
+                            }
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            TextButton(
+                                onClick = {
+                                    val text = buildString {
+                                        append("包名：${state.appId}")
+                                        state.sha1?.takeIf { it.isNotBlank() }?.let { append("\nSHA-1：$it") }
+                                    }
+                                    copy(text, "包名和 SHA-1")
+                                },
+                                contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp),
+                                modifier = Modifier.testTag("btn_copy_pkg_sha1")
+                            ) {
+                                Text("复制包名 + SHA-1", style = MaterialTheme.typography.labelSmall)
+                            }
+                            TextButton(
+                                onClick = {
+                                    runCatching { uriHandler.openUri(AMAP_CONSOLE_URL) }
+                                        .onFailure { onEvent(AmapKeyEvent.OpenConsoleFailed) }
+                                },
+                                contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp),
+                                modifier = Modifier.testTag("btn_open_amap_console")
+                            ) {
+                                Text("打开高德控制台", style = MaterialTheme.typography.labelSmall)
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (state.showAndroidSlot) {
+                item(key = "android_key") {
+                    OutlinedTextField(
+                        value = state.androidInput,
+                        onValueChange = { onEvent(AmapKeyEvent.EditAndroidKey(it)) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("input_amap_android_key"),
+                        label = { Text("高德 Android Key（地图）") },
+                        placeholder = { Text("粘贴 32 位 Android 平台 Key") },
+                        isError = !state.androidKeyValid,
+                        supportingText = {
+                            Text(text = state.androidHint, style = MaterialTheme.typography.labelSmall)
+                        },
+                        trailingIcon = {
+                            if (state.androidInput.isNotEmpty()) {
+                                TextButton(onClick = { onEvent(AmapKeyEvent.EditAndroidKey("")) }) {
+                                    Text("清空", style = MaterialTheme.typography.labelSmall)
+                                }
+                            }
+                        },
+                        singleLine = true
+                    )
+                }
+            }
+
+            item(key = "web_key") {
+                OutlinedTextField(
+                    value = state.webInput,
+                    onValueChange = { onEvent(AmapKeyEvent.EditWebKey(it)) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("input_amap_web_key"),
+                    label = { Text(if (state.showAndroidSlot) "高德 Web 服务 Key（可选）" else "高德 Web 服务 Key") },
+                    placeholder = { Text("用于云端公交算路，不绑定包名") },
+                    isError = !state.webKeyValid,
+                    supportingText = {
+                        Text(text = state.webHint, style = MaterialTheme.typography.labelSmall)
+                    },
+                    trailingIcon = {
+                        if (state.webInput.isNotEmpty()) {
+                            TextButton(onClick = { onEvent(AmapKeyEvent.EditWebKey("")) }) {
+                                Text("清空", style = MaterialTheme.typography.labelSmall)
+                            }
+                        }
+                    },
+                    singleLine = true
+                )
+            }
+
+            item(key = "status") {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(
+                        imageVector = vectorResource(Res.drawable.ic_chevron_right),
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = state.statusText,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** 一行「标签 + 等宽值 + 复制按钮」 */
+@Composable
+private fun IdentityRow(
+    label: String,
+    value: String,
+    onCopy: (() -> Unit)?
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                text = value,
+                style = MaterialTheme.typography.bodySmall,
+                fontFamily = FontFamily.Monospace,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+        }
+        if (onCopy != null) {
+            TextButton(onClick = onCopy) {
+                Text("复制", style = MaterialTheme.typography.labelSmall)
+            }
+        }
+    }
+}
