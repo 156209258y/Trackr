@@ -31,6 +31,21 @@ class ArrivalAlertNotifier(
     private val liveProgressNotifier: LiveProgressNotifier
 ) {
 
+    fun triggerTrackingExpired(context: Context, state: TrackingSessionState) {
+        ensureNotificationChannel(context)
+        val notification = NotificationCompat.Builder(context, CHANNEL_ID_ALERT)
+            .setSmallIcon(R.drawable.ic_stat_trackr)
+            .setContentTitle("追踪已停止")
+            .setContentText("${state.lineName} 追踪已超过 3 小时，已停止追踪。")
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setCategory(NotificationCompat.CATEGORY_STATUS)
+            .setAutoCancel(true)
+            .setDefaults(NotificationCompat.DEFAULT_ALL)
+            .setContentIntent(createMainActivityPendingIntent(context, NOTIFICATION_ID_TRANSFER))
+            .build()
+        runCatching { NotificationManagerCompat.from(context).notify(NOTIFICATION_ID_TRANSFER, notification) }
+    }
+
     /**
      * 确保高优先级预警渠道创建完毕
      */
@@ -305,4 +320,3 @@ class ArrivalAlertNotifier(
         private const val ARRIVED_VIBRATION_DURATION_MS = 800L
     }
 }
-

@@ -266,6 +266,12 @@ class BusTrackingService : LifecycleService() {
                     operatingState = lastOperatingState
                 )
                 delay(intervalMs) // 自适应防刷轮询退避
+                val current = trackingRepository.session.value
+                if (current != null && TrackingEngine.isTrackingExpired(current, clock.now().toEpochMilliseconds())) {
+                    arrivalAlerts.triggerTrackingExpired(this@BusTrackingService, current.state)
+                    trackingRepository.stop()
+                    break
+                }
                 pollOnce(generation)
             }
         }
