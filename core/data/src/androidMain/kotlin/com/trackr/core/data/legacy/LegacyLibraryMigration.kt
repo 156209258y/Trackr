@@ -73,7 +73,9 @@ class LegacyLibraryMigration(
         amapKeys.data.first()
 
         val doneGen = db.storeMeta().get(META_LEGACY_IMPORT_GEN)?.toIntOrNull()
-        if (doneGen == generation) return Report(ran = false)
+        // A restored device can carry a newer store generation than the local
+        // switch preference. Never import the older legacy snapshot over it.
+        if (doneGen != null && doneGen >= generation) return Report(ran = false)
 
         val corrupt = mutableListOf<String>()
         val backups = mutableListOf<String>()

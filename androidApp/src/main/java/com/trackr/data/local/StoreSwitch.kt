@@ -19,7 +19,8 @@ import java.io.File
  *
  * 「代数」：每次以旧存储启动，`trackr_store_switch` 里的 `old_store_sessions` +1。新存储里记着上次从旧文件导入时的代数，
  * 和这里不同就重新导入一次，这样切回新存储时能带上用旧存储期间的改动（LegacyLibraryMigration）。
- * 这两个文件只属于本机，不参与备份。
+ * `store_switch` 覆盖文件仍只属于本机；记录代数的 SharedPreferences 会参与备份，
+ * 这样换机恢复时新库的导入代数不会落后于旧文件。
  */
 object StoreSwitch {
     const val OVERRIDE_FILE = "store_switch"
