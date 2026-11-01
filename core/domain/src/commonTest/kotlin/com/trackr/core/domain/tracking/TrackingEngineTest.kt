@@ -255,6 +255,49 @@ class TrackingEngineTest {
     }
 
     @Test
+    fun group_onBoard_nullLockedBus_firstRelockStaysStrict_thenRelaxesToAPlusFour() {
+        val confirmed = GroupLegTracker.confirmBoarded(groupWaitingSession(), emptyList(), nowMillis = NOW_MILLIS)
+        assertNull(confirmed.lockedBusId)
+
+        // 第一次补查仍按严格的 A..A+1（A=3）：order 4 在范围内，直接锁上
+        val strict = GroupLegTracker.processPoll(
+            confirmed,
+            listOf(groupBus("farAhead", order = 6), groupBus("mine", order = 4, progress = 0.4f)),
+            nowMillis = NOW_MILLIS
+        )
+        assertEquals("mine", strict.state.lockedBusId)
+        assertEquals(0, strict.state.boardingLockAttempts)
+
+        // 第一次一辆都没有：只记一次尝试，不锁车
+        val missed = GroupLegTracker.processPoll(confirmed, listOf(groupBus("farAhead", order = 6)), nowMillis = NOW_MILLIS)
+        assertNull(missed.state.lockedBusId)
+        assertEquals(1, missed.state.boardingLockAttempts)
+
+        // 第二次起放宽到 A..A+4：order 6 也能锁回来
+        val relaxed = GroupLegTracker.processPoll(missed.state, listOf(groupBus("farAhead", order = 6)), nowMillis = NOW_MILLIS)
+        assertEquals("farAhead", relaxed.state.lockedBusId)
+        assertEquals(0, relaxed.state.boardingLockAttempts)
+    }
+
+    @Test
+    fun group_onBoard_nullLockedBus_lockAttemptsStopGrowingAtCap() {
+        var state = GroupLegTracker.confirmBoarded(groupWaitingSession(), emptyList(), nowMillis = NOW_MILLIS)
+        assertNull(state.lockedBusId)
+
+        // 一直锁不到车（A+4 之外才有车）：尝试次数涨到上限就不再涨，也不会锁错车
+        repeat(GroupLegTracker.BOARDING_LOCK_MAX_ATTEMPTS * 3) {
+            state = GroupLegTracker.processPoll(
+                state,
+                listOf(groupBus("tooFar", order = 3 + GroupLegTracker.BOARDING_LOCK_MAX_AHEAD_RELAXED + 2)),
+                nowMillis = NOW_MILLIS
+            ).state
+            assertNull(state.lockedBusId)
+            assertTrue(state.boardingLockAttempts <= GroupLegTracker.BOARDING_LOCK_MAX_ATTEMPTS)
+        }
+        assertEquals(GroupLegTracker.BOARDING_LOCK_MAX_ATTEMPTS, state.boardingLockAttempts)
+    }
+
+    @Test
     fun group_onBoard_nullLockedBus_noCandidate_keepsWaitingForLock() {
         val confirmed = GroupLegTracker.confirmBoarded(groupWaitingSession(), emptyList(), nowMillis = NOW_MILLIS)
         val update = GroupLegTracker.processPoll(confirmed, listOf(groupBus("farAhead", order = 7)), nowMillis = NOW_MILLIS)

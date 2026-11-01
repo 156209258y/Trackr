@@ -68,14 +68,17 @@ internal object GroupLegTracker {
         ArrivalRules.isBusArrivedAtOrder(targetOrder, bus)
 
     /**
-     * 手动“我已上车”时选择用户所乘车辆：只考虑 order 在 A..A+1 的车（刚到 A 或刚离开 A），
-     * 取离 A 最近的一辆；距离相同时优先已开过 A 的车（用户点按钮时车多半已出站）。
-     * 找不到时返回 null，由 ON_BOARD 阶段后续轮询按同样规则补锁。
+     * 手动“我已上车”时选择用户所乘车辆：只考虑 order 在 A..A+[maxAhead] 的车，取离 A 最近的一辆；
+     * 距离相同时优先已开过 A 的车（用户点按钮时车多半已出站）。
+     *
+     * 默认 [maxAhead] = 1（刚到 A 或刚离开 A）；ON_BOARD 阶段补锁时第一次仍用 A..A+1，
+     * 第二次起放宽到 A..A+[BOARDING_LOCK_MAX_AHEAD_RELAXED]（车已经开过几站也能锁回来）。
+     * 找不到时返回 null，由后续轮询再补锁。
      */
     fun pickBoardedBus(boardOrder: Int, buses: List<LiveBus>, maxAhead: Int = 1): LiveBus? {
         if (boardOrder <= 0) return null
         return buses
-            .filter { it.order in boardOrder..(boardOrder + maxAhead).coerceAtLeast(boardOrder) }
+            .filter { it.order in boardOrder..(boardOrder + maxAhead) }
             .minWithOrNull(
                 compareBy<LiveBus> { distanceToBoardStop(boardOrder, it) }
                     .thenByDescending { it.order }
@@ -411,15 +414,17 @@ internal object GroupLegTracker {
         nowMillis: Long
     ): LegUpdate {
         if (incoming.lockedBusId == null) {
-            // 手动确认上车时没锁到车：按同样规则（A..A+1 且离 A 最近）补锁
-            // 手动确认后先用严格的 A..A+1 范围补查一次；仍未拿到车时
-            // 放宽到 A+4，覆盖用户点按钮后数据已经跳过几站的情况。
-            val maxAhead = if (incoming.boardingLockAttempts == 0) 1 else 4
+            // 手动确认上车时没锁到车：第一次严格按 A..A+1 补查；还没拿到车就放宽到 A+4，
+            // 覆盖用户点按钮后数据已经跳过几站的情况。之后一直用放宽范围，直到锁到车为止。
+            val maxAhead = if (incoming.boardingLockAttempts == 0) BOARDING_LOCK_MAX_AHEAD
+            else BOARDING_LOCK_MAX_AHEAD_RELAXED
             val picked = pickBoardedBus(incoming.boardStopOrder, buses, maxAhead)
                 ?: return LegUpdate(
                     incoming.copy(
                         isSignalLost = false,
-                        boardingLockAttempts = incoming.boardingLockAttempts + 1,
+                        // 只涨到上限：放宽后一直锁不到也不能无限增长（本轮末仍是「识别中」，等下一轮）
+                        boardingLockAttempts = (incoming.boardingLockAttempts + 1)
+                            .coerceAtMost(BOARDING_LOCK_MAX_ATTEMPTS),
                         statusSummary = "已确认上车，正在识别所乘车辆…",
                         updatedAtMillis = nowMillis
                     )
@@ -488,4 +493,13 @@ internal object GroupLegTracker {
         val minutes = (etaSeconds / 60.0).roundToInt().coerceAtLeast(1)
         return "约 $minutes 分钟"
     }
+
+    /** 手动确认上车后第一次补锁的范围：A..A+1（刚到 A 或刚离开 A） */
+    private const val BOARDING_LOCK_MAX_AHEAD = 1
+
+    /** 补锁第二次起放宽的范围：A..A+4，覆盖用户点按钮后数据已经跳过几站的情况 */
+    internal const val BOARDING_LOCK_MAX_AHEAD_RELAXED = 4
+
+    /** `boardingLockAttempts` 的上限：放宽后一直锁不到车时不再往上加，避免无限增长 */
+    internal const val BOARDING_LOCK_MAX_ATTEMPTS = 10
 }
