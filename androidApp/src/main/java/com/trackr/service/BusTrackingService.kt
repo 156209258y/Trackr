@@ -18,6 +18,7 @@ import com.trackr.core.domain.tracking.LocationCadence
 import com.trackr.core.domain.tracking.TrackingEngine
 import com.trackr.core.domain.tracking.WatchPollPlan
 import com.trackr.core.model.LineOperatingState
+import com.trackr.core.model.LegPhase
 import com.trackr.core.model.TrackingSession
 import com.trackr.core.model.TrackingSessionState
 import com.trackr.core.model.TrackingTarget
@@ -300,8 +301,13 @@ class BusTrackingService : LifecycleService() {
             repository.getLineDetail(
                 city = targetCity,
                 lineId = leg.lineId,
-                // 一起等刚上车、还不知道终点站时 targetOrder 为 0：先按上车站请求，拿到全线站点后引擎补上终点
-                targetOrder = if (state.targetOrder > 0) state.targetOrder else leg.targetOrder,
+                // 等车阶段的 ETA 必须针对上车站；上车后才切到下车站。一起等刚上车
+                // 还不知道终点站时 targetOrder 为 0，也先按上车站请求，拿到全线站点后补终点。
+                targetOrder = when {
+                    state.legPhase == LegPhase.WAITING_BOARD && state.boardStopOrder > 0 -> state.boardStopOrder
+                    state.targetOrder > 0 -> state.targetOrder
+                    else -> leg.targetOrder
+                },
                 stationId = state.targetStopId.ifBlank { leg.targetStopId },
                 source = leg.source,
                 lineNameHint = state.lineName,
