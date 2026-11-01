@@ -14,6 +14,7 @@ class AmapSdkKeySyncTest {
     @Test
     fun appliesOnlyAndroidKeyChanges_skippingStartupValue() = runTest {
         val keys = FakeAmapKeyRepository(androidKey = "startup_key")
+        keys.setPrivacyConsent(true)
         val applied = mutableListOf<String?>()
         val dispatcher = UnconfinedTestDispatcher(testScheduler)
         val sync = AmapSdkKeySync(keys, { applied += it }, backgroundScope, dispatcher)
