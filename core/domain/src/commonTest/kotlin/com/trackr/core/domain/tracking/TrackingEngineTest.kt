@@ -1247,6 +1247,35 @@ class TrackingEngineTest {
         assertEquals(TrackingEngine.AlertKind.ARRIVED, alert.kind)
         assertEquals("上车站A", alert.state.targetStopName)
         assertEquals(session.generation, result.session.generation)
+        // 上车站到站不强制发独立通知：实时活动已在展示同一趟车，再弹一条是重复提醒
+        assertFalse(alert.forceStandalone)
+    }
+
+    @Test
+    fun engine_reducePollRoute_boardArrivedDoesNotForceStandalone_dropArrivedDoes() {
+        // 上车站到站：BOARD_ARRIVED
+        val boardAlert = assertIs<TrackingEngine.Effect.Alert>(
+            poll(beginRoute(), detail(listOf(groupBus("busX", order = 3, arrived = true, progress = 1f))))
+                .effects
+                .filterIsInstance<TrackingEngine.Effect.Alert>()
+                .single()
+        )
+        assertEquals(TrackingEngine.AlertKind.ARRIVED, boardAlert.kind)
+        assertEquals("上车站A", boardAlert.state.targetStopName)
+        assertFalse(boardAlert.forceStandalone, "上车站到站不应强制独立通知")
+
+        // 下车站到站（最后一程）：DROP_ARRIVED
+        val dropAlert = assertIs<TrackingEngine.Effect.Alert>(
+            poll(
+                beginRoute(startLeg = 1, generation = 7).onBoard("busY"),
+                detail(listOf(groupBus("busY", order = 6, arrived = true, progress = 1f)))
+            ).effects
+                .filterIsInstance<TrackingEngine.Effect.Alert>()
+                .single()
+        )
+        assertEquals(TrackingEngine.AlertKind.ARRIVED, dropAlert.kind)
+        assertEquals("终点站C", dropAlert.state.targetStopName)
+        assertTrue(dropAlert.forceStandalone, "下车站到站是结束提醒，应强制独立通知")
     }
 
     @Test

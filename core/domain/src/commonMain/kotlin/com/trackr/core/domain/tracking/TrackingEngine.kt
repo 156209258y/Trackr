@@ -316,7 +316,10 @@ object TrackingEngine {
         val alertState = decision.alertState
         if (alertState != null) {
             when (decision.alert) {
-                GroupLegTracker.AlertKind.BOARD_ARRIVED,
+                // 上车站到站只是「车来了」，实时活动已经展示同一趟车时不必再弹一条；走默认判断
+                GroupLegTracker.AlertKind.BOARD_ARRIVED ->
+                    effects += Effect.Alert(AlertKind.ARRIVED, alertState)
+                // 下车站到站是这一程的结束提醒，必须独立发，避免实时活动清理常驻通知时一并撤掉
                 GroupLegTracker.AlertKind.DROP_ARRIVED ->
                     effects += Effect.Alert(AlertKind.ARRIVED, alertState, forceStandalone = true)
                 GroupLegTracker.AlertKind.BOARD_APPROACHING,
