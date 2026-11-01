@@ -20,13 +20,17 @@ val LocalAmapMapSession = staticCompositionLocalOf<AmapMapSession?> { null }
  *
  * 第 17 步从 `MainActivity` 原样搬来，由 `:composeApp` 包在 NavDisplay 外面；
  * 这里观察的 [LocalLifecycleOwner] 是 Activity 的，不是某个 entry 的（301c124：按 Home / 锁屏时暂停地图）。
+ *
+ * [enabled] 为 false（还没同意高德隐私说明）时不建会话，[LocalAmapMapSession] 提供 null，页面走矢量降级。
+ * 组合结构（CompositionLocalProvider + content）始终不变，consent 翻转只重建地图会话，
+ * 不会把里面一整棵导航子树销毁重建——否则 `rememberSaveable` 的返回栈会丢，同意后跳不到路线页。
  */
 @Composable
-fun ProvideAmapMapSession(content: @Composable () -> Unit) {
+fun ProvideAmapMapSession(enabled: Boolean = true, content: @Composable () -> Unit) {
     val context = LocalContext.current
 
-    val mapSession = remember(context) {
-        (context as? Activity)?.let { AmapMapSession(it) }
+    val mapSession = remember(context, enabled) {
+        if (enabled) (context as? Activity)?.let { AmapMapSession(it) } else null
     }
     DisposableEffect(mapSession) {
         onDispose { mapSession?.destroy() }

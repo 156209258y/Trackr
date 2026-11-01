@@ -37,9 +37,16 @@ import com.trackr.feature.bus.home.BusHomeViewModel
 import com.trackr.ui.screens.routeplan.ProvideAmapMapSession
 import org.koin.compose.viewmodel.koinViewModel
 
+/**
+ * 始终包一层 [ProvideAmapMapSession]，`enabled` 交给它决定建不建地图会话。
+ *
+ * 不能写成 `if (enabled) ProvideAmapMapSession(content) else content()`：那样 consent 从 false 翻成 true 时，
+ * `content` 的调用位置在两支之间切换，整棵 `TrackrNavApp` 子树被销毁重建，`rememberSaveable` 的返回栈丢失，
+ * 「同意并继续」里的 `navigator.selectTab(RoutePlan)` 作用在旧实例上，用户实际停在上一个页面。
+ */
 @Composable
 internal actual fun PlatformHost(enabled: Boolean, content: @Composable () -> Unit) =
-    if (enabled) ProvideAmapMapSession(content) else content()
+    ProvideAmapMapSession(enabled = enabled, content = content)
 
 @Composable
 internal actual fun bottomTabIcon(key: ScreenKey): ImageVector = when (key) {
