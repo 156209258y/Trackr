@@ -130,6 +130,40 @@ class ArrivalAlertManagerTest {
         )
     }
 
+    @Test
+    fun testTrackingExpired_usesOwnNotificationIdAndDoesNotOverwriteTransferAlert() {
+        alertNotifier.triggerTransferAlert(app, "珞雄路雄楚大道", "M492")
+        assertNotNull("换乘提醒应先发出来", shadowOf(notificationManager).getNotification(ArrivalAlertNotifier.NOTIFICATION_ID_TRANSFER))
+
+        alertNotifier.triggerTrackingExpired(app, activeTrackingState(stopsRemaining = 3))
+
+        // 两条通知各占各的 id，不能互相顶掉
+        assertNotNull(
+            "换乘提醒不该被「追踪已停止」盖掉",
+            shadowOf(notificationManager).getNotification(ArrivalAlertNotifier.NOTIFICATION_ID_TRANSFER)
+        )
+        assertNotNull(
+            "「追踪已停止」应用自己的通知 id",
+            shadowOf(notificationManager).getNotification(ArrivalAlertNotifier.NOTIFICATION_ID_EXPIRED)
+        )
+    }
+
+    @Test
+    fun testTrackingInterrupted_usesOwnNotificationIdAndDoesNotOverwriteTransferAlert() {
+        alertNotifier.triggerTransferAlert(app, "珞雄路雄楚大道", "M492")
+
+        alertNotifier.triggerTrackingInterrupted(app, activeTrackingState(stopsRemaining = 3))
+
+        assertNotNull(
+            "换乘提醒不该被「追踪已中断」盖掉",
+            shadowOf(notificationManager).getNotification(ArrivalAlertNotifier.NOTIFICATION_ID_TRANSFER)
+        )
+        assertNotNull(
+            "「追踪已中断」应用自己的通知 id",
+            shadowOf(notificationManager).getNotification(ArrivalAlertNotifier.NOTIFICATION_ID_INTERRUPTED)
+        )
+    }
+
     private fun activeTrackingState(stopsRemaining: Int) = TrackingSessionState(
         isActive = true,
         lineName = "788",

@@ -41,9 +41,9 @@ class ArrivalAlertNotifier(
             .setCategory(NotificationCompat.CATEGORY_STATUS)
             .setAutoCancel(true)
             .setDefaults(NotificationCompat.DEFAULT_ALL)
-            .setContentIntent(createMainActivityPendingIntent(context, NOTIFICATION_ID_TRANSFER))
+            .setContentIntent(createMainActivityPendingIntent(context, NOTIFICATION_ID_EXPIRED))
             .build()
-        runCatching { NotificationManagerCompat.from(context).notify(NOTIFICATION_ID_TRANSFER, notification) }
+        runCatching { NotificationManagerCompat.from(context).notify(NOTIFICATION_ID_EXPIRED, notification) }
     }
 
     fun triggerTrackingInterrupted(context: Context, state: TrackingSessionState) {
@@ -55,9 +55,9 @@ class ArrivalAlertNotifier(
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setCategory(NotificationCompat.CATEGORY_STATUS)
             .setAutoCancel(true)
-            .setContentIntent(createMainActivityPendingIntent(context, NOTIFICATION_ID_TRANSFER))
+            .setContentIntent(createMainActivityPendingIntent(context, NOTIFICATION_ID_INTERRUPTED))
             .build()
-        runCatching { NotificationManagerCompat.from(context).notify(NOTIFICATION_ID_TRANSFER, notification) }
+        runCatching { NotificationManagerCompat.from(context).notify(NOTIFICATION_ID_INTERRUPTED, notification) }
     }
 
     /**
@@ -332,6 +332,9 @@ class ArrivalAlertNotifier(
         const val NOTIFICATION_ID_APPROACHING = 10002
         const val NOTIFICATION_ID_ARRIVED = 10003
         const val NOTIFICATION_ID_TRANSFER = 10004
+        // 追踪已停止 / 已中断用独立的 id，否则会顶掉同一时刻的换乘提醒
+        const val NOTIFICATION_ID_EXPIRED = 10005
+        const val NOTIFICATION_ID_INTERRUPTED = 10006
 
         private val APPROACHING_VIBRATION_PATTERN = longArrayOf(0, 280, 120, 280, 120, 400)
         private val TRANSFER_VIBRATION_PATTERN = longArrayOf(0, 300, 100, 300, 100, 300)
