@@ -38,11 +38,12 @@ class WatchTogetherPoller(
         when (plan) {
             is WatchPollPlan.Stop -> pollStop(target, plan.lines, city)
             is WatchPollPlan.Lines -> {
-                val lines = fetchLines(target, plan.lines, city)
-                if (lines.isEmpty() && plan.lines.isNotEmpty()) {
+                val requestedLines = plan.lines.take(MAX_LINES_PER_POLL)
+                val lines = fetchLines(target, requestedLines, city)
+                if (lines.isEmpty() && requestedLines.isNotEmpty()) {
                     Result.failure(IllegalStateException("一起等：在站车辆所在线路的实时数据都没拿到"))
                 } else {
-                    Result.success(WatchPoll(requested = plan.lines.map { it.lineId }.toSet(), lines = lines))
+                    Result.success(WatchPoll(requested = requestedLines.map { it.lineId }.toSet(), lines = lines))
                 }
             }
         }
@@ -73,10 +74,15 @@ class WatchTogetherPoller(
                 missing += line
             }
         }
-        val fetched = if (missing.isEmpty()) emptyMap() else fetchLines(target, missing, city)
+        // 站点接口通常已覆盖大部分线路；对缺线的线路补查设上限，避免
+        // 一起等十几条线时每轮同时打满线路详情请求。
+        val fetchedLines = missing.take(MAX_LINES_PER_POLL)
+        val fetched = if (fetchedLines.isEmpty()) emptyMap() else fetchLines(target, fetchedLines, city)
+        val requested = (covered.keys + fetched.keys).toSet()
         return Result.success(
             WatchPoll(
-                requested = lines.map { it.lineId }.toSet(),
+                // 未补查的缺线不标记为 requested，让状态机保留上一轮数据。
+                requested = requested,
                 lines = covered + fetched,
                 stopLat = stop?.wgsLat ?: 0.0,
                 stopLng = stop?.wgsLng ?: 0.0
@@ -148,5 +154,8 @@ class WatchTogetherPoller(
     companion object {
         /** 缺线时单独请求线路接口的并发上限 */
         const val MAX_CONCURRENT_LINE_REQUESTS = 4
+
+        /** 每轮最多补查的缺线数量（站点接口请求本身仍只有 1 次）。 */
+        const val MAX_LINES_PER_POLL = 4
     }
 }
