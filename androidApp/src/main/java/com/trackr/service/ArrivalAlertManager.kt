@@ -119,12 +119,16 @@ class ArrivalAlertNotifier(
     /**
      * 当车辆到达目标候车站（stopsRemaining == 0 且 isBusArrivedAtStop 或 etaSeconds <= 45）时触发到站提醒及长震动
      */
-    fun triggerArrivedAlert(context: Context, state: TrackingSessionState) {
+    fun triggerArrivedAlert(
+        context: Context,
+        state: TrackingSessionState,
+        forceStandalone: Boolean = false
+    ) {
         ensureNotificationChannel(context)
         cancelCounterpart(context, NOTIFICATION_ID_APPROACHING)
 
         var posted = false
-        if (shouldPostStandaloneNotification(context, state)) {
+        if (forceStandalone || shouldPostStandaloneNotification(context, state)) {
             val title = "【车辆已到站】${state.lineName}"
             val content = "${state.lineName} 已到达 ${state.targetStopName}！请注意上车/下车。"
 

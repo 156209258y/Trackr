@@ -63,7 +63,12 @@ object TrackingEngine {
     /** 一次 reduce 产出的副作用，调用方按顺序执行 */
     sealed interface Effect {
         /** 发到站 / 临近提醒；[state] 是提醒用的状态（站名、剩余站数已按提醒对象改写） */
-        data class Alert(val kind: AlertKind, val state: TrackingSessionState) : Effect
+        data class Alert(
+            val kind: AlertKind,
+            val state: TrackingSessionState,
+            /** 下车结束提醒必须发独立通知，避免实时活动清理常驻通知时一并撤掉。 */
+            val forceStandalone: Boolean = false
+        ) : Effect
 
         /** 到换乘站：发换乘提醒（会话已切到下一程，代际号已 +1） */
         data class TransferAlert(val stationName: String, val nextLineName: String) : Effect
@@ -312,7 +317,8 @@ object TrackingEngine {
         if (alertState != null) {
             when (decision.alert) {
                 GroupLegTracker.AlertKind.BOARD_ARRIVED,
-                GroupLegTracker.AlertKind.DROP_ARRIVED -> effects += Effect.Alert(AlertKind.ARRIVED, alertState)
+                GroupLegTracker.AlertKind.DROP_ARRIVED ->
+                    effects += Effect.Alert(AlertKind.ARRIVED, alertState, forceStandalone = true)
                 GroupLegTracker.AlertKind.BOARD_APPROACHING,
                 GroupLegTracker.AlertKind.DROP_APPROACHING -> effects += Effect.Alert(AlertKind.APPROACHING, alertState)
                 null -> Unit
@@ -326,6 +332,17 @@ object TrackingEngine {
         val legIndex = state.currentLegIndex
         val currentLeg = target.group.legs.getOrNull(legIndex)
         if (!isArrivalSatisfied(state, currentLeg, dropFix, nowElapsedMillis)) return Result(updated, effects)
+
+        // 定位先于车辆站序判定到达时，GroupLegTracker 不会产出 DROP_ARRIVED。
+        // 最后一程结束前补发一次到站提醒，避免用户只看到追踪结束而没有提醒。
+        val isLastLeg = legIndex >= target.group.legs.lastIndex
+        if (isLastLeg && effects.none { it is Effect.Alert && it.kind == AlertKind.ARRIVED }) {
+            effects += Effect.Alert(
+                AlertKind.ARRIVED,
+                state.copy(stopsRemaining = 0, isBusArrivedAtStop = true),
+                forceStandalone = true
+            )
+        }
 
         val nextIndex = legIndex + 1
         val nextLeg = target.group.legs.getOrNull(nextIndex)
@@ -380,7 +397,8 @@ object TrackingEngine {
         val alertState = decision.alertState
         if (alertState != null) {
             when (decision.alert) {
-                GroupLegTracker.AlertKind.DROP_ARRIVED -> effects += Effect.Alert(AlertKind.ARRIVED, alertState)
+                GroupLegTracker.AlertKind.DROP_ARRIVED ->
+                    effects += Effect.Alert(AlertKind.ARRIVED, alertState, forceStandalone = true)
                 GroupLegTracker.AlertKind.DROP_APPROACHING -> effects += Effect.Alert(AlertKind.APPROACHING, alertState)
                 else -> Unit
             }

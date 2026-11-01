@@ -417,7 +417,8 @@ class BusTrackingService : LifecycleService() {
     private fun runEffect(effect: TrackingEngine.Effect) {
         when (effect) {
             is TrackingEngine.Effect.Alert -> when (effect.kind) {
-                TrackingEngine.AlertKind.ARRIVED -> arrivalAlerts.triggerArrivedAlert(this, effect.state)
+                TrackingEngine.AlertKind.ARRIVED ->
+                    arrivalAlerts.triggerArrivedAlert(this, effect.state, effect.forceStandalone)
                 TrackingEngine.AlertKind.APPROACHING -> arrivalAlerts.triggerApproachingAlert(this, effect.state)
             }
             is TrackingEngine.Effect.TransferAlert -> {
