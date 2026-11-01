@@ -3,6 +3,9 @@ package com.trackr.ui.screens.search
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import com.trackr.core.data.repository.HomeCoordinates
 import com.trackr.core.data.repository.RealtimeRepository
 import com.trackr.core.data.repository.SearchHistoryRepository
@@ -48,6 +51,10 @@ class SearchViewModel(
     private val _uiState = MutableStateFlow(SearchUiState(currentCity = settings.selectedCity.value))
     val uiState: StateFlow<SearchUiState> = _uiState.asStateFlow()
 
+    /** 输入框的 Compose 快照状态。单独保存一份，避免中文输入法组字期间 StateFlow 快照回写导致丢字。 */
+    var queryText: String by mutableStateOf("")
+        private set
+
     private var searchJob: Job? = null
 
     init {
@@ -88,6 +95,7 @@ class SearchViewModel(
     }
 
     fun updateSearchQuery(query: String) {
+        queryText = query
         _uiState.update { it.copy(searchQuery = query) }
         savedStateHandle[KEY_QUERY] = query
         searchJob?.cancel()
