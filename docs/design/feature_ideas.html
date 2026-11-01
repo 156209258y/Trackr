@@ -1,0 +1,884 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>追客 · 特色功能设计（r2）</title>
+<style>
+:root{
+  --primary:#0B47B8; --on-primary:#fff; --primary-c:#D6E2FF; --on-primary-c:#001A4D;
+  --bg:#F2F3F5; --card:#FFFFFF; --variant:#E6E9EE; --outline:#8A929D;
+  --text:#000000; --text2:#4A515B;
+  --go:#0A6B39; --go-c:#D2F2DF; --warn:#8A4500; --warn-c:#FFE2BF; --err:#B3261E; --err-c:#FFDAD6;
+  --page:#E4E7EC; --doc:#1C2027; --frame:#111;
+}
+html.dark{
+  --primary:#A8C4FF; --on-primary:#001A4D; --primary-c:#173A80; --on-primary-c:#FFFFFF;
+  --bg:#000000; --card:#14171C; --variant:#252A32; --outline:#9AA3AF;
+  --text:#FFFFFF; --text2:#C2C8D0;
+  --go:#6BE3A0; --go-c:#0E3A22; --warn:#FFC266; --warn-c:#3D2A00; --err:#FF9C94; --err-c:#4A1512;
+  --page:#0A0C10; --doc:#E7EAEE; --frame:#3A3F47;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,"PingFang SC","Noto Sans SC","Microsoft YaHei",sans-serif;background:var(--page);color:var(--doc);line-height:1.6;padding:32px 24px 80px}
+.wrap{max-width:1320px;margin:0 auto}
+h1{font-size:30px;margin-bottom:4px}
+h2{font-size:24px;margin:52px 0 16px;padding-top:18px;border-top:2px solid var(--variant)}
+h3{font-size:18px;margin:22px 0 8px}
+h4{font-size:15px;margin:14px 0 6px}
+p{margin:6px 0}
+p.lead{opacity:.8;margin-bottom:12px}
+a{color:var(--primary)}
+.toggle{position:fixed;top:16px;right:16px;z-index:9;background:var(--primary);color:var(--on-primary);border:0;border-radius:999px;padding:10px 18px;font-size:14px;cursor:pointer}
+table.doc{border-collapse:collapse;width:100%;background:var(--card);color:var(--text);border-radius:12px;overflow:hidden;font-size:14px;margin:6px 0 10px}
+table.doc th,table.doc td{padding:8px 11px;border-bottom:1px solid var(--variant);text-align:left;vertical-align:top}
+table.doc th{background:var(--variant);white-space:nowrap}
+code{font-family:ui-monospace,Menlo,monospace;font-size:12px;background:var(--variant);color:var(--text);padding:1px 5px;border-radius:4px;word-break:break-all}
+.cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px}
+.box{background:var(--card);color:var(--text);border-radius:16px;padding:16px 18px}
+.box ul,.sec ul,.sec ol{padding-left:20px}.box li,.sec li{margin:3px 0}
+.tag{display:inline-block;font-size:12px;font-weight:700;border-radius:999px;padding:1px 9px;margin-right:4px;white-space:nowrap;vertical-align:middle}
+.p1{background:var(--go-c);color:var(--go)}
+.p2{background:var(--primary-c);color:var(--on-primary-c)}
+.p3{background:var(--variant);color:var(--text2)}
+.ok{color:var(--go);font-weight:700}
+.mid{color:var(--warn);font-weight:700}
+.bad{color:var(--err);font-weight:700}
+.toc{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}
+.toc a{background:var(--card);color:var(--text);text-decoration:none;border-radius:999px;padding:5px 13px;font-size:14px}
+.fact{background:var(--warn-c);color:var(--text);border-radius:12px;padding:10px 14px;margin:10px 0;font-size:14px}
+.fact b{color:var(--warn)}
+.sec{background:var(--card);color:var(--text);border-radius:20px;padding:22px 24px;margin-bottom:22px}
+.sec > h3:first-child{margin-top:0;font-size:21px}
+.sec .why{color:var(--text2);margin-bottom:6px}
+.sec table.doc{background:var(--bg)}
+.sec table.doc th{background:var(--variant)}
+.meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;margin-top:14px}
+.meta div{background:var(--bg);border-radius:12px;padding:10px 12px;font-size:13px}
+.meta b{display:block;font-size:12px;color:var(--text2);margin-bottom:2px}
+
+/* 手机框 */
+.screens{display:flex;flex-wrap:wrap;gap:18px;margin:12px 0}
+.shot{width:248px}
+.shot figcaption{font-size:13px;margin-top:6px;color:var(--text2)}
+.shot figcaption b{color:var(--text);display:block}
+.ph{width:248px;height:470px;border-radius:30px;border:7px solid var(--frame);background:var(--bg);color:var(--text);overflow:hidden;position:relative;font-size:13px}
+.ph.short{height:300px}
+.ph .sb{height:22px;display:flex;justify-content:space-between;padding:0 14px;font-size:11px;font-weight:600;align-items:center}
+.ph .bar{display:flex;align-items:center;gap:8px;padding:6px 12px;font-weight:700;font-size:15px}
+.ph .card{background:var(--card);border-radius:14px;margin:6px 10px;padding:10px 12px;border:1px solid var(--variant)}
+.ph .row{display:flex;align-items:center;gap:8px}
+.ln{min-width:40px;height:24px;padding:0 6px;border-radius:6px;background:var(--primary);color:var(--on-primary);font-weight:800;font-size:13px;display:inline-grid;place-items:center}
+.eta{font-size:26px;font-weight:800;line-height:1.1;font-variant-numeric:tabular-nums}
+.eta small{font-size:13px;font-weight:600}
+.sub{font-size:12px;color:var(--text2)}
+.chip{display:inline-block;font-size:11px;font-weight:700;border-radius:8px;padding:2px 7px;margin-top:4px}
+.chip.w{background:var(--warn-c);color:var(--warn)}
+.chip.g{background:var(--go-c);color:var(--go)}
+.chip.b{background:var(--primary-c);color:var(--on-primary-c)}
+.chip.e{background:var(--err-c);color:var(--err)}
+.menu{position:absolute;left:30px;right:16px;top:150px;background:var(--card);border-radius:14px;box-shadow:0 6px 24px #0004;padding:6px 0;border:1px solid var(--variant)}
+.menu div{padding:9px 14px}
+.menu div.hl{background:var(--primary-c);color:var(--on-primary-c);font-weight:700}
+.dim{position:absolute;inset:22px 0 0 0;background:#0005}
+.sheet{position:absolute;left:0;right:0;bottom:0;background:var(--card);border-radius:18px 18px 0 0;padding:14px}
+.btn{display:block;text-align:center;border-radius:999px;padding:9px;font-weight:700;background:var(--primary);color:var(--on-primary);margin-top:8px}
+.btn.t{background:transparent;color:var(--primary);border:1px solid var(--outline)}
+.field{border:1px solid var(--outline);border-radius:10px;padding:7px 10px;margin:4px 0;display:flex;justify-content:space-between}
+.home{display:grid;grid-template-columns:repeat(4,1fr);gap:12px 6px;padding:18px 12px;text-align:center;font-size:11px}
+.home i{display:grid;place-items:center;width:46px;height:46px;margin:0 auto 3px;border-radius:14px;background:var(--variant);font-style:normal;font-weight:800;font-size:12px;color:var(--text2)}
+.home i.me{background:var(--primary);color:var(--on-primary)}
+.home i.me2{background:var(--go);color:var(--card)}
+.qs{display:grid;grid-template-columns:1fr 1fr;gap:7px;padding:8px 10px}
+.tile{border-radius:16px;padding:9px 11px;background:var(--variant);color:var(--text);font-size:12px;line-height:1.3;min-height:52px}
+.tile.on{background:var(--primary);color:var(--on-primary)}
+.tile b{display:block;font-size:13px}
+.noti{background:var(--card);border-radius:14px;margin:6px 10px;padding:9px 11px;border:1px solid var(--variant);font-size:12px}
+.noti b{font-size:13px}
+.noti .app{font-size:10px;color:var(--text2)}
+.dots{display:flex;align-items:center;gap:0;margin:6px 0 2px}
+.dots i{width:10px;height:10px;border-radius:50%;background:var(--variant);border:2px solid var(--outline);flex:none}
+.dots i.d{background:var(--primary);border-color:var(--primary)}
+.dots i.t{background:var(--go);border-color:var(--go);width:13px;height:13px}
+.dots span{height:3px;flex:1;background:var(--outline)}
+.dots span.d{background:var(--primary)}
+.watch{width:150px;height:170px;border-radius:44px;border:7px solid var(--frame);background:#000;color:#fff;padding:20px 14px;font-size:12px}
+.watch b{display:block;font-size:17px;margin:4px 0}
+.siri{margin:10px;border-radius:18px;padding:12px;background:var(--card);border:1px solid var(--variant)}
+.me-b{background:var(--primary-c);color:var(--on-primary-c);border-radius:14px;padding:8px 11px;margin:8px 10px 8px 40px}
+.tablet{width:560px;height:340px;border-radius:22px;border:7px solid var(--frame);background:var(--bg);color:var(--text);display:grid;grid-template-columns:64px 210px 1fr;overflow:hidden;font-size:12px}
+.tablet .rail{background:var(--card);display:flex;flex-direction:column;align-items:center;gap:14px;padding-top:18px;font-size:11px}
+.tablet .rail i{display:block;width:30px;height:22px;border-radius:11px;background:var(--variant);margin:0 auto 2px}
+.tablet .rail .on i{background:var(--primary-c)}
+.tablet .list{border-right:1px solid var(--variant);padding:8px 0}
+.tablet .det{padding:10px}
+.fold{width:248px;border-radius:22px;border:7px solid var(--frame);background:var(--bg);color:var(--text);overflow:hidden;font-size:12px}
+.fold .top{height:150px;background:var(--card);padding:10px}
+.fold .hinge{height:8px;background:var(--outline)}
+.fold .bot{height:150px;padding:10px}
+.wg{background:var(--card);color:var(--text);border-radius:20px;padding:10px 12px;border:1px solid var(--variant);font-size:12px}
+.vchart{display:flex;flex-direction:column;gap:8px}
+.vrow{display:grid;grid-template-columns:120px 1fr 90px;align-items:center;gap:10px;font-size:13px}
+.vbar{position:relative;height:18px;background:var(--bg);border-radius:4px}
+.vbar span{position:absolute;top:2px;height:14px;border-radius:3px;background:var(--primary)}
+.vbar.old span{background:var(--outline)}
+.flow{display:flex;flex-wrap:wrap;align-items:stretch;gap:6px;margin:8px 0}
+.flow .st{background:var(--bg);border-radius:12px;padding:8px 11px;font-size:13px;max-width:220px}
+.flow .st b{display:block}
+.flow .ar{align-self:center;color:var(--text2);font-weight:700}
+.steps{counter-reset:s;list-style:none;padding:0!important}
+.steps li{counter-increment:s;padding-left:34px;position:relative;margin:10px 0}
+.steps li::before{content:counter(s);position:absolute;left:0;top:1px;width:24px;height:24px;border-radius:50%;background:var(--primary);color:var(--on-primary);display:grid;place-items:center;font-size:13px;font-weight:700}
+.legend{font-size:13px;opacity:.8;margin:6px 0 0}
+.mini{font-size:12px;color:var(--text2)}
+.people{letter-spacing:-2px;font-size:13px}
+</style>
+</head>
+<body>
+<button class="toggle" onclick="document.documentElement.classList.toggle('dark')">深色 / 浅色</button>
+<div class="wrap">
+
+<h1>追客 · 特色功能设计（r2）</h1>
+<p class="lead">2026-11-01 · 只是设计，不改代码。排在重构（<code>docs/design/refactor_plan_mad.md</code>）之后。r2：去掉 F5 家人帮配置、F6 帮家人看车；其余功能补全界面、规则、平台做法、请求量和测试。</p>
+
+<div class="toc">
+  <a href="#overview">总表</a><a href="#facts">代码现状</a>
+  <a href="#f1">F1 一键开</a><a href="#f2">F2 震动</a><a href="#f3">F3 末班车</a><a href="#f4">F4 自动变轻</a>
+  <a href="#f7">F7 该出门了</a><a href="#f8">F8 问一声</a><a href="#f9">F9 大屏</a><a href="#f10">F10 小组件</a>
+  <a href="#f11">F11 厂商胶囊</a><a href="#f12">F12 挤不挤</a>
+  <a href="#base">共用地基</a><a href="#settings">设置页</a><a href="#matrix">版本矩阵</a><a href="#oldtest">老设备测试</a>
+  <a href="#no">不做</a><a href="#order">顺序</a><a href="#q">待定</a>
+</div>
+
+<div class="cols">
+  <div class="box">
+    <h3 style="margin-top:0">方向</h3>
+    <ul>
+      <li><b>不打开 App 也能用</b>：桌面图标、下拉磁贴、Siri、控制中心、小组件。</li>
+      <li><b>不看屏也知道</b>：震动分得清上车、下车；手表跟着震。</li>
+      <li><b>晚上不误车</b>：末班车提前说。</li>
+      <li><b>老手机也顺</b>：App 自己变轻，不用用户找开关。</li>
+      <li><b>大屏好用</b>：平板、折叠屏两栏。</li>
+    </ul>
+  </div>
+  <div class="box">
+    <h3 style="margin-top:0">规矩</h3>
+    <ul>
+      <li>不加自己的服务器。只用现有公交接口和高德接口。</li>
+      <li>省着发请求。每个功能写明多发几次。</li>
+      <li>App 里一件事一个入口。系统入口（桌面图标、磁贴、小组件）由用户自己加。</li>
+      <li>新系统用新能力，老系统给能用的替代。</li>
+      <li>规则写进 <code>:core:domain</code>（纯 Kotlin），两个平台共用、能单测。</li>
+    </ul>
+  </div>
+  <div class="box">
+    <h3 style="margin-top:0">计划里已有，这里不重复</h3>
+    <ul>
+      <li>Android 16 实时进度通知、小米焦点通知、OPPO 流体云（已做）</li>
+      <li>Glance 小组件（第 26 步）、Baseline Profile（第 27 步）</li>
+      <li>长辈版（第 30–34 步），含读给我听、语音搜索</li>
+      <li>iOS 实时活动（第 37 步）、iOS 小组件（第 39 步）、鸿蒙评估（第 40 步）</li>
+    </ul>
+  </div>
+</div>
+
+<!-- ============ 总表 ============ -->
+<h2 id="overview">功能总表</h2>
+<table class="doc">
+  <tr><th>#</th><th>功能</th><th>一句话</th><th>Android</th><th>iOS</th><th>老手机</th><th>老人</th><th>多发的请求</th><th>工作量</th><th>优先级</th></tr>
+  <tr><td>F1</td><td>常用行程一键开</td><td>点桌面图标就开始追「回家」</td><td>桌面图标、磁贴</td><td>快捷指令、控制中心、操作按钮</td><td class="ok">能用</td><td class="ok">很合适</td><td>0</td><td>中</td><td><span class="tag p1">P1</span></td></tr>
+  <tr><td>F2</td><td>不看屏也知道</td><td>两下 = 上车，三下 = 下车</td><td>震动波形、手表同步</td><td>手表同步；前台触感</td><td class="ok">能用</td><td class="ok">很合适</td><td>0</td><td>小</td><td><span class="tag p1">P1</span></td></tr>
+  <tr><td>F3</td><td>末班车提醒</td><td>快末班变橙色，收车后说明早首班</td><td colspan="2">共享代码</td><td class="ok">能用</td><td class="ok">很合适</td><td>0</td><td>小</td><td><span class="tag p1">P1</span></td></tr>
+  <tr><td>F4</td><td>老手机自动变轻</td><td>内存小、省电时慢刷新、少动画</td><td>低内存、省电、过热</td><td>低电量、减弱动态</td><td class="ok">就为它</td><td class="ok">受益</td><td class="ok">变少</td><td>中</td><td><span class="tag p1">P1</span></td></tr>
+  <tr><td>F7</td><td>该出门了</td><td>把走路时间算进去，叫你出门</td><td>闹钟 + 追踪服务</td><td class="mid">只能定时通知</td><td class="ok">能用</td><td class="ok">合适</td><td>每次约 10–15</td><td>中</td><td><span class="tag p2">P2</span></td></tr>
+  <tr><td>F8</td><td>问一声就知道</td><td>问 Siri，或下拉点「念一下」</td><td>磁贴 + 朗读</td><td>Siri、聚焦搜索</td><td class="mid">分版本</td><td class="ok">很合适</td><td>问一次 1 次</td><td>中</td><td><span class="tag p2">P2</span></td></tr>
+  <tr><td>F9</td><td>大屏两栏</td><td>平板左列表右详情；折叠屏半开</td><td>自适应布局、折叠屏</td><td>iPad</td><td class="ok">手机不变</td><td class="ok">常用平板</td><td>0（见细节）</td><td>大</td><td><span class="tag p2">P2</span></td></tr>
+  <tr><td>F10</td><td>小组件进阶</td><td>本地倒计时，多种大小，能点追踪</td><td>Glance</td><td>锁屏、可点组件</td><td class="mid">分版本</td><td>一般</td><td>0</td><td>中</td><td><span class="tag p3">P3</span></td></tr>
+  <tr><td>F11</td><td>更多厂商胶囊</td><td>vivo、荣耀、三星先测标准格式</td><td>按厂商</td><td>—</td><td class="mid">只新机</td><td>一般</td><td>0</td><td>小（测为主）</td><td><span class="tag p3">P3</span></td></tr>
+  <tr><td>F12</td><td>车上挤不挤</td><td>车来了给拥挤度就显示</td><td colspan="2">共享代码</td><td class="ok">能用</td><td class="ok">合适</td><td>0（确认时 ≤ 4 次）</td><td>小</td><td><span class="tag p3">P3</span></td></tr>
+</table>
+<p class="legend">F5、F6 已删，编号不改，方便对照上一版。「老手机」指 Android 8–11、iOS 15–16。</p>
+
+<!-- ============ 现状 ============ -->
+<h2 id="facts">代码现状（这次查到、和设计有关的）</h2>
+<table class="doc">
+  <tr><th>功能</th><th>现在代码里是什么样</th><th>位置</th></tr>
+  <tr><td>F1</td><td>静态快捷方式只有支付宝、云闪付乘车码两个；动态快捷方式是「前 3 个常用候车站」；没有固定到桌面、没有磁贴</td><td><code>androidApp/src/main/res/xml/shortcuts.xml</code>、<code>widget/BusStopWidgetProvider.kt:250-274</code></td></tr>
+  <tr><td>F2</td><td>只有一个提醒渠道 <code>bus_arrival_alert</code>。「即将到站」<code>0,280,120,280,120,400</code> 和「换乘」<code>0,300,100,300,100,300</code> 几乎一样，手感分不出；「已到站」是一下 800 ms。文字写「请准备上车/下车」，不分上车还是下车</td><td><code>service/ArrivalAlertManager.kt:297-306</code>、<code>:73-74</code></td></tr>
+  <tr><td>F3</td><td><code>ArrivalState</code> 已有 <code>AllPassed</code>（只给始发发车时间）和 <code>Ended</code>（明天首班）；线路有 <code>firstTime</code> / <code>lastTime</code>；时刻表 <code>LineTimetable.todayDepartures</code> 每线拉一次并缓存。缺「快末班」和「这是末班车」</td><td><code>core/domain/.../arrival/ArrivalText.kt:49-63</code>、<code>core/model/.../TransitModels.kt:127,320</code></td></tr>
+  <tr><td>F4</td><td>首页固定 15 秒、线路页固定 10 秒；追踪按车距自适应，不运营时 300 秒、失败退避最多 120 秒</td><td><code>HomeViewModel.kt:583</code>、<code>LineDetailViewModel.kt:589</code>、<code>TransferAutoSwitchManager.kt:400-408</code></td></tr>
+  <tr><td>F7</td><td>定时提醒有时间、星期、线路、站、<code>autoStartLiveTracking</code>（到点直接开追踪）；没有走路时间</td><td><code>core/model/.../ScheduledReminder.kt</code></td></tr>
+  <tr><td>F12</td><td>模型已有 <code>capacityLevel</code>（0 舒适 / 1 适中 / 2 拥挤 / -1 未知），界面没用。车来了解析写成 <code>optInt("capacity", 0)</code>，接口没给时会变成「舒适」，是错的；掌上公交固定 -1；录好的真实响应里没有这个字段</td><td><code>TransitModels.kt:183</code>、<code>ChelaileApiClient.kt:648,844</code>、<code>MygolbsApiClient.kt:797</code></td></tr>
+</table>
+
+<!-- ============ F1 ============ -->
+<h2 id="f1">F1 常用行程一键开 <span class="tag p1">P1</span></h2>
+<div class="sec">
+  <h3>要解决什么</h3>
+  <p class="why">早上赶车要「打开 App → 找收藏 → 点追踪」三步。老人只认桌面上一个大图标。改成一步。</p>
+
+  <h3>界面</h3>
+  <div class="screens">
+    <figure class="shot"><div class="ph">
+      <div class="sb"><span>07:28</span><span>5G 80%</span></div>
+      <div class="bar">公交</div>
+      <div class="card"><div class="row"><span class="ln">59</span><b>回家</b></div><div class="eta">3 <small>分钟 · 2 站</small></div></div>
+      <div class="card"><div class="row"><span class="ln">B12</span><b>上班</b></div><div class="eta">8 <small>分钟</small></div></div>
+      <div class="dim"></div>
+      <div class="menu"><div>开始追踪</div><div class="hl">放到桌面</div><div>改名字和分组</div><div>删除</div></div>
+    </div><figcaption><b>① 长按收藏卡</b>菜单里加「放到桌面」。只这一个入口。</figcaption></figure>
+
+    <figure class="shot"><div class="ph">
+      <div class="sb"><span>07:28</span><span></span></div>
+      <div class="dim"></div>
+      <div class="sheet">
+        <b style="font-size:15px">放到桌面</b>
+        <div class="sub" style="margin:6px 0">图标上的字</div>
+        <div class="field"><span>回家</span><span class="sub">最多 6 个字</span></div>
+        <div class="sub" style="margin:8px 0 4px">点图标时</div>
+        <div class="field"><span>● 打开线路页并开始追踪</span></div>
+        <div class="btn">放到桌面</div>
+        <div class="sub" style="margin-top:8px">小米、华为等要先允许「创建桌面快捷方式」。没反应时点这里去设置。</div>
+      </div>
+    </div><figcaption><b>② 起名字</b>默认用收藏名。点后系统弹自己的确认框。</figcaption></figure>
+
+    <figure class="shot"><div class="ph">
+      <div class="sb"><span>07:29</span><span></span></div>
+      <div class="home">
+        <div><i>相机</i>相机</div><div><i>微信</i>微信</div><div><i class="me">59</i>回家</div><div><i class="me2">B12</i>上班</div>
+        <div><i>时钟</i>时钟</div><div><i>设置</i>设置</div><div><i>追客</i>追客</div><div><i>相册</i>相册</div>
+      </div>
+      <div class="noti" style="position:absolute;left:0;right:0;bottom:16px"><div class="app">追客 · 正在追踪</div><b>59 路 · 3 分钟到市政府</b><div class="dots"><i class="d"></i><span class="d"></span><i class="d"></i><span></span><i></i><span></span><i class="t"></i></div></div>
+    </div><figcaption><b>③ 桌面图标</b>图标里写线路号，颜色跟线路卡一样。点一下就追上了。</figcaption></figure>
+
+    <figure class="shot"><div class="ph short">
+      <div class="sb"><span>07:30</span><span></span></div>
+      <div class="qs">
+        <div class="tile"><b>追客</b>回家 · 59 路</div>
+        <div class="tile on"><b>追客</b>59 路 · 3 分钟</div>
+        <div class="tile"><b>乘车码</b>支付宝</div>
+        <div class="tile"><b>Wi-Fi</b>已连接</div>
+      </div>
+      <div class="sub" style="padding:4px 12px">左：没在追（点了开始）。中：正在追（点了结束）。乘车码磁贴可选。</div>
+    </div><figcaption><b>④ 下拉磁贴</b>用户在系统磁贴编辑里自己加。</figcaption></figure>
+
+    <figure class="shot"><div class="ph short">
+      <div class="sb"><span>07:30</span><span></span></div>
+      <div class="qs">
+        <div class="tile on"><b>追客 回家</b>开始追踪</div>
+        <div class="tile"><b>手电筒</b></div>
+      </div>
+      <div class="siri"><b>快捷指令</b><div class="sub">追客 · 开始追踪「回家」</div><div class="sub">追客 · 查「上班」还有多久</div></div>
+    </div><figcaption><b>⑤ iOS</b>控制中心按钮（iOS 18）、快捷指令（可放主屏幕）、操作按钮。</figcaption></figure>
+  </div>
+
+  <h3>流程</h3>
+  <div class="flow">
+    <div class="st"><b>点桌面图标</b><code>trackr://favorite/{id}/track</code></div><div class="ar">→</div>
+    <div class="st"><b>DeepLinkParser</b>找到收藏</div><div class="ar">→</div>
+    <div class="st"><b>没在追这条</b>开始追踪，打开线路页或路线详情页</div><div class="ar">→</div>
+    <div class="st"><b>已在追这条</b>只打开页面，不重开</div>
+  </div>
+  <div class="flow">
+    <div class="st"><b>点磁贴（没在追）</b>开 App 并开始追「磁贴那条」</div><div class="ar">·</div>
+    <div class="st"><b>点磁贴（在追）</b>直接结束追踪，不开 App</div><div class="ar">·</div>
+    <div class="st"><b>长按磁贴</b>系统打开「我的 → 桌面与磁贴」，选磁贴追哪条</div>
+  </div>
+
+  <h3>规则与边界</h3>
+  <table class="doc">
+    <tr><th>情况</th><th>怎么做</th></tr>
+    <tr><td>收藏被删</td><td>Android：<code>ShortcutManagerCompat.disableShortcuts</code>，点了提示「这条收藏已删除」；磁贴退回第一条收藏。iOS：实体找不到时说「这条收藏没了」</td></tr>
+    <tr><td>收藏改名</td><td>只改快捷方式的长名字（菜单里看到的），桌面图标上的字是用户自己起的，不动</td></tr>
+    <tr><td>没有收藏</td><td>磁贴显示「先在 App 里收藏一条线」，点了开 App 首页</td></tr>
+    <tr><td>正在追别的</td><td>和现在 App 里点「开始追踪」一样：换成新的（只追一个会话）</td></tr>
+    <tr><td>桌面不支持固定</td><td><code>isRequestPinShortcutSupported()</code> 为 false 时菜单项变成「长按追客图标也能找到」，不弹窗</td></tr>
+    <tr><td>动态快捷方式（长按 App 图标）</td><td>从「前 3 个常用站」改成「前 3 条收藏」，点了同样走 <code>trackr://favorite/{id}/track</code>；乘车码两个静态的不动</td></tr>
+    <tr><td>长辈版</td><td>长辈版线路页底部加一行「放到桌面」；长辈版第一次收藏后提示一次「要在桌面放个图标吗？」</td></tr>
+  </table>
+
+  <h3>平台做法</h3>
+  <table class="doc">
+    <tr><th></th><th>新系统</th><th>老系统</th></tr>
+    <tr><td>Android 桌面图标</td><td><code>ShortcutManagerCompat.requestPinShortcut</code>，图标用 <code>IconCompat.createWithAdaptiveBitmap</code> 画线路号</td><td>Android 8 起都有，minSdk 26 全覆盖</td></tr>
+    <tr><td>Android 磁贴</td><td><code>TileService</code>，<code>ACTIVE_TILE</code> 模式：追踪状态变化时 <code>TileService.requestListeningState</code> 让系统来读，不常驻。Android 14+ 开 App 用 <code>startActivityAndCollapse(PendingIntent)</code></td><td>Android 7 起都有；Android 13 起 App 内可 <code>requestAddTileService</code> 弹窗请用户加</td></tr>
+    <tr><td>iOS</td><td>一个 <code>StartTrackingIntent(favorite:)</code> + <code>FavoriteEntity</code>（App Intents，Swift）。<code>AppShortcutsProvider</code> 让它装好就出现在快捷指令；iOS 18 用 <code>ControlWidgetButton</code> 进控制中心和操作按钮；<code>openAppWhenRun = true</code>（iOS 只能前台追踪，Q13）</td><td>iOS 16–17 只有快捷指令；iOS 15 只能进 App</td></tr>
+  </table>
+
+  <div class="meta">
+    <div><b>代码落点</b><code>:core:domain</code> 新用例 <code>StartFavoriteTracking</code>；<code>:androidApp</code> 新 <code>FavoriteShortcutPublisher</code>、<code>TrackingTileService</code>；iOS Swift 调 Kotlin 门面</div>
+    <div><b>请求</b>0。点了才开始追踪，追踪本身按现有规则</div>
+    <div><b>依赖</b>第 12 步（追踪只收 sessionId）、第 14 步（收藏合一）、第 18 步（<code>trackr://</code>）</div>
+    <div><b>测试</b><code>DeepLinkParserTest</code> 新链接；<code>FavoriteShortcutPublisherTest</code>（Robolectric：改名、删除禁用）；<code>TrackingTileServiceTest</code>（三种状态）；<code>StartFavoriteTrackingTest</code>（commonTest）</div>
+    <div><b>验收</b>真机：小米、华为、Pixel 各放一个图标，冷启动点图标 ≤ 2 秒进线路页且通知出现</div>
+  </div>
+</div>
+
+<!-- ============ F2 ============ -->
+<h2 id="f2">F2 不看屏也知道 <span class="tag p1">P1</span></h2>
+<div class="sec">
+  <h3>要解决什么</h3>
+  <p class="why">手机在兜里、车上吵、老人耳背。现在几种震动手感差不多，文字也不分上车下车。改成一摸就懂。</p>
+
+  <h3>震动设计</h3>
+  <p><b>口诀：两下是上车，三下是下车；短是快到了，长是到了。</b></p>
+  <div class="vchart">
+    <div class="vrow"><span>上车 · 车快到</span><div class="vbar"><span style="left:0;width:6%"></span><span style="left:13%;width:6%"></span></div><code>0,120,150,120</code></div>
+    <div class="vrow"><span>上车 · 车到了</span><div class="vbar"><span style="left:0;width:25%"></span><span style="left:37%;width:25%"></span></div><code>0,500,250,500</code></div>
+    <div class="vrow"><span>下车 · 快到了</span><div class="vbar"><span style="left:0;width:6%"></span><span style="left:13%;width:6%"></span><span style="left:26%;width:6%"></span></div><code>0,120,150,120,150,120</code></div>
+    <div class="vrow"><span>下车 · 该下了</span><div class="vbar"><span style="left:0;width:25%"></span><span style="left:37%;width:25%"></span><span style="left:74%;width:25%"></span></div><code>0,500,250,500,250,500</code></div>
+    <div class="vrow"><span class="mini">现在：即将到站</span><div class="vbar old"><span style="left:0;width:14%"></span><span style="left:20%;width:14%"></span><span style="left:40%;width:20%"></span></div><code>0,280,120,280,120,400</code></div>
+    <div class="vrow"><span class="mini">现在：换乘</span><div class="vbar old"><span style="left:0;width:15%"></span><span style="left:20%;width:15%"></span><span style="left:40%;width:15%"></span></div><code>0,300,100,300,100,300</code></div>
+  </div>
+  <p class="legend">横轴约 2 秒。换乘 = 先「下车 · 该下了」，换上下一程后按「上车」两种走。</p>
+
+  <h3>通知文字</h3>
+  <table class="doc">
+    <tr><th>时刻</th><th>标题（≤ 10 字，手表上看得全）</th><th>正文</th><th>渠道</th></tr>
+    <tr><td>车离上车站 2 站</td><td>59 路快到了</td><td>还有 2 站到市政府，约 3 分钟。准备上车</td><td>上车提醒</td></tr>
+    <tr><td>车到上车站</td><td>59 路到站了</td><td>车在市政府，快上车</td><td>上车提醒</td></tr>
+    <tr><td>离下车站 2 站</td><td>快到人民医院</td><td>还有 2 站，准备下车</td><td>下车提醒</td></tr>
+    <tr><td>到下车站前 1 站</td><td>该下车了</td><td>下一站人民医院</td><td>下车提醒</td></tr>
+    <tr><td>换乘站前 1 站</td><td>该下车换乘了</td><td>下一站火车站，换 B12 路</td><td>下车提醒</td></tr>
+  </table>
+
+  <div class="screens">
+    <figure class="shot"><div class="ph short">
+      <div class="sb"><span>08:02</span><span></span></div>
+      <div class="noti"><div class="app">追客 · 下车提醒</div><b>该下车了</b><div>下一站人民医院</div></div>
+      <div class="noti"><div class="app">追客 · 正在追踪</div><b>59 路 · 下一站下车</b><div class="dots"><i class="d"></i><span class="d"></span><i class="d"></i><span class="d"></span><i class="d"></i><span class="d"></span><i class="t"></i></div></div>
+    </div><figcaption><b>锁屏</b>提醒和常驻通知分开，提醒响完可划掉。</figcaption></figure>
+    <figure class="shot" style="width:170px"><div class="watch"><span style="opacity:.7">追客</span><b>该下车了</b>下一站人民医院</div><figcaption><b>手表 / 手环</b>手表用自己的震动，靠标题分。</figcaption></figure>
+    <figure class="shot"><div class="ph short">
+      <div class="sb"><span></span><span></span></div>
+      <div class="bar">提醒</div>
+      <div class="card"><div class="row" style="justify-content:space-between"><span>上车 · 车快到</span><span class="chip b">试一下</span></div></div>
+      <div class="card"><div class="row" style="justify-content:space-between"><span>下车 · 该下了</span><span class="chip b">试一下</span></div></div>
+      <div class="card sub">戴手环？在手环 App 里打开「追客」的通知</div>
+    </div><figcaption><b>我的 → 提醒</b>只加「试一下」，不加新开关。</figcaption></figure>
+  </div>
+
+  <h3>平台做法</h3>
+  <table class="doc">
+    <tr><th></th><th>新系统</th><th>老系统</th></tr>
+    <tr><td>Android 渠道</td><td>新建「上车提醒」<code>trackr_board_alert</code>、「下车提醒」<code>trackr_alight_alert</code>，各带自己的波形。渠道建好后改不了震动，所以要换新 ID。用户可在系统里单独关掉其中一个</td><td>Android 8 起都有渠道</td></tr>
+    <tr><td>迁移旧渠道</td><td>读 <code>bus_arrival_alert</code> 的重要程度：用户关掉了，新渠道也建成关掉；然后 <code>deleteNotificationChannel</code></td><td>同左</td></tr>
+    <tr><td>Android 力度</td><td><code>VibrationEffect.createWaveform(timings, amplitudes)</code>：标准版 180，长辈版 255</td><td>没有力度控制的手机（<code>hasAmplitudeControl()</code> 为 false）只有开 / 关，靠长短照样分得出</td></tr>
+    <tr><td>勿扰模式</td><td>按系统规则，不绕过。<code>USE_FULL_SCREEN_INTENT</code> 在 Android 14 起只给闹钟和来电类 App，不用</td><td>—</td></tr>
+    <tr><td>Android 手表</td><td>提醒通知不设 <code>setLocalOnly</code>，Wear OS 和厂商手表会同步；常驻进度通知保持只在手机上</td><td>小米手环、华为手表要在它们的 App 里打开「追客」通知</td></tr>
+    <tr><td>iOS</td><td>后台只能用系统默认震动，靠标题分。App 在前台时用 Core Haptics 按同一口诀播放。本地通知手机锁屏时自动到 Apple Watch；iOS 18 + watchOS 11 实时活动出现在手表上</td><td>iOS 15–17 同样有手表同步</td></tr>
+    <tr><td>长辈版</td><td>「该下车了」震两遍；戴着耳机时自动读一遍（用第 33 步的 <code>Announcer</code>）；外放不读，免得车上尴尬</td><td>同左</td></tr>
+  </table>
+
+  <div class="meta">
+    <div><b>代码落点</b><code>:core:domain</code> 新 <code>AlertKind</code>（4 种）和 <code>AlertPattern</code>（口诀 → 毫秒数组）；<code>:androidApp</code> 的 <code>ArrivalAlertManager</code> 按 <code>AlertKind</code> 选渠道和波形；iOS 在第 37 步一起做</div>
+    <div><b>请求</b>0</div>
+    <div><b>依赖</b>第 12 步（<code>TrackingEngine</code> 分清上车、下车阶段）</div>
+    <div><b>测试</b><code>AlertPatternTest</code>（commonTest：4 种互不相同、总长 ≤ 2 秒）；<code>ArrivalAlertManagerTest</code>（Robolectric：渠道、波形、文字）；<code>AlertChannelMigrationTest</code>（旧渠道关着 → 新渠道也关）</div>
+    <div><b>验收</b>闭眼让 3 个人各摸 4 种，能说对 ≥ 3 种</div>
+  </div>
+</div>
+
+<!-- ============ F3 ============ -->
+<h2 id="f3">F3 末班车提醒 <span class="tag p1">P1</span></h2>
+<div class="sec">
+  <h3>要解决什么</h3>
+  <p class="why">晚上最怕错过末班。现在只有末班过了才说「明天首班」，过之前不提醒。</p>
+
+  <h3>卡片的四种样子</h3>
+  <div class="screens">
+    <figure class="shot"><div class="ph short">
+      <div class="sb"><span>21:40</span><span></span></div>
+      <div class="card"><div class="row"><span class="ln">59</span><b>市政府</b></div><div class="sub">市政府 → 火车站</div><div class="eta">6 <small>分钟 · 3 站</small></div></div>
+    </div><figcaption><b>① 平常</b>不变。</figcaption></figure>
+    <figure class="shot"><div class="ph short">
+      <div class="sb"><span>22:05</span><span></span></div>
+      <div class="card"><div class="row"><span class="ln">59</span><b>市政府</b></div><div class="sub">市政府 → 火车站</div><div class="eta">6 <small>分钟 · 3 站</small></div><span class="chip w">末班 22:30 始发 · 还有 25 分钟</span></div>
+    </div><figcaption><b>② 快末班</b>末班始发前 30 分钟起，橙色。</figcaption></figure>
+    <figure class="shot"><div class="ph short">
+      <div class="sb"><span>22:40</span><span></span></div>
+      <div class="card"><div class="row"><span class="ln">59</span><b>市政府</b></div><div class="sub">市政府 → 火车站</div><div class="eta">9 <small>分钟 · 5 站</small></div><span class="chip w">末班车 · 今天最后一辆</span></div>
+    </div><figcaption><b>③ 末班在路上</b>末班已发车、还没到你这站。</figcaption></figure>
+    <figure class="shot"><div class="ph short">
+      <div class="sb"><span>23:20</span><span></span></div>
+      <div class="card"><div class="row"><span class="ln">59</span><b>市政府</b></div><div class="eta" style="font-size:20px">今天已收车</div><div class="sub">明天首班 05:30</div></div>
+    </div><figcaption><b>④ 已收车</b>现有 <code>Ended</code>，不变。</figcaption></figure>
+  </div>
+
+  <h3>规则（<code>LastBusRules</code>，纯函数）</h3>
+  <table class="doc">
+    <tr><th>项</th><th>规则</th></tr>
+    <tr><td>末班始发时间</td><td>先用今天时刻表 <code>todayDepartures</code> 的最后一班；没有时刻表用线路的 <code>lastTime</code>；两个都没有就不显示这功能</td></tr>
+    <tr><td>快末班</td><td>现在在「末班始发前 30 分钟」到「末班始发」之间</td></tr>
+    <tr><td>末班在路上</td><td>过了末班始发 + 2 分钟，你这站前面还有车：离你最远的那辆标「末班车」，其他不标</td></tr>
+    <tr><td>已收车</td><td>过了末班始发，你这站前面没车了 → 现有 <code>Ended</code></td></tr>
+    <tr><td>跨午夜（夜班线）</td><td><code>lastTime</code> 早于 <code>firstTime</code>（如 22:00–02:00）时，末班算第二天凌晨</td></tr>
+    <tr><td>时间</td><td>按 <code>Asia/Shanghai</code> 和调用方传入的「现在」；<code>commonMain</code> 不读系统时钟</td></tr>
+    <tr><td>不估到站</td><td>只说「始发几点」，不说「几点到你这站」（守住「全部车过站只给始发时间」那条）</td></tr>
+  </table>
+
+  <h3>别的地方</h3>
+  <table class="doc">
+    <tr><th>地方</th><th>显示</th></tr>
+    <tr><td>线路页</td><td>运营时间那个标签变成「运营 05:30–22:30 · 末班还有 25 分钟」（橙色）</td></tr>
+    <tr><td>追踪中通知</td><td>锁的车是末班时，副标题加「末班车」</td></tr>
+    <tr><td>等车时末班过站，人没上车</td><td>发一条上车提醒：「末班车已过市政府，今天没有 59 路了」，然后结束追踪</td></tr>
+    <tr><td>路线规划结果</td><td>每程显示「末班 22:30」。按高德给的每程用时推算到换乘站的时间，晚于下一程末班时标红「可能赶不上 B12 末班」。要先核实高德公交接口的 <code>start_time</code> / <code>end_time</code> 字段</td></tr>
+    <tr><td>小组件</td><td>同卡片，只显示一个短标签「末班 22:30」</td></tr>
+    <tr><td>长辈版</td><td>同样规则；标签用文字 + 图标，不只靠颜色</td></tr>
+  </table>
+
+  <div class="meta">
+    <div><b>代码落点</b><code>:core:domain/arrival</code> 新 <code>LastBusRules</code>；<code>ArrivalState</code> 加 <code>lastBus</code> 字段（快末班 / 末班车 / 无），不加新状态，免得每个 <code>when</code> 都改</div>
+    <div><b>请求</b>0。用已经拉的线路信息和已缓存的时刻表</div>
+    <div><b>依赖</b>阶段 D 首页、线路页重写之后</div>
+    <div><b>测试</b><code>LastBusRulesTest</code>（commonTest）：30 分钟边界、跨午夜、没有 lastTime、时刻表和 lastTime 不一致、末班在路上只标最远那辆</div>
+  </div>
+</div>
+
+<!-- ============ F4 ============ -->
+<h2 id="f4">F4 老手机自动变轻 <span class="tag p1">P1</span></h2>
+<div class="sec">
+  <h3>要解决什么</h3>
+  <p class="why">老人多用旧手机，内存小、电池差。不让他们找开关，App 看情况自己变轻。顺带给服务器减压。</p>
+
+  <h3>三个档</h3>
+  <table class="doc">
+    <tr><th>档</th><th>什么时候</th><th>用户看得到吗</th></tr>
+    <tr><td><b>平常</b></td><td>其他情况</td><td>—</td></tr>
+    <tr><td><b>轻</b></td><td>低内存手机（<code>isLowRamDevice()</code> 或总内存 ≤ 3 GB）；或系统关了动画 / 开了「减弱动态效果」</td><td>看不到</td></tr>
+    <tr><td><b>省</b></td><td>省电模式 / 低电量模式；或电量 ≤ 15% 且没充电；或手机过热（Android <code>THERMAL_STATUS_SEVERE</code> 起、iOS <code>.serious</code> 起）</td><td>首页顶上一行小字「省电中 · 每 60 秒刷新」</td></tr>
+  </table>
+
+  <h3>每档做什么</h3>
+  <table class="doc">
+    <tr><th>项</th><th>平常</th><th>轻</th><th>省</th></tr>
+    <tr><td>首页刷新</td><td>15 秒</td><td>30 秒</td><td>60 秒</td></tr>
+    <tr><td>线路页 / 站点页刷新</td><td>10 秒</td><td>15 秒</td><td>30 秒</td></tr>
+    <tr><td>追踪（车离你 ≥ 5 站）</td><td>现有</td><td>×1.5</td><td>×2</td></tr>
+    <tr><td>追踪（车离你 &lt; 5 站）</td><td colspan="3">不变。到站提醒要准</td></tr>
+    <tr><td>定位档位（<code>LocationCadence</code>）</td><td>现有</td><td>现有</td><td>车远时降一档</td></tr>
+    <tr><td>页面动画</td><td>有</td><td>只留淡入淡出</td><td>只留淡入淡出</td></tr>
+    <tr><td>路线页地图</td><td>进页面就加载</td><td>点「看地图」才加载</td><td>同左</td></tr>
+    <tr><td>小组件定时刷新</td><td>第 26 步定的间隔</td><td>同左</td><td>×2</td></tr>
+    <tr><td>下拉刷新、点刷新</td><td colspan="3">总是马上查</td></tr>
+  </table>
+  <p class="legend">数字是起点，第 27 步测完基线后用真机调。「省」档下首页请求是平常的 1/4。</p>
+
+  <div class="screens">
+    <figure class="shot"><div class="ph short">
+      <div class="sb"><span>18:10</span><span>12%</span></div>
+      <div class="sub" style="padding:2px 12px;color:var(--warn)">省电中 · 每 60 秒刷新</div>
+      <div class="bar">公交</div>
+      <div class="card"><div class="row"><span class="ln">59</span><b>回家</b></div><div class="eta">3 <small>分钟 · 2 站</small></div></div>
+    </div><figcaption><b>省档</b>只这一行，点不了，没有开关。</figcaption></figure>
+  </div>
+
+  <h3>平台做法</h3>
+  <table class="doc">
+    <tr><th></th><th>读什么</th><th>怎么知道变了</th></tr>
+    <tr><td>Android</td><td><code>ActivityManager.isLowRamDevice()</code>、<code>MemoryInfo.totalMem</code>、<code>PowerManager.isPowerSaveMode</code>、<code>getCurrentThermalStatus()</code>（Android 10+）、电池广播、<code>Settings.Global.ANIMATOR_DURATION_SCALE</code></td><td><code>ACTION_POWER_SAVE_MODE_CHANGED</code>、<code>addThermalStatusListener</code>、<code>ACTION_BATTERY_CHANGED</code>（只在 App 开着时注册）</td></tr>
+    <tr><td>iOS</td><td><code>ProcessInfo.isLowPowerModeEnabled</code>、<code>thermalState</code>、<code>physicalMemory</code>、<code>UIAccessibility.isReduceMotionEnabled</code></td><td>对应的系统通知</td></tr>
+  </table>
+
+  <div class="meta">
+    <div><b>代码落点</b><code>:core:domain/platform</code> 新接口 <code>DeviceProfileSource</code>（<code>StateFlow&lt;DeviceLevel&gt;</code>）；纯函数 <code>PollingPolicy(level, screen, stopsAway)</code>；<code>:core:designsystem</code> 加 <code>LocalReduceMotion</code>，<code>TrackrTransitions</code> 读它</div>
+    <div><b>请求</b>变少</div>
+    <div><b>依赖</b>第 17 步（轮询挪进各页）、第 27 步（基线）</div>
+    <div><b>测试</b><code>PollingPolicyTest</code>（commonTest：每档每页、近 5 站不变、下拉不受影响）；<code>FakeDeviceProfileSource</code> 进 <code>:core:testing</code>；各 VM 测试加一个「省档 60 秒」用例</div>
+    <div><b>不做</b>「我的」里不加「轻量模式」开关</div>
+  </div>
+</div>
+
+<!-- ============ F7 ============ -->
+<h2 id="f7">F7 该出门了 <span class="tag p2">P2</span></h2>
+<div class="sec">
+  <h3>要解决什么</h3>
+  <p class="why">现在定时提醒到点只说「车还有几分钟」，用户要自己减走路时间。改成直接说「现在出门刚好」。</p>
+
+  <h3>界面</h3>
+  <div class="screens">
+    <figure class="shot"><div class="ph">
+      <div class="sb"><span></span><span></span></div>
+      <div class="bar">‹ 定时提醒</div>
+      <div class="card"><div class="sub">线路</div><div class="row"><span class="ln">59</span><b>市政府 → 火车站</b></div></div>
+      <div class="card"><div class="sub">从几点开始看</div><b style="font-size:20px">07:30</b><div class="sub">周一到周五</div></div>
+      <div class="card">
+        <div class="sub">出门提醒</div>
+        <div class="field"><span>走到车站要</span><b>6 分钟</b></div>
+        <div class="row" style="gap:6px"><span class="chip b">用高德算一下</span><span class="chip b">不用出门提醒</span></div>
+        <div class="sub" style="margin-top:6px">到点后帮你盯着车，该出门时叫你。最多盯 30 分钟。</div>
+      </div>
+    </div><figcaption><b>编辑提醒</b>只加一块「出门提醒」。</figcaption></figure>
+    <figure class="shot"><div class="ph">
+      <div class="sb"><span>07:33</span><span></span></div>
+      <div class="noti"><div class="app">追客 · 正在追踪</div><b>59 路 · 再等 4 分钟出门</b><div>车 10 分钟到市政府，走路 6 分钟</div><div class="row" style="gap:6px;margin-top:4px"><span class="chip b">我出门了</span><span class="chip b">结束</span></div></div>
+      <div class="noti"><div class="app">追客 · 上车提醒</div><b>该出门了</b><div>59 路 7 分钟到市政府</div></div>
+      <div class="noti"><div class="app">追客 · 正在追踪</div><b>这辆赶不上了</b><div>下一辆 18 分钟到，12 分钟后叫你</div></div>
+    </div><figcaption><b>通知的三种样子</b>常驻通知 + 一次「该出门了」。</figcaption></figure>
+  </div>
+
+  <h3>流程</h3>
+  <div class="flow">
+    <div class="st"><b>07:30 闹钟</b>开追踪，进「在家等」</div><div class="ar">→</div>
+    <div class="st"><b>每次查</b>还要等 = 车到站 − 走路 − 1 分钟</div><div class="ar">→</div>
+    <div class="st"><b>≤ 0</b>发「该出门了」（上车 · 长两下）</div><div class="ar">→</div>
+    <div class="st"><b>出门了</b>点「我出门了」，或定位离开起点 150 米</div><div class="ar">→</div>
+    <div class="st"><b>转普通等车</b>和现在追踪一样</div>
+  </div>
+
+  <h3>规则（<code>LeaveHomeRules</code>，纯函数）</h3>
+  <table class="doc">
+    <tr><th>情况</th><th>怎么做</th></tr>
+    <tr><td>还要等 &gt; 0</td><td>常驻通知显示「再等 N 分钟出门」</td></tr>
+    <tr><td>车到站 &lt; 走路时间</td><td>这辆赶不上，换下一辆算；下一辆也没有实时数据时显示「下一班 07:52 始发」，继续盯</td></tr>
+    <tr><td>线路还没运营 / 已收车</td><td>只发一条普通通知（和现在一样），不进「在家等」</td></tr>
+    <tr><td>查的间隔</td><td>还要等 ÷ 3，夹在 30–120 秒之间；失败按现有退避</td></tr>
+    <tr><td>盯多久</td><td>最多 30 分钟。到时间还没出门，悄悄结束（不响）</td></tr>
+    <tr><td>没填走路时间</td><td>行为和现在完全一样</td></tr>
+  </table>
+
+  <h3>平台做法</h3>
+  <table class="doc">
+    <tr><th></th><th>做法</th><th>不足</th></tr>
+    <tr><td>Android</td><td>复用 <code>ReminderScheduler</code> 的精确闹钟和 <code>autoStartLiveTracking</code> 的路子：到点开前台服务，<code>TrackingEngine</code> 多一个「在家等」阶段</td><td>没给精确闹钟权限时（Android 14 起默认不给）按 8e0c41e 降级：到点发通知，带「开始盯车」按钮</td></tr>
+    <tr><td>走路时间</td><td>点「用高德算一下」：用当前定位和车站坐标调高德步行（Web Key），存下来，以后不再算</td><td>没有 Key 或没定位时只能手填，默认 5 分钟</td></tr>
+    <tr><td>iOS</td><td>到点用 <code>UNCalendarNotificationTrigger</code> 发「看看要不要出门」；点开 App 后在前台算，同时开实时活动</td><td class="mid">App 不在前台时不能自己查（Q13）。不打开就只有这一条通知</td></tr>
+    <tr><td>长辈版</td><td>长辈版没有提醒编辑页（Q9）。标准版设好的提醒在长辈版照常响，通知用大字</td><td>见 Q-F</td></tr>
+  </table>
+
+  <div class="meta">
+    <div><b>代码落点</b><code>ScheduledReminder</code> 加 <code>walkMinutes: Int?</code>；<code>:core:domain</code> 新 <code>LeaveHomeRules</code>；<code>TrackingEngine</code> 加阶段；<code>:core:data</code> 的 <code>RoutePlanRepository</code> 加步行用时</div>
+    <div><b>请求</b>每次提醒约 10–15 次（一次只调上车站的站点接口）；算走路时间每条提醒 1 次</div>
+    <div><b>依赖</b>第 9 步（存储迁移）、第 12 步（追踪单一数据源）</div>
+    <div><b>测试</b><code>LeaveHomeRulesTest</code>（commonTest：刚好、赶不上换下一辆、没实时、30 分钟到点、间隔夹边）；<code>TrackingEngineTest</code> 加阶段切换；<code>ScheduledReminderReceiverTest</code> 降级用例；数据迁移：旧提醒 <code>walkMinutes</code> 为空</div>
+  </div>
+</div>
+
+<!-- ============ F8 ============ -->
+<h2 id="f8">F8 问一声就知道 <span class="tag p2">P2</span></h2>
+<div class="sec">
+  <h3>要解决什么</h3>
+  <p class="why">老人打字难，提着东西的人腾不出手。不开 App 就想知道「车还有多久」。</p>
+
+  <div class="screens">
+    <figure class="shot"><div class="ph short">
+      <div class="sb"><span>07:25</span><span></span></div>
+      <div class="me-b">追客，回家那班车还有多久</div>
+      <div class="siri"><b>59 路到市政府还有 3 分钟</b><div class="sub">下一辆 15 分钟</div></div>
+    </div><figcaption><b>iOS Siri</b>说法里要带 App 名「追客」。</figcaption></figure>
+    <figure class="shot"><div class="ph short">
+      <div class="sb"><span></span><span></span></div>
+      <div class="field" style="margin:10px;background:var(--card)"><span>59</span></div>
+      <div class="card"><div class="row"><span class="ln">59</span><b>回家</b></div><div class="sub">追客 · 收藏</div></div>
+    </div><figcaption><b>iOS 聚焦搜索</b>搜「59」能出收藏，点了进线路页。</figcaption></figure>
+    <figure class="shot"><div class="ph short">
+      <div class="sb"><span>07:25</span><span></span></div>
+      <div class="qs">
+        <div class="tile on"><b>念一下</b>正在读…</div>
+        <div class="tile"><b>追客</b>回家 · 59 路</div>
+      </div>
+      <div class="siri" style="font-size:12px">🔊「59 路到市政府还有 3 分钟，下一辆 15 分钟。」</div>
+    </div><figcaption><b>Android 磁贴「念一下」</b>点了查一次并朗读。</figcaption></figure>
+  </div>
+
+  <h3>平台做法</h3>
+  <table class="doc">
+    <tr><th></th><th>新系统</th><th>老系统 / 替代</th></tr>
+    <tr><td>iOS Siri</td><td><code>GetArrivalIntent(favorite:)</code>，不开 App，返回对话文字；<code>AppShortcutsProvider</code> 登记说法「追客，\(收藏)还有多久」「用追客查\(收藏)」</td><td>iOS 15 没有；用 App 里的「读给我听」</td></tr>
+    <tr><td>iOS 聚焦</td><td>iOS 18 用 <code>IndexedEntity</code>；iOS 16–17 用 <code>CSSearchableItem</code> 登记收藏。只登记名字，不登记到站时间</td><td>同左</td></tr>
+    <tr><td>Android</td><td>第二个磁贴「念一下」：读「磁贴那条」收藏，1 次请求，用 <code>Announcer</code>（第 33 步）读；磁贴副标题同时显示文字。动态快捷方式（F1 改的前 3 条收藏）也能在部分桌面的全局搜索里找到</td><td>App 里的语音搜索 + 读给我听</td></tr>
+    <tr><td>不接</td><td colspan="2">小爱、小艺没有公开的第三方问答接口；谷歌助手、Gemini 的 AppFunctions 在国内用不了，以后再评估</td></tr>
+  </table>
+
+  <h3>说什么（<code>ArrivalText.spoken</code>）</h3>
+  <table class="doc">
+    <tr><th>状态</th><th>念出来</th></tr>
+    <tr><td>在路上</td><td>59 路到市政府还有 3 分钟，下一辆 15 分钟</td></tr>
+    <tr><td>车到站</td><td>59 路已经到市政府了</td></tr>
+    <tr><td>全部过站</td><td>59 路下一班 7 点 52 分从始发站发车</td></tr>
+    <tr><td>快末班</td><td>……末班 22 点 30 分从始发站发车</td></tr>
+    <tr><td>已收车</td><td>59 路今天已经收车，明天首班 5 点 30 分</td></tr>
+    <tr><td>没网</td><td>现在查不到，请稍后再问</td></tr>
+  </table>
+
+  <div class="meta">
+    <div><b>代码落点</b>iOS：Swift 的 Intent 调 Kotlin 门面 <code>suspend fun arrivalFor(favoriteId)</code>；Android：<code>SpeakTileService</code></div>
+    <div><b>请求</b>问一次 1 次，6 秒内重复问命中合并缓存</div>
+    <div><b>依赖</b>第 33 步（<code>spoken</code>、<code>Announcer</code>）；iOS 部分在第 37 步之后</div>
+    <div><b>测试</b><code>SpokenArrivalTest</code>（commonTest：每种状态一句）；<code>SpeakTileServiceTest</code>（没 TTS 引擎时只显示文字）；iOS XCTest 跑一次 Intent</div>
+  </div>
+</div>
+
+<!-- ============ F9 ============ -->
+<h2 id="f9">F9 大屏两栏 <span class="tag p2">P2</span></h2>
+<div class="sec">
+  <h3>要解决什么</h3>
+  <p class="why">很多老人用平板。现在平板上是一个拉宽的手机界面，到站时间离得很远。折叠屏放桌上半开时也不好看。</p>
+
+  <h3>布局</h3>
+  <div class="screens">
+    <figure class="shot" style="width:576px"><div class="tablet">
+      <div class="rail"><div class="on"><i></i>公交</div><div><i></i>路线</div><div><i></i>我的</div></div>
+      <div class="list">
+        <div class="card" style="border-color:var(--primary)"><div class="row"><span class="ln">59</span><b>回家</b></div><div class="eta" style="font-size:20px">3 <small>分钟</small></div></div>
+        <div class="card"><div class="row"><span class="ln">B12</span><b>上班</b></div><div class="eta" style="font-size:20px">8 <small>分钟</small></div></div>
+        <div class="card"><div class="row"><span class="ln">7</span><b>医院</b></div><div class="eta" style="font-size:20px">12 <small>分钟</small></div></div>
+      </div>
+      <div class="det">
+        <div class="row"><span class="ln">59</span><b style="font-size:15px">市政府 → 火车站</b></div>
+        <div class="eta" style="margin:8px 0">3 <small>分钟 · 2 站</small></div>
+        <div class="dots"><i class="d"></i><span class="d"></span><i class="d"></i><span class="d"></span><i class="t"></i><span></span><i></i><span></span><i></i><span></span><i></i></div>
+        <div class="sub">人民路 · 中山路 · <b>市政府</b> · 博物馆 · 火车站</div>
+        <div class="btn" style="width:180px">追踪这班车</div>
+      </div>
+    </div><figcaption><b>≥ 840dp（平板横屏）</b>底部页签换成左侧导航栏，列表 + 详情。</figcaption></figure>
+    <figure class="shot"><div class="fold">
+      <div class="top"><b>59 路</b><div class="dots" style="margin-top:20px"><i class="d"></i><span class="d"></span><i class="d"></i><span class="d"></span><i class="t"></i><span></span><i></i></div><div class="sub">人民路 · 中山路 · 市政府 · 博物馆</div></div>
+      <div class="hinge"></div>
+      <div class="bot"><div class="eta">3 <small>分钟 · 2 站</small></div><div class="btn">追踪这班车</div></div>
+    </div><figcaption><b>折叠屏半开（桌面姿势）</b>上看线路，下看时间和按钮。</figcaption></figure>
+  </div>
+
+  <table class="doc">
+    <tr><th>宽度</th><th>布局</th></tr>
+    <tr><td>&lt; 600dp（手机）</td><td>单栏，和现在设计稿完全一样</td></tr>
+    <tr><td>600–840dp（小平板竖屏、折叠屏展开）</td><td>列表 + 详情，4 : 6；底部页签保留</td></tr>
+    <tr><td>≥ 840dp（平板横屏）</td><td>列表 + 详情；底部页签换成左侧导航栏（<code>NavigationRail</code>）</td></tr>
+    <tr><td>折叠屏书本姿势</td><td>按折痕分两栏，不让内容压在折痕上</td></tr>
+    <tr><td>折叠屏桌面姿势</td><td>只在线路页、站点页生效：上半线路图 / 地图，下半到站时间和按钮</td></tr>
+  </table>
+
+  <table class="doc">
+    <tr><th>页签</th><th>左栏</th><th>右栏</th><th>右栏空时</th></tr>
+    <tr><td>公交</td><td>首页（收藏、附近）</td><td>线路页 / 站点页</td><td>第一条收藏的线路页</td></tr>
+    <tr><td>路线</td><td>规划结果</td><td>路线详情（含地图）</td><td>第一个方案</td></tr>
+    <tr><td>我的</td><td>设置列表</td><td>子设置页</td><td>「提醒」</td></tr>
+  </table>
+
+  <h3>规则</h3>
+  <ul>
+    <li>返回：先关右栏换回默认，再按现有规则。</li>
+    <li>两栏用同一条返回栈，只是画法不同；转屏、折叠不丢状态。</li>
+    <li>两栏同时开着时，左栏刷新放慢到 30 秒；同一条线 6 秒内合并请求，所以不会多发。</li>
+    <li>长辈版平板也两栏，只用「首页 + 线路页」。</li>
+    <li>iPad 分屏、台前调度窗口变大变小时，按上面宽度实时切换。</li>
+  </ul>
+
+  <div class="meta">
+    <div><b>代码落点</b><code>:composeApp</code> 的 <code>TrackrRoot</code> 读窗口大小；Navigation 3 用 <code>ListDetailSceneStrategy</code>，各页 entry 标 <code>listPane()</code> / <code>detailPane()</code>；折叠用 Jetpack WindowManager <code>FoldingFeature</code>（只在 <code>androidMain</code>）</div>
+    <div><b>待核实</b>CMP 版有没有 <code>material3-adaptive-navigation3</code>；没有就自己写一个 Scene</div>
+    <div><b>请求</b>不多（见规则第 3 条）</div>
+    <div><b>依赖</b>阶段 D 页面全部重写完</div>
+    <div><b>测试</b>截图测试三个宽度（411 / 673 / 1280dp），手机宽度和现有截图一样；<code>NavigatorTest</code> 两栏返回；模拟器 Pixel Fold、Pixel Tablet 手测</div>
+  </div>
+</div>
+
+<!-- ============ F10 ============ -->
+<h2 id="f10">F10 小组件进阶 <span class="tag p3">P3</span></h2>
+<div class="sec">
+  <h3>要解决什么</h3>
+  <p class="why">小组件上的「3 分钟」过一会就不准了，想让它准又不想多发请求。</p>
+
+  <div class="screens">
+    <figure class="shot" style="width:180px"><div class="wg"><div class="row"><span class="ln">59</span><b>回家</b></div><div class="eta">3:12</div><div class="sub">本地倒计时 · 07:28 更新</div></div><figcaption><b>2×2 / iOS 小号</b>一条收藏。</figcaption></figure>
+    <figure class="shot" style="width:300px"><div class="wg">
+      <div class="row" style="justify-content:space-between"><span><span class="ln">59</span> 回家</span><b>3 分钟</b><span class="chip b">追</span></div>
+      <div class="row" style="justify-content:space-between;margin-top:6px"><span><span class="ln">B12</span> 上班</span><b>8 分钟</b><span class="chip b">追</span></div>
+      <div class="row" style="justify-content:space-between;margin-top:6px"><span><span class="ln">7</span> 医院</span><span class="chip w">末班 22:30</span><span class="chip b">追</span></div>
+      <div class="sub" style="margin-top:6px">07:28 更新 · 点这里刷新</div>
+    </div><figcaption><b>4×2 / iOS 中号</b>三条收藏，每条能点「追」。</figcaption></figure>
+    <figure class="shot" style="width:200px"><div class="wg" style="border-radius:12px;background:#0006;color:#fff;border:0"><b>59 路 · 3 分钟</b><div style="font-size:11px;opacity:.8">市政府 · 2 站</div></div><figcaption><b>iOS 锁屏（iOS 16+）</b>一行。</figcaption></figure>
+  </div>
+
+  <table class="doc">
+    <tr><th>项</th><th>Android（Glance，第 26 步打底）</th><th>iOS（WidgetKit，第 39 步打底）</th></tr>
+    <tr><td>不多发请求也准</td><td>存「预计到站时刻」，用 <code>Chronometer</code> 倒计时（<code>setChronometerCountDown</code>，Android 7+，Glance 里用 <code>AndroidRemoteViews</code> 嵌）</td><td><code>Text(date, style: .timer)</code> 本地倒计时</td></tr>
+    <tr><td>大小</td><td><code>SizeMode.Responsive</code>：2×1、2×2、4×2 三种</td><td>小号、中号；锁屏 <code>accessoryRectangular</code> / <code>accessoryInline</code></td></tr>
+    <tr><td>能点</td><td>点卡片进线路页；「追」走 F1 的 <code>trackr://favorite/{id}/track</code>；刷新按钮已在第 26 步</td><td>iOS 17 起按钮用 App Intents（复用 F1 的 <code>StartTrackingIntent</code>）；iOS 16 只能点开</td></tr>
+    <tr><td>数据旧了</td><td colspan="2">超过 10 分钟没更新：倒计时换成灰字「07:28 的数据，点一下刷新」</td></tr>
+    <tr><td>预览</td><td>Android 15 起用 <code>setWidgetPreview</code> 生成预览图</td><td>系统自带</td></tr>
+  </table>
+  <div class="meta">
+    <div><b>请求</b>0。按第 26 步的刷新规则；iOS 按系统给的刷新次数，不额外要</div>
+    <div><b>测试</b><code>TrackrWidgetTest</code> 加尺寸和旧数据用例；iOS 用 Xcode 预览看三种大小</div>
+  </div>
+</div>
+
+<!-- ============ F11 ============ -->
+<h2 id="f11">F11 更多厂商胶囊 <span class="tag p3">P3</span></h2>
+<div class="sec">
+  <h3>做法：先测标准，不认再说</h3>
+  <ol class="steps">
+    <li>在各家新系统上测 Android 16 标准实时通知（<code>ProgressStyle</code> + <code>setRequestPromotedOngoing</code>）是否已经进胶囊。认了就不写厂商代码。</li>
+    <li>不认、且厂商有公开文档、不用签合作：在 <code>service/vendor/</code> 加一个适配器，和现有 <code>XiaomiFocusAdapter</code>、<code>OppoFluidCloudAdapter</code> 同样写法。</li>
+    <li>要签合作或白名单：不做，停在标准通知。</li>
+  </ol>
+  <table class="doc">
+    <tr><th>厂商</th><th>叫法</th><th>现状</th><th>计划</th></tr>
+    <tr><td>小米 HyperOS</td><td>焦点通知</td><td class="ok">已做</td><td>保持</td></tr>
+    <tr><td>OPPO / 一加 / realme</td><td>流体云</td><td class="ok">已做</td><td>保持</td></tr>
+    <tr><td>vivo OriginOS</td><td>原子岛</td><td>没做</td><td>先测第 1 步</td></tr>
+    <tr><td>荣耀 MagicOS</td><td>胶囊</td><td>没做</td><td>先测第 1 步</td></tr>
+    <tr><td>三星 One UI 8</td><td>Now Bar</td><td>没做</td><td>One UI 8 认 Android 16 标准，测一下就行</td></tr>
+    <tr><td>华为 HarmonyOS 4（安卓内核）</td><td>实况窗</td><td>没做</td><td>要华为合作，不做</td></tr>
+    <tr><td>HarmonyOS NEXT</td><td>实况窗</td><td>—</td><td>要鸿蒙原生，等第 40 步</td></tr>
+  </table>
+  <div class="meta">
+    <div><b>怎么测</b>各家开发者平台的免费云真机；要花钱时先问你</div>
+    <div><b>老系统</b>保持现在的站点圆点常驻通知</div>
+    <div><b>测试</b>每家截一张锁屏、一张胶囊，存进 <code>docs/design/vendor_capsules/</code></div>
+  </div>
+</div>
+
+<!-- ============ F12 ============ -->
+<h2 id="f12">F12 车上挤不挤 <span class="tag p3">P3</span></h2>
+<div class="sec">
+  <div class="fact"><b>先修一个问题：</b>车来了接口没给拥挤度时，现在会被当成「舒适」（<code>optInt("capacity", 0)</code>）。显示之前要改成默认 -1（未知）。</div>
+  <h3>步骤</h3>
+  <ol class="steps">
+    <li>改默认值为 -1，加解析测试。</li>
+    <li>确认真接口给不给：两个城市、早高峰，各调 1 次车来了线路接口，录进 <code>RecordedResponses</code>。总共不超过 4 次。</li>
+    <li>值有变化（不全是同一个数）才做界面；全是 0 或没有就停在这步。</li>
+  </ol>
+  <div class="screens">
+    <figure class="shot"><div class="ph short">
+      <div class="sb"><span>08:05</span><span></span></div>
+      <div class="card"><div class="row"><span class="ln">59</span><b>市政府</b></div><div class="row" style="justify-content:space-between"><div class="eta">3 <small>分钟</small></div><span class="chip e">人多</span></div><div class="row" style="justify-content:space-between"><div class="sub">下一辆 7 分钟</div><span class="chip g">人少</span></div><div class="sub" style="margin-top:4px">下一辆人少，晚 4 分钟</div></div>
+    </div><figcaption><b>线路卡</b>只在两辆差 ≤ 6 分钟时给那行建议。</figcaption></figure>
+  </div>
+  <table class="doc">
+    <tr><th>值</th><th>标准版</th><th>长辈版</th></tr>
+    <tr><td>0</td><td>绿色「人少」</td><td>大字「人少」</td></tr>
+    <tr><td>1</td><td>不显示（免得到处是标签）</td><td>不显示</td></tr>
+    <tr><td>2</td><td>红色「人多」</td><td>大字「人多」</td></tr>
+    <tr><td>-1</td><td>不显示</td><td>不显示</td></tr>
+  </table>
+  <div class="meta">
+    <div><b>请求</b>0（同一个接口）；确认时 ≤ 4 次</div>
+    <div><b>掌上公交</b>没有这个字段，不显示</div>
+    <div><b>不做</b>不进通知，不响不震</div>
+    <div><b>测试</b><code>ChelaileApiClientTest</code> 缺字段 = -1；<code>CrowdHintTest</code>（commonTest：差 6 分钟边界）</div>
+  </div>
+</div>
+
+<!-- ============ 地基 ============ -->
+<h2 id="base">共用的地基</h2>
+<div class="cols">
+  <div class="box">
+    <h3 style="margin-top:0">新链接（进第 18 步 <code>DeepLinkParser</code>）</h3>
+    <table class="doc">
+      <tr><th>链接</th><th>用在</th></tr>
+      <tr><td><code>trackr://favorite/{id}</code></td><td>F1 菜单、F8 聚焦、F10 点卡片</td></tr>
+      <tr><td><code>trackr://favorite/{id}/track</code></td><td>F1 图标、磁贴，F10「追」</td></tr>
+    </table>
+  </div>
+  <div class="box">
+    <h3 style="margin-top:0">新纯逻辑（<code>:core:domain</code>）</h3>
+    <ul>
+      <li><code>StartFavoriteTracking</code>（F1）</li>
+      <li><code>AlertKind</code>、<code>AlertPattern</code>（F2）</li>
+      <li><code>LastBusRules</code>（F3）</li>
+      <li><code>PollingPolicy</code>（F4）</li>
+      <li><code>LeaveHomeRules</code>（F7）</li>
+      <li><code>CrowdHint</code>（F12）</li>
+    </ul>
+  </div>
+  <div class="box">
+    <h3 style="margin-top:0">新平台接口（<code>:core:domain/platform</code>）</h3>
+    <ul>
+      <li><code>DeviceProfileSource</code>（F4）</li>
+      <li><code>HapticPlayer</code>（F2，iOS 前台用）</li>
+      <li><code>ShortcutPublisher</code>（F1，iOS 实现为空）</li>
+    </ul>
+    <p class="mini">每个都在 <code>:core:testing</code> 配一个 Fake。</p>
+  </div>
+</div>
+
+<!-- ============ 设置页 ============ -->
+<h2 id="settings">「我的」页只加这些</h2>
+<div class="screens">
+  <figure class="shot"><div class="ph">
+    <div class="sb"><span></span><span></span></div>
+    <div class="bar">我的</div>
+    <div class="card"><b>提醒</b><div class="sub">定时提醒 · 试一下震动（F2）</div></div>
+    <div class="card"><b>桌面与磁贴</b><div class="sub">磁贴追哪条：回家（F1、F8）</div></div>
+    <div class="card"><b>乘车码</b><div class="sub">支付宝</div></div>
+    <div class="card"><b>长辈版</b><div class="sub">关</div></div>
+    <div class="card"><b>数据源与城市</b></div>
+    <div class="card"><b>高德 Key</b></div>
+  </div><figcaption><b>新加 1 项</b>「桌面与磁贴」；「提醒」里加「试一下」。F3、F4、F12 没有设置项。</figcaption></figure>
+</div>
+
+<!-- ============ 矩阵 ============ -->
+<h2 id="matrix">各版本能用到什么</h2>
+<table class="doc">
+  <tr><th>能力</th><th>Android 8–11</th><th>Android 12–15</th><th>Android 16+</th><th>iOS 15</th><th>iOS 16–17</th><th>iOS 18+</th></tr>
+  <tr><td>锁屏实时进度</td><td>站点圆点通知</td><td>站点圆点通知</td><td class="ok">系统实时通知</td><td>普通通知</td><td class="ok">实时活动</td><td class="ok">实时活动 + 手表</td></tr>
+  <tr><td>F1 一键开</td><td class="ok">图标 + 磁贴</td><td class="ok">图标 + 磁贴</td><td class="ok">图标 + 磁贴</td><td class="bad">只能进 App</td><td class="ok">快捷指令</td><td class="ok">+ 控制中心</td></tr>
+  <tr><td>F2 震动区分</td><td class="ok">有</td><td class="ok">有</td><td class="ok">有</td><td class="mid">前台</td><td class="mid">前台</td><td class="mid">前台</td></tr>
+  <tr><td>F3 末班车</td><td colspan="6" class="ok">都有（共享代码）</td></tr>
+  <tr><td>F4 自动变轻</td><td>内存、省电</td><td class="ok">+ 过热</td><td class="ok">同左</td><td class="ok">低电量、过热</td><td class="ok">同左</td><td class="ok">同左</td></tr>
+  <tr><td>F7 该出门了</td><td class="ok">有</td><td class="mid">没精确闹钟时降级</td><td class="mid">同左</td><td class="mid">只定时通知</td><td class="mid">同左</td><td class="mid">同左</td></tr>
+  <tr><td>F8 问一声</td><td colspan="3">「念一下」磁贴</td><td class="bad">App 内朗读</td><td class="ok">Siri</td><td class="ok">Siri + 聚焦实体</td></tr>
+  <tr><td>F9 两栏</td><td colspan="3" class="ok">按宽度（折叠姿势要 WindowManager）</td><td colspan="3" class="ok">iPad 按宽度</td></tr>
+  <tr><td>F10 小组件</td><td colspan="3">桌面；本地倒计时</td><td>桌面</td><td class="ok">+ 锁屏；17 起可点</td><td class="ok">同左</td></tr>
+</table>
+<p class="legend">Android 最低 8.0（minSdk 26）。iOS 最低版本还没定，见 Q-B。</p>
+
+<!-- ============ 老设备测试 ============ -->
+<h2 id="oldtest">老设备测试</h2>
+<table class="doc">
+  <tr><th>设备</th><th>测什么</th></tr>
+  <tr><td>模拟器 API 26（Android 8.0）</td><td>没有通知权限弹窗、没有精确闹钟权限、没有预测返回；F1、F2、F7 全流程</td></tr>
+  <tr><td>模拟器 API 26 低内存（Go 配置，1 GB）</td><td>F4 进「轻」档；冷启动、首页滚动不卡</td></tr>
+  <tr><td>模拟器 API 31、33、35</td><td>精确闹钟降级（F7）、通知权限、边到边</td></tr>
+  <tr><td>真机（你手上的）API 36</td><td>F1 图标、磁贴，F2 四种震动，实时通知</td></tr>
+  <tr><td>折叠屏 / 平板模拟器</td><td>F9</td></tr>
+  <tr><td>iOS 模拟器</td><td>按现有约定：只验编译，不下载运行时；真要跑再执行 <code>xcodebuild -downloadPlatform iOS</code></td></tr>
+</table>
+
+<!-- ============ 不做 ============ -->
+<h2 id="no">不做的</h2>
+<table class="doc">
+  <tr><th>想法</th><th>原因</th></tr>
+  <tr><td>F5 家人帮配置（扫码导入收藏）</td><td>你拍板不做（2026-11-01）</td></tr>
+  <tr><td>F6 帮家人看车（发链接看同一辆车）</td><td>你拍板不做（2026-11-01）</td></tr>
+  <tr><td>主色跟随壁纸</td><td>现状规格已列为问题，v3 用固定主色</td></tr>
+  <tr><td>NFC 刷交通卡</td><td>系统钱包交通卡不对第三方开放；乘车码已能一键开</td></tr>
+  <tr><td>CarPlay / Android Auto</td><td>坐公交的人不开车</td></tr>
+  <tr><td>画中画悬浮窗</td><td>实时通知、焦点通知已能在别的 App 上看到，重复</td></tr>
+  <tr><td>AR 找车站</td><td>费电，老手机跑不动</td></tr>
+  <tr><td>账号、云同步</td><td>要自己的服务器</td></tr>
+  <tr><td>iOS 后台定时查车</td><td>系统不允许，要推送服务器（Q13）</td></tr>
+  <tr><td>全屏到站提醒（锁屏弹整屏）</td><td>Android 14 起只给闹钟、来电类 App</td></tr>
+</table>
+
+<!-- ============ 顺序 ============ -->
+<h2 id="order">做的顺序（都在重构之后）</h2>
+<ol class="steps">
+  <li><b>第 12、14、18 步之后</b>：F2（Android）→ F1（Android）。改动只在 <code>:androidApp</code> 和少量 domain。</li>
+  <li><b>阶段 D 首页、线路页重写完</b>：F3 末班车，两个平台一起有。</li>
+  <li><b>第 27 步基线测完</b>：F4 自动变轻，用真机数字定间隔。</li>
+  <li><b>第 33 步之后</b>：F8 的 Android「念一下」磁贴；F12 第 1–2 步（修默认值、确认接口）。</li>
+  <li><b>第 9、12 步稳定后</b>：F7 该出门了（Android）。</li>
+  <li><b>第 37 步 iOS 追踪能跑后</b>：F1、F2、F8 的 iOS 部分，F7 的 iOS 定时通知。</li>
+  <li><b>最后</b>：F9 两栏 → F10 → F11 测试 → F12 界面（如果接口真给值）。</li>
+</ol>
+<p class="legend">每个功能一个分支、按功能分开提交；Gradle 用 <code>lockf -k /tmp/trackr-gradle.lock ./gradlew ...</code> 排队，只跑相关测试类。</p>
+
+<!-- ============ 待定 ============ -->
+<h2 id="q">要你拍板的</h2>
+<table class="doc">
+  <tr><th>#</th><th>问题</th><th>推荐</th></tr>
+  <tr><td>Q-B</td><td>iOS 最低支持哪个版本？</td><td>iOS 16。实时活动、锁屏小组件、App Intents 都从 16 起；iOS 15 的用户已很少</td></tr>
+  <tr><td>Q-E</td><td>点桌面图标：打开页面并开始追，还是不开页面直接追？</td><td>打开页面并开始追。用户能看到确实开始了，老人更放心</td></tr>
+  <tr><td>Q-F</td><td>长辈版能不能自己设「该出门了」？</td><td>先不能（守住 Q9）。由家人在标准版设好，长辈版照常响</td></tr>
+  <tr><td>Q-G</td><td>F2 要换新通知渠道，用户改过的旧渠道设置（铃声等）会丢</td><td>接受。只照抄「开 / 关」和重要程度；更新说明里写一句</td></tr>
+  <tr><td>Q-H</td><td>F12 为确认拥挤度要真调接口</td><td>两个城市各 1–2 次，总共 ≤ 4 次</td></tr>
+</table>
+<p class="legend">上一版的 Q-A（链接域名）、Q-C（发给家人按钮放哪）随 F5、F6 一起删掉。Q-D（先做哪几个）仍按 P1：F1–F4。</p>
+
+</div>
+</body>
+</html>

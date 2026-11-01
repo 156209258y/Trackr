@@ -1,5 +1,7 @@
 package com.trackr.service
 
+import android.app.Application
+import android.app.NotificationManager
 import android.content.pm.ServiceInfo
 import android.os.Looper
 import androidx.test.core.app.ApplicationProvider
@@ -50,6 +52,8 @@ class BusTrackingServiceTest {
     private lateinit var location: FakeLocationSource
     private lateinit var transit: FakeTransitRepository
     private val trackingRepository: TrackingRepository get() = GlobalContext.get().get()
+    private val notificationManager: NotificationManager
+        get() = app.getSystemService(Application.NOTIFICATION_SERVICE) as NotificationManager
 
     @Before
     fun setup() {
@@ -286,6 +290,45 @@ class BusTrackingServiceTest {
         assertEquals(10, riding.targetOrder) // 没有下车站：目标是终点站
         assertEquals(listOf("L60"), transit.realtime.lineDetailCalls)
         assertEquals(1, transit.realtime.stopDetailCallCount)
+    }
+
+    // ---------------------------------------------------------------- 起步失败（进不了前台）
+
+    @Test
+    fun startFailure_normalSession_endsItAndNotifiesUser() {
+        val session = requireNotNull(trackingRepository.start(singleTarget()))
+        val service = Robolectric.buildService(BusTrackingService::class.java).create().get()
+
+        // start() 已经返回 true，服务却起不来：没人轮询，会话留着只会让界面一直显示「追踪中」
+        service.endStartFailure(session, SecurityException("fgs denied"))
+
+        assertNull("正常会话起不了服务就该结束，不能留在仓库里", trackingRepository.session.value)
+        assertFalse(trackingRepository.legState.value.isActive)
+        assertNotNull(
+            "要告诉用户追踪没起来",
+            shadowOf(notificationManager).getNotification(ArrivalAlertNotifier.NOTIFICATION_ID_INTERRUPTED)
+        )
+        assertTrue(shadowOf(service).isStoppedBySelf)
+    }
+
+    @Test
+    fun startFailure_interruptedSession_keepsItForNextOpen() {
+        // 进程重建读回的中断会话：用户还没决定要不要继续，不能替他结束。
+        // 仓库里的会话仍是活动状态，所以这里断言的是「没被 stop 掉」。
+        val stored = requireNotNull(trackingRepository.start(singleTarget()))
+        val service = Robolectric.buildService(BusTrackingService::class.java).create().get()
+
+        service.endStartFailure(stored.copy(interrupted = true), SecurityException("fgs denied"))
+
+        assertEquals(
+            "中断会话要留给下次打开 App 再接续，不能在这里结束",
+            stored.sessionId,
+            trackingRepository.session.value?.sessionId
+        )
+        assertNotNull(
+            shadowOf(notificationManager).getNotification(ArrivalAlertNotifier.NOTIFICATION_ID_INTERRUPTED)
+        )
+        assertTrue(shadowOf(service).isStoppedBySelf)
     }
 
     @Test

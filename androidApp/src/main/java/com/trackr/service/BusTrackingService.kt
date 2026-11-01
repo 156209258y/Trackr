@@ -132,14 +132,10 @@ class BusTrackingService : LifecycleService() {
         locationTrackingAllowed = try {
             enterForeground(notification, wantLocation)
         } catch (e: IllegalStateException) {
-            if (session?.interrupted == true) arrivalAlerts.triggerTrackingInterrupted(this, session.state)
-            Log.w(TAG, "Cannot enter foreground while resuming tracking", e)
-            shutdown()
+            endStartFailure(session, e)
             return START_NOT_STICKY
         } catch (e: SecurityException) {
-            if (session?.interrupted == true) arrivalAlerts.triggerTrackingInterrupted(this, session.state)
-            Log.w(TAG, "Cannot enter foreground while resuming tracking", e)
-            shutdown()
+            endStartFailure(session, e)
             return START_NOT_STICKY
         }
         if (session == null) {
@@ -158,6 +154,33 @@ class BusTrackingService : LifecycleService() {
         }
         attach(resumed, force = true)
         return START_STICKY
+    }
+
+    /**
+     * 进不了前台时的收尾。
+     *
+     * 中断会话（进程重建读回来的）保留下来，发一条「追踪已中断」提醒，等用户打开 App 再接续——
+     * 会话本身没进行过，用户主动决定要不要继续。
+     *
+     * 正常会话是用户刚点下开始追踪的：服务起不来就没人轮询，留着会话只会让界面一直显示「追踪中」，
+     * 所以直接结束它（发一条「追踪已中断」说明原因）。不这么做的话，[AndroidTrackingController.start]
+     * 已经返回了 true，没有任何别的路径会来收拾这个会话。
+     */
+    @VisibleForTesting
+    internal fun endStartFailure(session: TrackingSession?, error: Exception) {
+        if (session == null) {
+            Log.w(TAG, "Cannot enter foreground, nothing to track", error)
+            shutdown()
+            return
+        }
+        arrivalAlerts.triggerTrackingInterrupted(this, session.state)
+        if (!session.interrupted) {
+            Log.w(TAG, "Cannot enter foreground, ending session", error)
+            runCatching { trackingRepository.stop() }
+        } else {
+            Log.w(TAG, "Cannot enter foreground while resuming tracking", error)
+        }
+        shutdown()
     }
 
     private fun handleRestart(): Int {
