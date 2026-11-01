@@ -127,9 +127,9 @@ class WatchTogetherPollerTest {
 
         val poll = WatchTogetherPoller(fake).poll(target(lines), WatchPollPlan.Stop(lines), city).getOrThrow()
 
-        assertEquals(9, fake.lineDetailCalls.size)
+        assertEquals(WatchTogetherPoller.MAX_LINES_PER_POLL, fake.lineDetailCalls.size)
         assertEquals(WatchTogetherPoller.MAX_CONCURRENT_LINE_REQUESTS, peak)
-        assertEquals(9, poll.lines.size)
+        assertEquals(WatchTogetherPoller.MAX_LINES_PER_POLL, poll.lines.size)
     }
 
     @Test
