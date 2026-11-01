@@ -129,7 +129,19 @@ class BusTrackingService : LifecycleService() {
             shown?.state ?: TrackingSessionState(isActive = true),
             watch = LiveProgressNotifier.WatchNotice.of(shown)
         )
-        locationTrackingAllowed = enterForeground(notification, wantLocation)
+        locationTrackingAllowed = try {
+            enterForeground(notification, wantLocation)
+        } catch (e: IllegalStateException) {
+            if (session?.interrupted == true) arrivalAlerts.triggerTrackingInterrupted(this, session.state)
+            Log.w(TAG, "Cannot enter foreground while resuming tracking", e)
+            shutdown()
+            return START_NOT_STICKY
+        } catch (e: SecurityException) {
+            if (session?.interrupted == true) arrivalAlerts.triggerTrackingInterrupted(this, session.state)
+            Log.w(TAG, "Cannot enter foreground while resuming tracking", e)
+            shutdown()
+            return START_NOT_STICKY
+        }
         if (session == null) {
             // 启动请求发出后用户又结束了（或换了新会话，新会话自己会再来一次启动请求）
             if (shown == null) {
@@ -166,14 +178,14 @@ class BusTrackingService : LifecycleService() {
             locationTrackingAllowed = try {
                 enterForeground(notification, wantLocation)
             } catch (e: IllegalStateException) {
-                // 系统不允许从后台重启前台服务：和以前进程被杀一样，这次追踪就结束了
-                Log.w(TAG, "Cannot restart tracking in foreground, ending session", e)
-                trackingRepository.stop()
+                // 系统不允许从后台重启前台服务：保留中断会话，等用户打开 App 再接续
+                Log.w(TAG, "Cannot restart tracking in foreground", e)
+                arrivalAlerts.triggerTrackingInterrupted(this@BusTrackingService, stored.state)
                 shutdown()
                 return@launch
             } catch (e: SecurityException) {
-                Log.w(TAG, "Cannot restart tracking in foreground, ending session", e)
-                trackingRepository.stop()
+                Log.w(TAG, "Cannot restart tracking in foreground", e)
+                arrivalAlerts.triggerTrackingInterrupted(this@BusTrackingService, stored.state)
                 shutdown()
                 return@launch
             }
