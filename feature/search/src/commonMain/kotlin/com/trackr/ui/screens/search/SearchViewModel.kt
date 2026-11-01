@@ -25,6 +25,12 @@ import kotlinx.coroutines.launch
 data class SearchUiState(
     /** 已选城市（搜索框提示文字、结果里的城市 id） */
     val currentCity: TransitCity = TransitCity(cityId = "034", cityName = "上海", pinyin = "shanghai", supportSubway = true, isHot = true, province = "直辖市"),
+    /**
+     * 最近一次 [SearchViewModel.updateSearchQuery] 收到的词，供「记进最近搜过」「切换数据源后重搜」用。
+     *
+     * 不要拿它当输入框的文字：它是 StateFlow 的快照，回写晚一拍，中文输入法组字期间会把正在组的字覆盖掉。
+     * 输入框读 [SearchViewModel.queryText]（Compose 快照状态），由 `SearchScreen(queryText = …)` 传进去。
+     */
     val searchQuery: String = "",
     val searchResult: TransitSearchResult? = null,
     val isSearching: Boolean = false,

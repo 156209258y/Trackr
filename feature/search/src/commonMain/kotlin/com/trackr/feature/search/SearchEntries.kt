@@ -56,8 +56,10 @@ fun SearchRoute(
     }
 
     SearchScreen(
+        state = state,
         // 输入框直接读 ViewModel 的 Compose 快照，中文输入法组字不会被 Flow 重组打断。
-        state = state.copy(searchQuery = viewModel.queryText),
+        // 不再 `state.copy(searchQuery = …)` 覆盖状态：两份真值会让「输入框文字」和「上一次真正发起的搜索词」混成一个字段。
+        queryText = viewModel.queryText,
         onEvent = { event ->
             when (event) {
                 is SearchEvent.QueryChanged -> viewModel.updateSearchQuery(event.query)

@@ -103,15 +103,22 @@ internal const val SEARCH_RESULT_LIST_TAG = "search_result_list"
 @Composable
 fun SearchScreen(
     state: SearchUiState,
+    /**
+     * 输入框现在显示的文字。必填，页面内部不再从 [SearchUiState.searchQuery] 取值——那是两份真值。
+     *
+     * 必须传 ViewModel 的 Compose 快照状态：`searchQuery` 是 StateFlow 的快照，中文输入法组字期间回写会晚一拍，
+     * 正在组的字会被覆盖掉（5dd5472）。
+     */
+    queryText: String,
     onEvent: (SearchEvent) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     Scaffold(
         modifier = modifier,
         contentWindowInsets = WindowInsets.safeDrawing,
         topBar = {
             SearchTopBar(
-                query = state.searchQuery,
+                query = queryText,
                 cityName = state.currentCity.cityName,
                 isSearching = state.isSearching,
                 onEvent = onEvent
@@ -120,7 +127,7 @@ fun SearchScreen(
     ) { innerPadding ->
         val result = state.searchResult
         when {
-            state.searchQuery.isBlank() -> SearchHistoryView(
+            queryText.isBlank() -> SearchHistoryView(
                 history = state.searchHistory,
                 onEvent = onEvent,
                 modifier = Modifier
@@ -130,7 +137,7 @@ fun SearchScreen(
             )
 
             !state.isSearching && result != null && result.lines.isEmpty() && result.stops.isEmpty() -> EmptyStateView(
-                message = "没找到和「${state.searchQuery.trim()}」有关的线路或车站",
+                message = "没找到和「${queryText.trim()}」有关的线路或车站",
                 subMessage = "试试只输路号数字（比如 20），或站名里的几个字",
                 icon = vectorResource(Res.drawable.ic_search),
                 modifier = Modifier

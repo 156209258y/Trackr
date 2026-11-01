@@ -70,10 +70,11 @@ class SearchScreenTest {
         stops = listOf(stop)
     )
 
-    private fun show(state: SearchUiState) {
+    /** [queryText] 是输入框文字（生产里来自 ViewModel 的 Compose 快照状态）；默认和 state 里的搜索词一致 */
+    private fun show(state: SearchUiState, queryText: String = state.searchQuery) {
         composeTestRule.setContent {
             TrackrTheme {
-                SearchScreen(state = state, onEvent = { events += it })
+                SearchScreen(state = state, queryText = queryText, onEvent = { events += it })
             }
         }
         composeTestRule.waitForIdle()
@@ -164,11 +165,16 @@ class SearchScreenTest {
     @Test
     fun typing_clear_imeSearch_andBack_sendEvents() {
         var state by mutableStateOf(SearchUiState(currentCity = city))
+        // 输入框文字单独一份，和 SearchRoute 接 ViewModel 的 queryText 一样
+        var queryText by mutableStateOf("")
         composeTestRule.setContent {
             TrackrTheme {
-                SearchScreen(state = state, onEvent = { event ->
+                SearchScreen(state = state, queryText = queryText, onEvent = { event ->
                     events += event
-                    if (event is SearchEvent.QueryChanged) state = state.copy(searchQuery = event.query)
+                    if (event is SearchEvent.QueryChanged) {
+                        queryText = event.query
+                        state = state.copy(searchQuery = event.query)
+                    }
                 })
             }
         }

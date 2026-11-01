@@ -783,8 +783,9 @@ class ScreenshotGeneratorTest {
         composeTestRule.setContent {
             TrackrTheme(darkTheme = false) {
                 Surface(modifier = Modifier.fillMaxSize()) {
-                    // 第 23 步：无状态 SearchScreen(state, onEvent)
-                    SearchScreen(state = vm.uiState.value, onEvent = {})
+                    // 第 23 步：无状态 SearchScreen(state, queryText, onEvent)
+                    // 输入框文字单独传 ViewModel 的 Compose 快照，不从 state.searchQuery 取
+                    SearchScreen(state = vm.uiState.value, queryText = vm.queryText, onEvent = {})
                 }
             }
         }
