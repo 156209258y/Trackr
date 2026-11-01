@@ -971,6 +971,35 @@ class TrackingEngineTest {
     }
 
     @Test
+    fun transfer_isTrackingExpired_detectsTimeoutAndClockRollback() {
+        // 一次正常的追踪：startedAtMillis 记的是开始那一刻
+        val session = assertNotNull(
+            TrackingEngine.begin("s1", 1, singleTarget(targetOrder = 10, threshold = 2), TRANSFER_NOW)
+        )
+        assertEquals(TRANSFER_NOW, session.state.startedAtMillis)
+
+        // 刚追 1 分钟：没过期
+        assertFalse(TrackingEngine.isTrackingExpired(session, TRANSFER_NOW + 60_000L))
+        // 差 1 毫秒到上限：还没过期
+        assertFalse(
+            TrackingEngine.isTrackingExpired(
+                session,
+                TRANSFER_NOW + TrackingEngine.MAX_TRACKING_DURATION_MILLIS - 1
+            )
+        )
+        // 正好到上限：过期
+        assertTrue(
+            TrackingEngine.isTrackingExpired(
+                session,
+                TRANSFER_NOW + TrackingEngine.MAX_TRACKING_DURATION_MILLIS
+            )
+        )
+        // 系统时间往回调（差值为负）：同样判为过期，否则这次追踪永远不会结束
+        assertTrue(TrackingEngine.isTrackingExpired(session, TRANSFER_NOW - 60_000L))
+        assertTrue(TrackingEngine.isTrackingExpired(session, session.state.startedAtMillis - 1))
+    }
+
+    @Test
     fun transfer_isUserFixUsable_requiresFreshAndAccurateFix() {
         val (_, user) = transferLegAtUser()
         assertFalse(TrackingEngine.isUserFixUsable(null, TRANSFER_NOW))

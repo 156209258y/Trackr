@@ -530,8 +530,17 @@ object TrackingEngine {
         return base
     }
 
-    fun isTrackingExpired(session: TrackingSession, nowMillis: Long): Boolean =
-        nowMillis - session.state.startedAtMillis >= MAX_TRACKING_DURATION_MILLIS
+    /**
+     * 这次追踪是否该停了。
+     *
+     * 用墙钟差值判断，所以系统时间被往回调时差值会变成负数：如果只判断「≥ 上限」，
+     * 这一次追踪就永远不会过期（轮询一直跑下去）。差值为负就当作用户改了系统时间，
+     * 同样判为过期，让服务停下来，避免无限追踪。
+     */
+    fun isTrackingExpired(session: TrackingSession, nowMillis: Long): Boolean {
+        val elapsed = nowMillis - session.state.startedAtMillis
+        return elapsed < 0 || elapsed >= MAX_TRACKING_DURATION_MILLIS
+    }
 
     /** 本阶段的定位档位；不能用定位时恒为 OFF */
     fun locationTier(state: TrackingSessionState, locationEnabled: Boolean): LocationCadence.Tier =
