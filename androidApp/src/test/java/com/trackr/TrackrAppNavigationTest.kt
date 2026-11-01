@@ -285,12 +285,12 @@ class TrackrAppNavigationTest {
     private fun assertOnLineDetail() {
         assertEquals("打开的是链接里那条线", line49, openedLines.lastOrNull())
         composeTestRule.onNodeWithText("编辑").assertDoesNotExist()
-        composeTestRule.onNodeWithText("更多").assertDoesNotExist() // 子页不显示底栏
+        composeTestRule.onNodeWithText("我的").assertDoesNotExist() // 子页不显示底栏
     }
 
     private fun assertOnHomeRoot() {
         composeTestRule.onNodeWithText("编辑").assertExists()
-        composeTestRule.onNodeWithText("更多").assertExists()
+        composeTestRule.onNodeWithText("我的").assertExists()
     }
 
     @Test
@@ -310,7 +310,7 @@ class TrackrAppNavigationTest {
     @Test
     fun warmStart_onAnotherTab_switchesToHomeTabAndOpensLineDetail() {
         launch()
-        composeTestRule.onNodeWithText("更多").performClick()
+        composeTestRule.onNodeWithText("我的").performClick()
         composeTestRule.waitForIdle()
 
         composeTestRule.runOnIdle { deepLink = line49Link }
