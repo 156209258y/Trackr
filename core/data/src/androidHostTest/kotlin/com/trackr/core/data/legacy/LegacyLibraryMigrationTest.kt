@@ -11,6 +11,7 @@ import com.trackr.core.data.local.toEntity
 import com.trackr.core.database.TrackrDatabase
 import com.trackr.core.database.createInMemoryTrackrDatabase
 import com.trackr.core.database.entity.FavoriteItemEntity
+import com.trackr.core.database.entity.StoreMetaEntity
 import com.trackr.core.datastore.AmapKeyKeys
 import com.trackr.core.datastore.SettingsKeys
 import com.trackr.core.datastore.TrackrDataStoreFiles
@@ -450,6 +451,18 @@ class LegacyLibraryMigrationTest {
         db = createInMemoryTrackrDatabase(context)
         assertTrue(migrate(generation = 3).ran)
         assertEquals(2, db.favoriteLines().getAll().size)
+    }
+
+    @Test
+    fun newerStoreGenerationIsNeverOverwrittenByOlderLegacySnapshot() = runBlocking {
+        LegacyFixtures.writeAll(context)
+        db.storeMeta().put(StoreMetaEntity(LegacyLibraryMigration.META_LEGACY_IMPORT_GEN, "5"))
+
+        val report = migrate(generation = 3)
+
+        assertFalse(report.ran)
+        assertEquals("5", db.storeMeta().get(LegacyLibraryMigration.META_LEGACY_IMPORT_GEN))
+        assertTrue(db.favoriteLines().getAll().isEmpty())
     }
 
     @Test
