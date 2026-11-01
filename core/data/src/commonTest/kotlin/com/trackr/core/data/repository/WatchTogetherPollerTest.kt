@@ -12,6 +12,8 @@ import com.trackr.core.model.TrackingTarget
 import com.trackr.core.model.TransitCity
 import com.trackr.core.model.WatchLine
 import com.trackr.core.testing.FakeRealtimeRepository
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
@@ -130,6 +132,71 @@ class WatchTogetherPollerTest {
         assertEquals(WatchTogetherPoller.MAX_LINES_PER_POLL, fake.lineDetailCalls.size)
         assertEquals(WatchTogetherPoller.MAX_CONCURRENT_LINE_REQUESTS, peak)
         assertEquals(WatchTogetherPoller.MAX_LINES_PER_POLL, poll.lines.size)
+    }
+
+    /**
+     * 超过 [WatchTogetherPoller.MAX_LINES_PER_POLL] 条线时，每轮取的那一批要轮转：
+     * 列表顺序稳定不变，每轮只取前 N 条的话第 N+1 条起的线永远拿不到数据。
+     */
+    @Test
+    fun missingLines_rotateAcrossPolls_soEveryLineIsFetched() = runTest {
+        val lines = (1..9).map { line(it) }
+        val fake = FakeRealtimeRepository()
+        fake.stopDetailResult = Result.success(listOf(stop(emptyList())))
+        val poller = WatchTogetherPoller(fake)
+
+        val rounds = (1..3).map {
+            val before = fake.lineDetailCalls.size
+            val poll = poller.poll(target(lines), WatchPollPlan.Stop(lines), city).getOrThrow()
+            val thisRound = fake.lineDetailCalls.drop(before)
+            assertTrue(
+                thisRound.size <= WatchTogetherPoller.MAX_LINES_PER_POLL,
+                "单轮补查不应超过 ${WatchTogetherPoller.MAX_LINES_PER_POLL} 条，实际 $thisRound"
+            )
+            // requested 只包含这一轮真正请求过的线
+            assertEquals(thisRound.toSet(), poll.requested)
+            thisRound
+        }
+
+        val allFetched = rounds.flatten().toSet()
+        assertEquals(lines.map { it.lineId }.toSet(), allFetched, "连续 3 轮后每条线都应被请求过一次")
+        // 相邻两轮不应是同一批
+        assertEquals(false, rounds[0].toSet() == rounds[1].toSet())
+    }
+
+    /** 只请求线路的分支（待确认 / 「上了哪辆？」）同样轮转，否则后面的线一直不刷新、待确认的车清不掉 */
+    @Test
+    fun linesPlan_rotatesAcrossPolls() = runTest {
+        val lines = (1..9).map { line(it) }
+        val fake = FakeRealtimeRepository()
+        val poller = WatchTogetherPoller(fake)
+
+        val requested = (1..3).map { poller.poll(target(lines), WatchPollPlan.Lines(lines), city).getOrThrow().requested }
+
+        assertTrue(requested.all { it.size <= WatchTogetherPoller.MAX_LINES_PER_POLL })
+        assertEquals(lines.map { it.lineId }.toSet(), requested.flatMap { it }.toSet())
+        assertEquals(lines.map { it.lineId }.toSet(), fake.lineDetailCalls.toSet())
+    }
+
+    /** 并发的 poll() 不能拿到同一个游标起点，否则同一批线被重复请求、别的线轮空 */
+    @Test
+    fun concurrentPolls_takeDisjointBatches() = runTest {
+        val lines = (1..12).map { line(it) }
+        val fake = FakeRealtimeRepository()
+        fake.stopDetailResult = Result.success(listOf(stop(emptyList())))
+        fake.lineDetailHook = { delay(50) }
+        val poller = WatchTogetherPoller(fake)
+
+        val requested = (1..3).map { async { poller.poll(target(lines), WatchPollPlan.Stop(lines), city).getOrThrow().requested } }
+            .awaitAll()
+
+        assertEquals(lines.map { it.lineId }.toSet(), requested.flatMap { it }.toSet())
+        // 每轮各取 4 条、三轮互不重叠：并集应是 12 条而不是更少
+        assertEquals(
+            requested.size * WatchTogetherPoller.MAX_LINES_PER_POLL,
+            requested.flatMap { it }.distinct().size,
+            "三个并发轮次应各取一批不同的线")
+
     }
 
     @Test
