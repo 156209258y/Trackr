@@ -16,6 +16,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import com.trackr.R
 import com.trackr.core.domain.math.RouteProjectionMath
+import com.trackr.core.domain.tracking.TrackingEngine
 import com.trackr.core.model.TrackingSessionState
 import com.trackr.service.vendor.LiveUpdatePromotion
 import com.trackr.service.vendor.XiaomiFocusAdapter
@@ -36,7 +37,7 @@ class ArrivalAlertNotifier(
         val notification = NotificationCompat.Builder(context, CHANNEL_ID_ALERT)
             .setSmallIcon(R.drawable.ic_stat_trackr)
             .setContentTitle("追踪已停止")
-            .setContentText("${state.lineName} 追踪已超过 3 小时，已停止追踪。")
+            .setContentText("${state.lineName} 追踪已超过 ${maxTrackingDurationText()}，已停止追踪。")
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setCategory(NotificationCompat.CATEGORY_STATUS)
             .setAutoCancel(true)
@@ -58,6 +59,12 @@ class ArrivalAlertNotifier(
             .setContentIntent(createMainActivityPendingIntent(context, NOTIFICATION_ID_INTERRUPTED))
             .build()
         runCatching { NotificationManagerCompat.from(context).notify(NOTIFICATION_ID_INTERRUPTED, notification) }
+    }
+
+    /** 最长追踪时长写成文案（「3 小时」），常量改了文案自动跟着变 */
+    private fun maxTrackingDurationText(): String {
+        val hours = TrackingEngine.MAX_TRACKING_DURATION_MILLIS / 3_600_000L
+        return if (hours > 0) "$hours 小时" else "${TrackingEngine.MAX_TRACKING_DURATION_MILLIS / 60_000L} 分钟"
     }
 
     /**

@@ -4,11 +4,13 @@ import android.app.Application
 import android.app.NotificationManager
 import androidx.test.core.app.ApplicationProvider
 import com.trackr.TrackrApp
+import com.trackr.core.domain.tracking.TrackingEngine
 import com.trackr.core.model.TrackingSessionState
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -162,6 +164,16 @@ class ArrivalAlertManagerTest {
             "「追踪已中断」应用自己的通知 id",
             shadowOf(notificationManager).getNotification(ArrivalAlertNotifier.NOTIFICATION_ID_INTERRUPTED)
         )
+    }
+
+    @Test
+    fun testTrackingExpired_textFollowsMaxTrackingDurationConstant() {
+        alertNotifier.triggerTrackingExpired(app, activeTrackingState(stopsRemaining = 3))
+
+        val posted = shadowOf(notificationManager).getNotification(ArrivalAlertNotifier.NOTIFICATION_ID_EXPIRED)
+        val text = posted?.extras?.getCharSequence("android.text")?.toString().orEmpty()
+        val expectedHours = TrackingEngine.MAX_TRACKING_DURATION_MILLIS / 3_600_000L
+        assertTrue("文案里的时长应与常量一致，实际：$text", text.contains("$expectedHours 小时"))
     }
 
     private fun activeTrackingState(stopsRemaining: Int) = TrackingSessionState(
