@@ -43,7 +43,13 @@ val ProcessMonotonicClock: MonotonicClock = object : MonotonicClock {
  */
 interface TrackingController {
 
-    /** 进程重建后接续仍在有效期内的中断会话；无法启动服务时保留会话。 */
+    /**
+     * 进程重建后接续仍在有效期内的中断会话；无法启动服务时保留会话。
+     *
+     * @return 只有「会话已读回、确有中断会话、且服务已启动」才返回 true。
+     *   会话还没从盘里读回来时返回 false，接续在后台等读盘完成后再发生——调用方不要把这个返回值
+     *   当成「没有要接续的会话」。
+     */
     fun resumeInterrupted(): Boolean = false
 
     /**
