@@ -131,7 +131,8 @@ internal object WatchTogetherTracker {
                 boardStopName = target.stopName,
                 totalLegs = 1,
                 statusSummary = "正在连接实时公交数据，一起等 ${lines.size} 条线…",
-                updatedAtMillis = nowMillis
+                updatedAtMillis = nowMillis,
+                startedAtMillis = nowMillis
             ),
             watchedLines = lines.map { WatchedLine(line = it) }
         )
@@ -184,7 +185,9 @@ internal object WatchTogetherTracker {
         val (stopLat, stopLng) = boardStopCoords(target, poll, session)
         val input = if (locationEnabled && stopLat > 0.0 && stopLng > 0.0) {
             BoardingDetector.Input(
-                user = fix?.let { BoardingDetector.UserPosition(it.lat, it.lng, requireNotNull(it.accuracyMeters)) },
+                user = fix?.let {
+                    BoardingDetector.UserPosition(it.lat, it.lng, requireNotNull(it.accuracyMeters), it.elapsedMillis)
+                },
                 boardStopLat = stopLat,
                 boardStopLng = stopLng,
                 nowMillis = nowMillis
@@ -312,6 +315,7 @@ internal object WatchTogetherTracker {
                     boardingCandidateSinceMillis = wl.candidateSinceMillis,
                     boardingConfirmStreak = wl.confirmStreak,
                     boardingMissStreak = wl.missStreak,
+                    boardingLastFixElapsedMillis = wl.lastFixElapsedMillis,
                     updatedAtMillis = input.nowMillis
                 )
                 val result = BoardingDetector.evaluateCandidate(probe, candidate, input)
@@ -320,12 +324,14 @@ internal object WatchTogetherTracker {
                         boarded += BoardingRule.Option(wl.line, candidateId, candidate)
                         return atStop(wl, candidate, candidateId, lp).copy(
                             confirmStreak = result.state.boardingConfirmStreak,
-                            missStreak = result.state.boardingMissStreak
+                            missStreak = result.state.boardingMissStreak,
+                            lastFixElapsedMillis = result.state.boardingLastFixElapsedMillis
                         )
                     }
                     BoardingDetector.Verdict.PENDING -> return atStop(wl, candidate, candidateId, lp).copy(
                         confirmStreak = result.state.boardingConfirmStreak,
-                        missStreak = result.state.boardingMissStreak
+                        missStreak = result.state.boardingMissStreak,
+                        lastFixElapsedMillis = result.state.boardingLastFixElapsedMillis
                     )
                     BoardingDetector.Verdict.MISSED -> {
                         // 没赶上：放掉这辆，改等这条线的下一班

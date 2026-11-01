@@ -51,6 +51,9 @@ object TrackingEngine {
     /** 线路非运营（等待发车 / 停运 / 末班已过 / 无实时）时的轮询间隔 */
     const val NOT_RUNNING_POLL_INTERVAL_MS = 300_000L
 
+    /** 单次追踪最长运行时长，避免网络异常时无限轮询。 */
+    const val MAX_TRACKING_DURATION_MILLIS = 3 * 60 * 60 * 1000L
+
     /** 锁定车辆信号丢失期间的最短轮询间隔 */
     const val SIGNAL_LOST_MIN_INTERVAL_MS = 30_000L
 
@@ -112,7 +115,8 @@ object TrackingEngine {
                     alertThresholdStops = target.alertThresholdStops,
                     legPhase = LegPhase.SINGLE,
                     statusSummary = "正在连接实时公交数据…",
-                    updatedAtMillis = nowMillis
+                    updatedAtMillis = nowMillis,
+                    startedAtMillis = nowMillis
                 )
             )
 
@@ -183,7 +187,8 @@ object TrackingEngine {
                 boardStopOrder = if (boardOrder > 0) boardOrder else 0,
                 boardStopName = leg.fromStopName,
                 statusSummary = "正在连接实时公交数据，等待上车站车辆…",
-                updatedAtMillis = nowMillis
+                updatedAtMillis = nowMillis,
+                startedAtMillis = nowMillis
             )
         )
     }
@@ -413,7 +418,9 @@ object TrackingEngine {
         if (boardStop.wgsLat <= 0.0 || boardStop.wgsLng <= 0.0) return null
         val fix = usableBoardingFix(serviceFix, nowElapsedMillis)
         return BoardingDetector.Input(
-            user = fix?.let { BoardingDetector.UserPosition(it.lat, it.lng, requireNotNull(it.accuracyMeters)) },
+            user = fix?.let {
+                BoardingDetector.UserPosition(it.lat, it.lng, requireNotNull(it.accuracyMeters), it.elapsedMillis)
+            },
             boardStopLat = boardStop.wgsLat,
             boardStopLng = boardStop.wgsLng,
             nowMillis = nowMillis
@@ -493,12 +500,17 @@ object TrackingEngine {
 
         if (consecutiveFailures > 0) {
             val shift = consecutiveFailures.coerceAtMost(4)
-            return (base shl shift).coerceAtMost(MAX_FAILURE_BACKOFF_MS)
+            val backedOff = (base shl shift).coerceAtMost(MAX_FAILURE_BACKOFF_MS)
+            return if (operatingState == LineOperatingState.RUNNING) backedOff
+            else backedOff.coerceAtLeast(NOT_RUNNING_POLL_INTERVAL_MS)
         }
         if (operatingState != LineOperatingState.RUNNING) return NOT_RUNNING_POLL_INTERVAL_MS
         if (state.isSignalLost) return base.coerceAtLeast(SIGNAL_LOST_MIN_INTERVAL_MS)
         return base
     }
+
+    fun isTrackingExpired(session: TrackingSession, nowMillis: Long): Boolean =
+        nowMillis - session.state.startedAtMillis >= MAX_TRACKING_DURATION_MILLIS
 
     /** 本阶段的定位档位；不能用定位时恒为 OFF */
     fun locationTier(state: TrackingSessionState, locationEnabled: Boolean): LocationCadence.Tier =

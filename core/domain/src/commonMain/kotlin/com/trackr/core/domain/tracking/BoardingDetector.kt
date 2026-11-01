@@ -36,7 +36,13 @@ internal object BoardingDetector {
     private const val WRONG_LOCK_METERS = 500
 
     /** 一个已经通过新鲜度与精度过滤的用户位置 */
-    data class UserPosition(val lat: Double, val lng: Double, val accuracyMeters: Float)
+    data class UserPosition(
+        val lat: Double,
+        val lng: Double,
+        val accuracyMeters: Float,
+        /** 定位单调时刻，用于避免同一快照重复计数。 */
+        val elapsedMillis: Long = -1L
+    )
 
     /**
      * 一次轮询的定位上下文。
@@ -69,7 +75,9 @@ internal object BoardingDetector {
      * @return true 进入待确认；false 用户明显不在站附近，不算上车
      */
     fun shouldStartCandidate(input: Input): Boolean {
-        val user = input.user ?: return true // 暂时没有定位：先进入待确认，等后续定位或超时兜底
+        // 没有可用定位时不能创建待确认状态。否则候选车离站后的超时
+        // 会把用户没有上车误判成已上车。
+        val user = input.user ?: return false
         if (!input.hasBoardStop) return true
         val toStop = distance(user.lat, user.lng, input.boardStopLat, input.boardStopLng) ?: return true
         return toStop <= CANDIDATE_RADIUS_METERS
@@ -97,7 +105,10 @@ internal object BoardingDetector {
         var confirm = session.boardingConfirmStreak
         var miss = session.boardingMissStreak
 
-        if (user != null && input.hasBoardStop) {
+        // 定位服务可能在同一轮回调同一个快照多次。连续计数只消费新定位，
+        // 否则一条定位会把“连续两次”误算成两次。
+        val isNewFix = user != null && user.elapsedMillis != session.boardingLastFixElapsedMillis
+        if (isNewFix && input.hasBoardStop) {
             val userToStop = distance(user.lat, user.lng, input.boardStopLat, input.boardStopLng)
             val userToBus = candidate?.let { distance(user.lat, user.lng, it.wgsLat, it.wgsLng) }
             val busToStop = candidate?.let { distance(it.wgsLat, it.wgsLng, input.boardStopLat, input.boardStopLng) }
@@ -117,12 +128,18 @@ internal object BoardingDetector {
             miss = if (missedSignal) miss + 1 else 0
         }
 
-        val updated = session.copy(boardingConfirmStreak = confirm, boardingMissStreak = miss)
+        val updated = session.copy(
+            boardingConfirmStreak = confirm,
+            boardingMissStreak = miss,
+            boardingLastFixElapsedMillis = if (isNewFix) user!!.elapsedMillis else session.boardingLastFixElapsedMillis
+        )
         val verdict = when {
             confirm >= CONFIRM_STREAK -> Verdict.BOARDED
             miss >= MISS_STREAK -> Verdict.MISSED
             input.nowMillis - session.boardingCandidateSinceMillis >= CANDIDATE_TIMEOUT_MILLIS &&
-                (candidate == null || candidate.order > boardOrder) -> Verdict.BOARDED
+                user != null && (candidate == null || candidate.order > boardOrder) -> Verdict.BOARDED
+            input.nowMillis - session.boardingCandidateSinceMillis >= CANDIDATE_TIMEOUT_MILLIS &&
+                user == null -> Verdict.MISSED
             else -> Verdict.PENDING
         }
         return CandidateResult(updated, verdict)
@@ -174,6 +191,8 @@ internal object BoardingDetector {
         boardingCandidateSinceMillis = 0L,
         boardingConfirmStreak = 0,
         boardingMissStreak = 0,
+        boardingLastFixElapsedMillis = -1L,
+        boardingLockAttempts = 0,
         relockCandidateBusId = null,
         relockStreak = 0
     )

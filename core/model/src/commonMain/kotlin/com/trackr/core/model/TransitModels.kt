@@ -370,6 +370,8 @@ data class TrackingSessionState(
     val totalLegs: Int = 1,
     val statusSummary: String = "正在连接实时公交数据…",
     val updatedAtMillis: Long = defaultNowMillis(),
+    /** 整次追踪开始时间；用于限制网络异常或停运时的最长追踪时长。 */
+    val startedAtMillis: Long = updatedAtMillis,
     // 分组换乘两阶段追踪字段
     val legPhase: LegPhase = LegPhase.SINGLE,
     /** 上车站站序（WAITING_BOARD 阶段目标；ON_BOARD 阶段锁定车辆的 fromStopOrder） */
@@ -391,6 +393,10 @@ data class TrackingSessionState(
     val boardingConfirmStreak: Int = 0,
     /** 连续满足“没赶上”条件的轮询次数 */
     val boardingMissStreak: Int = 0,
+    /** 最近一次用于判上车的定位单调时钟时间；同一定位只计一次 */
+    val boardingLastFixElapsedMillis: Long = -1L,
+    /** 手动确认上车后尚未锁到车的补查次数 */
+    val boardingLockAttempts: Int = 0,
     /** ON_BOARD：疑似锁错车时，离用户更近的那辆车 */
     val relockCandidateBusId: String? = null,
     /** 连续满足“应改锁 [relockCandidateBusId]”条件的轮询次数 */

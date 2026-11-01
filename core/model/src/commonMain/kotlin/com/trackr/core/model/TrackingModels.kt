@@ -108,6 +108,8 @@ data class WatchedLine(
     val candidateSinceMillis: Long = 0L,
     val confirmStreak: Int = 0,
     val missStreak: Int = 0,
+    /** 最近一次用于判上车的定位单调时钟时间；同一定位只计一次 */
+    val lastFixElapsedMillis: Long = -1L,
     val approachAlertedBusId: String? = null,
     val arrivedAlertedBusId: String? = null
 )
