@@ -151,7 +151,8 @@ val appModule: Module = module {
     // 平台能力：ViewModel 不再直接拿 Context
     single<LocationSource> { AndroidLocationSource(androidContext()) }
     single<LocationRepository> { DefaultLocationRepository(source = get(), clock = get()) }
-    single<TrackingController> { AndroidTrackingController(androidContext(), get(), get()) }
+    // 冷启动接续要等仓库读盘完成，用应用级作用域（AppScopeQualifier），不能阻塞 onStart
+    single<TrackingController> { AndroidTrackingController(androidContext(), get(), get(), appScope = get(AppScopeQualifier)) }
     // AmapSdkKeyApplier（把 Key 注入高德 SDK）第 17 步随 SDK 封装挪到 :feature:route 的 routeAndroidModule
     // 用户改了 Android Key 就重新注入 SDK（第 11 步：Key 对话框在「更多」页，不再由规划页 VM 注入）
     single { AmapSdkKeySync(get(), get(), get(AppScopeQualifier)) }
