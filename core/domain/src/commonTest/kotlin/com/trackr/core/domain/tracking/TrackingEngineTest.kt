@@ -618,8 +618,8 @@ class TrackingEngineTest {
             input(userMetersNorth = null, now = T0 + BoardingDetector.CANDIDATE_TIMEOUT_MILLIS + 10_000),
             nowMillis = NOW_MILLIS
         )
-        assertEquals(LegPhase.ON_BOARD, left.state.legPhase)
-        assertEquals("b1", left.state.lockedBusId)
+        assertEquals(LegPhase.WAITING_BOARD, left.state.legPhase)
+        assertNull(left.state.lockedBusId)
     }
 
     @Test
@@ -726,8 +726,8 @@ class TrackingEngineTest {
     fun boarding_shouldStartCandidate_respectsRadius() {
         assertTrue(BoardingDetector.shouldStartCandidate(input(userMetersNorth = BoardingDetector.CANDIDATE_RADIUS_METERS - 20)))
         assertFalse(BoardingDetector.shouldStartCandidate(input(userMetersNorth = BoardingDetector.CANDIDATE_RADIUS_METERS + 50)))
-        // 暂无定位：先进入待确认
-        assertTrue(BoardingDetector.shouldStartCandidate(input(userMetersNorth = null)))
+        // 没有定位时不创建待确认，避免超时误判上车
+        assertFalse(BoardingDetector.shouldStartCandidate(input(userMetersNorth = null)))
     }
 
     @Test
@@ -1288,14 +1288,14 @@ class TrackingEngineTest {
         assertNull(farFresh.session.state.boardingCandidateBusId)
         assertEquals(LegPhase.WAITING_BOARD, farFresh.session.state.legPhase)
 
-        // 同一个点但超过 30 秒：等同没定位，仍有定位上下文 -> 先进入待确认（不是直接上车）
+        // 同一个点但超过 30 秒：等同没定位，不创建待确认
         val farStale = poll(session, atStop, locationEnabled = true, serviceFix = serviceFixNorth(2000, ageMillis = 30_001L))
-        assertEquals("busX", farStale.session.state.boardingCandidateBusId)
+        assertNull(farStale.session.state.boardingCandidateBusId)
         assertEquals(LegPhase.WAITING_BOARD, farStale.session.state.legPhase)
 
         // 精度差于 50 m 同理
         val farPoor = poll(session, atStop, locationEnabled = true, serviceFix = serviceFixNorth(2000, accuracy = 80f))
-        assertEquals("busX", farPoor.session.state.boardingCandidateBusId)
+        assertNull(farPoor.session.state.boardingCandidateBusId)
         assertEquals(LegPhase.WAITING_BOARD, farPoor.session.state.legPhase)
     }
 
@@ -1509,8 +1509,8 @@ class TrackingEngineTest {
         buses = buses
     )
 
-    private fun userFix(metersNorth: Int, accuracy: Float = 10f) =
-        UserFix(northOfStop(metersNorth), STOP_LNG, accuracy, ELAPSED_NOW)
+    private fun userFix(metersNorth: Int, accuracy: Float = 10f, elapsedMillis: Long = ELAPSED_NOW) =
+        UserFix(northOfStop(metersNorth), STOP_LNG, accuracy, elapsedMillis)
 
     private fun reduceWatch(
         session: TrackingSession,
@@ -1845,7 +1845,7 @@ class TrackingEngineTest {
             pending,
             linePoll("L1" to listOf(lineBus("a", order = 6, metersNorth = 150, progress = 0.3f))),
             locationEnabled = true,
-            fix = userFix(150),
+            fix = userFix(150, elapsedMillis = ELAPSED_NOW + 10_000),
             now = NOW_MILLIS + 10_000
         ).session
         assertEquals(LegPhase.WAITING_BOARD, first.state.legPhase)
@@ -1855,7 +1855,7 @@ class TrackingEngineTest {
             first,
             linePoll("L1" to listOf(lineBus("a", order = 6, metersNorth = 320, progress = 0.6f))),
             locationEnabled = true,
-            fix = userFix(310),
+            fix = userFix(310, elapsedMillis = ELAPSED_NOW + 20_000),
             now = NOW_MILLIS + 20_000
         ).session
         assertEquals(LegPhase.ON_BOARD, boarded.state.legPhase)
