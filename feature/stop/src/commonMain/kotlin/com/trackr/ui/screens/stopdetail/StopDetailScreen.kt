@@ -130,13 +130,7 @@ fun StopDetailScreen(
         }
     }
 
-    state.boardChoice?.let { choice ->
-        ChooseBoardedBusSheet(
-            choice = choice,
-            onChoose = { onEvent(StopDetailEvent.ChooseBoardedBus(it)) },
-            onDismiss = { onEvent(StopDetailEvent.DismissBoardChoice) }
-        )
-    }
+    // 「上了哪辆？」是导航弹层（ScreenKey.ChooseBoardedBus），由 StopDetailRoute 打开，不在这里画
     if (state.isTransitCodeSheetOpen) {
         TransitCodeChooserSheet(
             onDismiss = { onEvent(StopDetailEvent.DismissTransitCodeSheet) },

@@ -5,42 +5,49 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.trackr.core.designsystem.component.TrackrBottomSheet
 import com.trackr.ui.icons.TrackrIcons
 
 /**
- * 「上了哪辆？」（§2.6 第 ④ 条）：点「我上车了」时不同线的车同时在站、定位又分不清才弹。
- * 只依赖 [BoardChoiceUi]，第 18 步可以直接接成导航弹层（`ScreenKey.ChooseBoardedBus`）。
- *
- * @param onChoose 选了哪辆车的 busId；null =「还没上」
- * @param onDismiss 划掉 / 返回，不选
+ * 「上了哪辆？」（§2.6 第 ④ 条）：点「我上车了」时不同线的车同时在站、定位又分不清才有。
+ * 是导航弹层 `ScreenKey.ChooseBoardedBus`：外面的 ModalBottomSheet 由 `BottomSheetSceneStrategy` 套，这里只画内容。
+ * 选完、或待选已经没了（[ChooseBoardedBusState.Closed]）就调 [onClose] 把自己从栈里拿掉。
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ChooseBoardedBusSheet(
-    choice: BoardChoiceUi,
-    onChoose: (busId: String?) -> Unit,
-    onDismiss: () -> Unit
-) {
-    TrackrBottomSheet(onDismissRequest = onDismiss) {
-        ChooseBoardedBusContent(choice = choice, onChoose = onChoose)
+internal fun ChooseBoardedBusRoute(viewModel: ChooseBoardedBusViewModel, onClose: () -> Unit) {
+    val state by viewModel.state.collectAsStateWithLifecycle()
+    LaunchedEffect(state) {
+        if (state == ChooseBoardedBusState.Closed) onClose()
+    }
+    when (val current = state) {
+        is ChooseBoardedBusState.Showing -> ChooseBoardedBusContent(
+            choice = current.choice,
+            onChoose = { busId ->
+                viewModel.choose(busId)
+                onClose()
+            }
+        )
+        // 读会话的那一下：先占个高度，不闪一下空弹层又收起
+        ChooseBoardedBusState.Loading, ChooseBoardedBusState.Closed -> Spacer(Modifier.fillMaxWidth().height(120.dp))
     }
 }
 

@@ -93,8 +93,8 @@ class NavigationState(
     /** 当前显示的页面。 */
     val currentKey: NavKey? get() = currentStack.lastOrNull()
 
-    /** 当前页签停在根页（底栏显示的条件）。 */
-    val isAtTabRoot: Boolean get() = currentStack.size <= 1
+    /** 当前页签停在根页（底栏显示的条件）。根页上叠着弹层（[OverlayKey]）也算，和页内弹层一样底栏不收起。 */
+    val isAtTabRoot: Boolean get() = currentStack.count { it !is OverlayKey } <= 1
 
     /**
      * 起始页签垫底、当前页签在上（recipe 的 exit-through-home 写法）：非起始页签根页按返回会回到起始页签。

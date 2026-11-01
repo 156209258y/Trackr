@@ -43,7 +43,7 @@
 - `:feature:*`（目录 `feature/<名字>/`）：功能模块，都用 `trackr.kmp.feature`。包名沿用搬来前的（`com.trackr.ui.screens.*`），模块入口在 `com.trackr.feature.<名字>`。
   - `:feature:bus`：v3 公交首页（第 19 步，全在 `commonMain`，包 `com.trackr.feature.bus`）：`BusHomeRoute` + 无状态 `BusHomeScreen(state, onEvent)`、`BusHomeViewModel`、城市选择。
   - `:feature:search`：搜索（`SearchViewModel`，entry 级，输入存 `SavedStateHandle`）。第 23 步起页面全在 commonMain：`SearchRoute` + 无状态 `SearchScreen(state, onEvent)`，结果行由 `searchRows()` 摊平；另依赖 `lifecycle-viewmodel-savedstate` 和 CMP 资源（用 `:core:designsystem` 的图标）。
-  - `:feature:stop`：站点详情（`StopDetailViewModel`）。第 21 步起页面全在 commonMain：`StopDetailRoute` + 无状态 `StopDetailScreen(state, onEvent)`；选几条一起等、存成 1 程路线（`:core:domain` 的 `WatchTogetherRoute`）、一起等进行中视图、「上了哪辆？」弹层 `ChooseBoardedBusSheet`。
+  - `:feature:stop`：站点详情（`StopDetailViewModel`）。第 21 步起页面全在 commonMain：`StopDetailRoute` + 无状态 `StopDetailScreen(state, onEvent)`；选几条一起等、存成 1 程路线（`:core:domain` 的 `WatchTogetherRoute`）、一起等进行中视图、「上了哪辆？」导航弹层（`ScreenKey.ChooseBoardedBus` + `ChooseBoardedBusViewModel`，通知链接 `trackr://tracking/board` 和站点页遇到待选都打开它）。
   - `:feature:line`：线路详情（`LineDetailViewModel`）、时刻表、走向条、定时提醒入口、乘车码弹层（`androidMain/res` 中英文案）。
   - `:feature:route`：路线规划（`RoutePlanViewModel`）、路线详情（`RouteDetailViewModel`）；高德 Android SDK 封装（`AmapSdkManager`、`AmapSdkKeyApplier`、`AndroidAmapRouteGateway`、地图会话）放 `androidMain`，Koin 在 `routeAndroidModule`。另依赖 `:core:network`。
   - `:feature:favorites`：编辑收藏（`FavoritesEditViewModel`，页面第 22 步做，现在是占位），以及旧收藏页用的卡片、分组弹窗组件。
@@ -60,7 +60,7 @@
 - `:core:datastore`（目录 `core/datastore/`）：DataStore KMP，`files/datastore/` 下三个文件：`trackr_settings.preferences_pb`（参与备份）、`trackr_amap_keys.preferences_pb`（备份排除）、`tracking_session.json`（追踪会话，`TrackingRepository` 读写；USE_NEW_STORE 关时只在内存里；备份排除）。改这些文件名要同时改 `androidApp/src/main/res/xml/` 的两份备份规则（`BackupRulesTest` 会先失败）。
 - 存储开关 USE_NEW_STORE（第 9 步，`androidApp/.../data/local/StoreSwitch.kt`）：默认新存储；`files/store_switch` 写 `old` 后杀进程重开即退回旧 SharedPreferences，写 `new` 或删掉文件恢复。新存储打不开或导入出错时自动退回旧存储。
 - `:core:testing`（目录 `core/testing/`）：测试辅助，平台能力接口的 Fake、`FakeClock`、`:core:data` 仓库接口的 Fake。
-- `:core:navigation`（目录 `core/navigation/`）：导航，KMP + CMP 版 Navigation 3，包名 `com.trackr.core.navigation`。`ScreenKey`（新增子类要同时登记进 `TrackrSavedStateConfiguration`）、`TopLevel`（页签）、`NavigationState`（每个页签一条返回栈 + 当前页签，`rememberNavigationState()`）、`Navigator`（所有导航动作：`open`、`back`、`selectTab` 等）、`TrackrTransitions`。页面不直接改返回栈，一律调 `Navigator`。测试：`commonTest` 的 `NavigatorTest`、`NavigationKeyTest`，`androidHostTest` 的 `NavigationStateRestorationTest`（Robolectric）。
+- `:core:navigation`（目录 `core/navigation/`）：导航，KMP + CMP 版 Navigation 3，包名 `com.trackr.core.navigation`。`ScreenKey`（新增子类要同时登记进 `TrackrSavedStateConfiguration`）、`TopLevel`（页签）、`NavigationState`（每个页签一条返回栈 + 当前页签，`rememberNavigationState()`）、`Navigator`（所有导航动作：`open`、`back`、`selectTab`、关弹层的 `dismiss` 等；弹层 Key 实现 `OverlayKey`，叠在根页上底栏不收起）、`TrackrTransitions`。页面不直接改返回栈，一律调 `Navigator`。测试：`commonTest` 的 `NavigatorTest`、`NavigationKeyTest`，`androidHostTest` 的 `NavigationStateRestorationTest`（Robolectric）。
 - `build-logic/convention`：约定插件，统一 SDK、JDK、单元测试与 Compose 编译器配置。
   - `trackr.android.application`：`:androidApp` 用。
   - `trackr.kmp.library` + `trackr.kmp.compose`：KMP 模块用（Android + iosArm64 + iosSimulatorArm64），`:core:designsystem`、`:core:navigation`、`:core:ui`、`:composeApp` 两个都用，`:core:model`、`:core:domain`、`:core:network`、`:core:data`、`:core:database`、`:core:datastore`、`:core:testing` 只用 `trackr.kmp.library`。

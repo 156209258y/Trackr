@@ -403,4 +403,50 @@ class NavigatorTest {
         navigator.onTabsChanged(TopLevel.visibleTabs(hasMapKey = true).toSet())
         assertEquals(ScreenKey.Home, state.topLevel)
     }
+
+    // ---- 「上了哪辆？」弹层（OverlayKey） ----
+
+    @Test
+    fun overlayOnTabRoot_stillCountsAsTabRoot_andBackClosesIt() {
+        val state = newState()
+        val navigator = Navigator(state)
+        val sheet = ScreenKey.ChooseBoardedBus("s-1")
+
+        navigator.open(sheet)
+        navigator.open(sheet) // 通知重放：不叠第二个
+
+        assertEquals(listOf<NavKey>(ScreenKey.Home, sheet), state.currentStack.toList())
+        assertTrue(state.isAtTabRoot, "根页上叠弹层：底栏照常显示")
+        assertTrue(navigator.back())
+        assertEquals(listOf<NavKey>(ScreenKey.Home), state.currentStack.toList())
+    }
+
+    @Test
+    fun overlayOnChildPage_isNotTabRoot() {
+        val state = newState()
+        val navigator = Navigator(state)
+        navigator.open(stop)
+        navigator.open(ScreenKey.ChooseBoardedBus("s-1"))
+
+        assertFalse(state.isAtTabRoot)
+    }
+
+    @Test
+    fun dismiss_removesOnlyThatOverlay_evenIfNotOnTop() {
+        val state = newState()
+        val navigator = Navigator(state)
+        val sheet = ScreenKey.ChooseBoardedBus("s-1")
+        navigator.open(stop)
+        navigator.open(sheet)
+
+        navigator.dismiss(sheet)
+        assertEquals(listOf<NavKey>(ScreenKey.Home, stop), state.currentStack.toList())
+
+        // 已经被返回关掉了再 dismiss：什么都不做，不会把站点页也退掉
+        navigator.dismiss(sheet)
+        assertEquals(listOf<NavKey>(ScreenKey.Home, stop), state.currentStack.toList())
+        // 页签根页不会被拿掉
+        navigator.dismiss(ScreenKey.Home)
+        assertEquals(listOf<NavKey>(ScreenKey.Home, stop), state.currentStack.toList())
+    }
 }

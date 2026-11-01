@@ -52,12 +52,15 @@ class LiveProgressNotifier(
      */
     data class WatchNotice(
         val lines: List<WatchedLine>,
-        val boardChoice: BoardChoice?
+        val boardChoice: BoardChoice?,
+        /** 有待选时点通知打开「上了哪辆？」弹层要带的会话 id */
+        val sessionId: String = ""
     ) {
         companion object {
             /** 会话是一起等（等车或已上车）时给出，否则 null */
             fun of(session: TrackingSession?): WatchNotice? =
-                session?.takeIf { it.watchTarget != null }?.let { WatchNotice(it.watchedLines, it.boardChoice) }
+                session?.takeIf { it.watchTarget != null }
+                    ?.let { WatchNotice(it.watchedLines, it.boardChoice, it.sessionId) }
         }
     }
 
@@ -209,14 +212,11 @@ class LiveProgressNotifier(
         // 5~6. 胶囊短文本与标题 / 正文 / 展开文本（按阶段）
         val texts = if (watch != null) buildWatchTexts(state, watch) else buildTexts(state, nextLineName)
 
-        // 7. 通知点击与 Action Intent
-        val launchIntent = context.packageManager.getLaunchIntentForPackage(context.packageName)
-            ?: Intent().setClassName(context.packageName, "com.trackr.MainActivity")
-        launchIntent.flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        // 7. 通知点击与 Action Intent：一起等有「上了哪辆？」待选时点通知直接打开那个弹层，否则只拉起 App
         val contentPendingIntent = PendingIntent.getActivity(
             context,
             200,
-            launchIntent,
+            contentIntent(context, watch),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
@@ -554,6 +554,20 @@ class LiveProgressNotifier(
             intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
+    }
+
+    /** 点通知本身：有「上了哪辆？」待选发 `trackr://tracking/board?session=`（§3.6），否则只拉起 App（页面不变） */
+    internal fun contentIntent(context: Context, watch: WatchNotice?): Intent {
+        val sessionId = watch?.sessionId.orEmpty()
+        if (watch?.boardChoice != null && sessionId.isNotBlank()) {
+            return Intent(Intent.ACTION_VIEW, Uri.parse(DeepLinkUris.chooseBoardedBus(sessionId)))
+                .setClassName(context.packageName, "com.trackr.MainActivity")
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+        }
+        val launchIntent = context.packageManager.getLaunchIntentForPackage(context.packageName)
+            ?: Intent().setClassName(context.packageName, "com.trackr.MainActivity")
+        launchIntent.flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        return launchIntent
     }
 
     private fun receiverPendingIntent(context: Context, action: String, requestCode: Int): PendingIntent {

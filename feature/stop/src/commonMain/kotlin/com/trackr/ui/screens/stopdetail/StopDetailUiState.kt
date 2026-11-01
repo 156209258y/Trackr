@@ -97,6 +97,8 @@ data class WatchLineUi(
 
 /** 「上了哪辆？」弹层（§2.6 第 ④ 条） */
 data class BoardChoiceUi(
+    /** 哪次追踪会话的待选（打开弹层的导航 Key 用） */
+    val sessionId: String = "",
     /** 弹层小字「两辆车都在 科技园站」 */
     val subtitle: String,
     val options: List<BoardOptionUi>

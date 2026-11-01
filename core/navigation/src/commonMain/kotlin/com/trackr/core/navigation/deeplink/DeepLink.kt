@@ -11,10 +11,7 @@ sealed interface DeepLink {
     /** 合成返回栈：切到 [tab]，它的栈重置为 `[tab, keys…]`（按返回回到页签根页，不退出 App）。 */
     data class Stack(val tab: ScreenKey, val keys: List<ScreenKey>) : DeepLink
 
-    /**
-     * 「上了哪辆？」弹层（§2.6 第 ④ 条），叠在当前栈上。
-     * 页面和 Key 在第 21 步做；在那之前收到这条链接只把 App 拉到前台，栈不动。
-     */
+    /** 「上了哪辆？」弹层（§2.6 第 ④ 条）：[ScreenKey.ChooseBoardedBus] 叠在当前栈顶，别的不动。 */
     data class ChooseBoardedBus(val sessionId: String) : DeepLink
 
     /** 不入栈，直接拉起乘车码（静态快捷方式、通知「乘车码」按钮）。 */

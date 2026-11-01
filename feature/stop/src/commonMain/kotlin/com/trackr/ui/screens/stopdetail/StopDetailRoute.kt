@@ -30,6 +30,16 @@ internal fun StopDetailRoute(viewModel: StopDetailViewModel, navigator: Navigato
         viewModel.userMessages.collect { snackbarHostState.showSnackbar(it) }
     }
 
+    // 本站一起等出现「上了哪辆？」待选：打开导航弹层（和通知点进来的是同一个，栈顶已是它就不重复叠），
+    // 并把这次待选记成弹过，弹层关了不再自己弹（新的待选照样弹）
+    val boardChoice = state.boardChoice
+    LaunchedEffect(boardChoice) {
+        if (boardChoice != null) {
+            navigator.open(ScreenKey.ChooseBoardedBus(boardChoice.sessionId))
+            viewModel.onEvent(StopDetailEvent.DismissBoardChoice)
+        }
+    }
+
     // 只在 RESUMED 时导航：防连点重复入栈、防转场中再点（同 dropUnlessResumed）
     val lifecycleOwner = LocalLifecycleOwner.current
     fun resumed() = lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)

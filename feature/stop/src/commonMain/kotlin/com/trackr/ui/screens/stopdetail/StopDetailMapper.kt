@@ -146,7 +146,7 @@ internal fun watchLineUiOf(wl: WatchedLine, stopName: String): WatchLineUi {
     )
 }
 
-/** 「上了哪辆？」弹层；没有待选、不是这个站、或这次待选已被划掉时为 null */
+/** 站点页要不要打开「上了哪辆？」；没有待选、不是这个站、或这次待选已经弹过 / 被划掉时为 null */
 internal fun boardChoiceUiOf(
     session: TrackingSession?,
     pageStopId: String,
@@ -154,12 +154,19 @@ internal fun boardChoiceUiOf(
     dismissedSinceMillis: Long?
 ): BoardChoiceUi? {
     if (session == null || !isWatchingHere(session, pageStopId, stops)) return null
+    if (session.boardChoice?.sinceMillis == dismissedSinceMillis) return null
+    return boardChoiceUiOf(session)
+}
+
+/** 「上了哪辆？」弹层内容；会话没有待选（或不是一起等）时为 null */
+internal fun boardChoiceUiOf(session: TrackingSession): BoardChoiceUi? {
     val choice = session.boardChoice ?: return null
-    if (choice.options.isEmpty() || choice.sinceMillis == dismissedSinceMillis) return null
+    if (choice.options.isEmpty()) return null
     val target = session.watchTarget ?: return null
     val count = choice.options.size
     val countText = if (count == 2) "两辆车" else "$count 辆车"
     return BoardChoiceUi(
+        sessionId = session.sessionId,
         subtitle = "${countText}都在 ${target.stopName}",
         options = choice.options.map { option ->
             BoardOptionUi(

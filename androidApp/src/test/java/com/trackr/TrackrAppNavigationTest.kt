@@ -6,6 +6,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
@@ -15,9 +16,16 @@ import androidx.compose.ui.test.junit4.StateRestorationTester
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performTextInput
 import androidx.test.core.app.ApplicationProvider
 import com.trackr.app.TrackrRoot
+import com.trackr.core.data.repository.TrackingRepository
+import com.trackr.core.model.BoardChoice
+import com.trackr.core.model.BoardOption
+import com.trackr.core.model.TrackingTarget
+import com.trackr.core.model.WatchLine
+import org.koin.core.context.GlobalContext
 import com.trackr.core.model.DataSourceType
 import com.trackr.core.model.TransitCity
 import com.trackr.core.navigation.ScreenKey
@@ -167,6 +175,7 @@ class TrackrAppNavigationTest {
     @After
     fun tearDown() {
         if (::homeViewModel.isInitialized) homeViewModel.pausePolling()
+        runCatching { GlobalContext.get().get<TrackingRepository>().stop() }
     }
 
     private fun pressBack() {
@@ -339,14 +348,72 @@ class TrackrAppNavigationTest {
         assertOnHomeRoot()
     }
 
+    /** App 的追踪会话（Koin 里那份）：开一个一起等，写上「上了哪辆？」待选 */
+    private fun startWatchWithBoardChoice(): String {
+        val repo = GlobalContext.get().get<TrackingRepository>()
+        val session = requireNotNull(
+            repo.start(
+                TrackingTarget.WatchTogether(
+                    cityId = "034",
+                    stopId = "stop_001",
+                    stopName = "人民广场",
+                    lines = listOf(WatchLine("line_49", "49路", 2, "上海体育馆"), WatchLine("line_71", "71路", 6, "徐家汇"))
+                )
+            )
+        )
+        repo.update(session.generation) {
+            it.copy(
+                boardChoice = BoardChoice(
+                    options = listOf(
+                        BoardOption(lineId = "line_49", lineName = "49路", busId = "b49"),
+                        BoardOption(lineId = "line_71", lineName = "71路", busId = "b71")
+                    ),
+                    sinceMillis = 1L
+                )
+            )
+        }
+        return session.sessionId
+    }
+
     @Test
-    fun chooseBoardedBusLink_beforeItsPageExists_leavesStackAlone() {
-        // 「上了哪辆？」弹层第 21 步才做：现在只把 App 拉到前台
+    fun chooseBoardedBusLink_opensSheetOverCurrentPage() {
+        val sessionId = startWatchWithBoardChoice()
         launch()
-        composeTestRule.runOnIdle { deepLink = DeepLink.ChooseBoardedBus("s-1") }
+        composeTestRule.runOnIdle { deepLink = DeepLink.ChooseBoardedBus(sessionId) }
         composeTestRule.waitForIdle()
 
         assertEquals(1, consumedLinks)
+        composeTestRule.onNodeWithText("上了哪辆？").assertExists()
+        composeTestRule.onNodeWithText("两辆车都在 人民广场").assertExists()
+        // 弹层叠在首页根页上：首页和底栏照常在（返回 / 下滑关弹层见 NavigationSceneAndResultTest）
+        assertOnHomeRoot()
+    }
+
+    @Test
+    fun chooseBoardedBusLink_choosingABus_closesSheet() {
+        val sessionId = startWatchWithBoardChoice()
+        launch()
+        composeTestRule.runOnIdle { deepLink = DeepLink.ChooseBoardedBus(sessionId) }
+        composeTestRule.waitForIdle()
+
+        // 弹层在单独的窗口里、还在展开动画中，Robolectric 下触摸点不到：直接触发点击语义
+        composeTestRule.onNodeWithText("还没上").performSemanticsAction(SemanticsActions.OnClick)
+        composeTestRule.waitForIdle()
+
+        composeTestRule.onNodeWithText("上了哪辆？").assertDoesNotExist()
+        assertOnHomeRoot()
+        assertEquals(null, GlobalContext.get().get<TrackingRepository>().session.value?.boardChoice)
+    }
+
+    @Test
+    fun chooseBoardedBusLink_forAnOldSession_closesByItself() {
+        // 链接里的会话已经结束（比如点的是一条旧通知）：弹层不留在栈上
+        launch()
+        composeTestRule.runOnIdle { deepLink = DeepLink.ChooseBoardedBus("s-old") }
+        composeTestRule.waitForIdle()
+
+        assertEquals(1, consumedLinks)
+        composeTestRule.onNodeWithText("上了哪辆？").assertDoesNotExist()
         assertOnHomeRoot()
         assertTrue(openedLines.isEmpty())
     }

@@ -9,6 +9,7 @@ import com.trackr.core.navigation.ScreenKey
 import com.trackr.core.network.provider.ITransitProvider
 import com.trackr.ui.screens.linedetail.LineDetailViewModel
 import com.trackr.ui.screens.search.SearchViewModel
+import com.trackr.ui.screens.stopdetail.ChooseBoardedBusViewModel
 import com.trackr.ui.screens.stopdetail.StopDetailViewModel
 import com.trackr.feature.bus.busModule
 import com.trackr.feature.favorites.favoritesModule
@@ -149,6 +150,7 @@ class KoinGraphVerifyTest {
         )
         // 页面里由 koinViewModel() 从导航 entry 带进来；这里手动给一个
         SearchViewModel::class -> parametersOf(SavedStateHandle())
+        ChooseBoardedBusViewModel::class -> parametersOf(ScreenKey.ChooseBoardedBus(sessionId = "s-1"))
         else -> emptyParametersHolder()
     }
 

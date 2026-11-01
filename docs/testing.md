@@ -46,7 +46,7 @@
 | `:core:datastore` | 1 | `:feature:me` | 2 |
 | `:core:designsystem` | 2 | `:feature:route` | 5 |
 | `:core:domain` | 4 | `:feature:search` | 3 |
-| `:core:navigation` | 5 | `:feature:stop` | 3 |
+| `:core:navigation` | 5 | `:feature:stop` | 4 |
 | `:core:network` | 12 | `:core:testing` | 1 |
 
 `:core:model` 没有测试。KMP 模块的 `test` 由约定插件 `trackr.kmp.library` 补上，只跑 Android 主机测试（`testAndroidHostTest`）；iOS 另跑 `./gradlew :core:domain:iosSimulatorArm64Test`（`:core:network`、`:core:data` 同理，需要 Xcode 和 iOS 模拟器运行时），`:core:database` 的 DAO 测试同样在 iOS 模拟器上跑（`./gradlew :core:database:iosSimulatorArm64Test`，用 BundledSQLiteDriver），设计系统只做编译检查 `./gradlew :core:designsystem:compileKotlinIosSimulatorArm64`，导航做编译检查加测试链接 `./gradlew :core:navigation:linkDebugTestIosSimulatorArm64`。各 `:feature:*`、`:composeApp`、`:core:ui` 在 iOS 上也只做这两步：`./gradlew :feature:bus:compileKotlinIosSimulatorArm64`、`./gradlew :feature:bus:linkDebugTestIosSimulatorArm64`（其他模块换模块名）。
@@ -71,7 +71,7 @@ Koin 由 `TrackrApp.onCreate` 启动，Robolectric 用例里每个用例都会�
 | 目录 | 测试类 | 覆盖范围 | 运行方式 |
 | :--- | :--- | :--- | :--- |
 | 根目录 | `TransitUnitTest` | 核心算法（`RouteProjectionMath` 坐标插值与站名纠错、线路与城市模型；车来了加解密第 8 步搬到 `:core:network` 的 `ChelaileCryptoTest`） | 本地 JVM |
-|  | `TrackrAppNavigationTest` | 用真实的 `TrackrRoot` 走一遍（首页 ViewModel 换成接 Fake 的）：首页根页在轮询；切到「更多」后停轮询，超过一个周期（15 秒）再回来立即补刷；进搜索后停轮询，15 秒内回来不补刷；收藏页是首页栈的子页，返回回首页；进程重建后恢复到「更多」时新建的首页 ViewModel 不轮询、切回首页才开始；第 18 步 deep link（线路详情 ViewModel 也接 Fake）：冷启动带链接 → `[首页, 线路详情]`、首页停轮询、返回回首页根页；热启动在「更多」或首页子页（搜索）上收到链接 → 首页栈重置为 `[首页, 线路详情]`，返回直接回首页根页；同一条链接重放不叠第二页；「上了哪辆？」链接现在不动栈；搜索页（第 23 步，entry 级 + `SavedStateHandle`）：输入的词进程重建后还在，离开再进来是空的 | Robolectric Compose UI |
+|  | `TrackrAppNavigationTest` | 用真实的 `TrackrRoot` 走一遍（首页 ViewModel 换成接 Fake 的）：首页根页在轮询；切到「更多」后停轮询，超过一个周期（15 秒）再回来立即补刷；进搜索后停轮询，15 秒内回来不补刷；收藏页是首页栈的子页，返回回首页；进程重建后恢复到「更多」时新建的首页 ViewModel 不轮询、切回首页才开始；第 18 步 deep link（线路详情 ViewModel 也接 Fake）：冷启动带链接 → `[首页, 线路详情]`、首页停轮询、返回回首页根页；热启动在「更多」或首页子页（搜索）上收到链接 → 首页栈重置为 `[首页, 线路详情]`，返回直接回首页根页；同一条链接重放不叠第二页；「上了哪辆？」链接把弹层叠在当前页上（首页和底栏照常在）、点「还没上」弹层关掉并清掉待选、链接里的会话已经结束时弹层自己关；搜索页（第 23 步，entry 级 + `SavedStateHandle`）：输入的词进程重建后还在，离开再进来是空的 | Robolectric Compose UI |
 |  | `MainActivityDeepLinkTest` | 真实的 `MainActivity`（第 18 步）：冷启动带 `trackr://line` 打开对应线路详情、Intent 里的链接被清掉、返回回首页根页；旧版 6 个 extra 仍能打开；热启动 `onNewIntent` 同样；带保存状态重建时不重放；`trackr://transit-code` 直接拉起支付宝乘车码、不动栈；坏链接忽略 | Robolectric Compose UI |
 | `deeplink` | `DeepLinkIntentsTest` | Intent ↔ `trackr://` 链接（第 18 步）：data 里的新链接；旧版 6 个 extra、两种拼法的旧 `OPEN_TRANSIT_CODE` action 兼容（只有 alipay 是支付宝）；`consume` 后同一个 Intent 不重放、不碰非 `trackr` 的 data；别的 App 传来的坏 Intent 忽略；动态快捷方式发的是 `ACTION_VIEW` + `trackr://line` | Robolectric (JVM) |
 | `data/remote/amap` | `AmapSdkManagerTest` | 高德 Key 本地持久化（`AmapKeyStorage`）：Android / Web 两槽分开存、读 Android Key 不回落到 Web 槽、旧 Key 从 `trackr_prefs` 挪出只做一次、新文件里已有的 Key 不被旧值覆盖（SDK 封装的用例第 17 步搬到 `:feature:route`） | Robolectric (JVM) |
@@ -87,7 +87,7 @@ Koin 由 `TrackrApp.onCreate` 启动，Robolectric 用例里每个用例都会�
 | `receiver` | `ScheduledReminderReceiverTest` | 定时提醒触发、自动跟车需精确闹钟、传给 `TrackingController` 的单线路目标；降级：非精确闹钟或启动被拒时改发通知并追加「系统限制未能自动开启跟车」提示，点「开启实时追踪」仍失败时保留通知、成功才关掉；点通知发 `trackr://line` 链接、解析出同一条线路详情（第 18 步） | Robolectric (JVM) |
 |  | `BootCompletedReceiverTest` | 开机禁用已错过的一次性提醒、时间变化重新调度、无关广播忽略 | Robolectric (JVM) |
 | `service` | `ArrivalAlertManagerTest` | 到站/临近提醒与实时通知并存时的去重 | Robolectric (JVM) |
-|  | `LiveProgressNotificationHelperTest` | 实时进度通知进度计算与文案；一起等通知：标题写最先到的、正文只带第 2 条线、「我上车了 / 乘车码 / 结束」（乘车码发 `trackr://transit-code` 打开 App）、「上了哪辆？」和乘车中文字 | Robolectric (JVM) |
+|  | `LiveProgressNotificationHelperTest` | 实时进度通知进度计算与文案；一起等通知：标题写最先到的、正文只带第 2 条线、「我上车了 / 乘车码 / 结束」（乘车码发 `trackr://transit-code` 打开 App）、「上了哪辆？」和乘车中文字；有「上了哪辆？」待选时点通知发 `trackr://tracking/board?session=`、显式指向 `MainActivity`，没有待选照旧只拉起 App | Robolectric (JVM) |
 |  | `BusTrackingServiceTest` | 追踪服务：路线且有精确定位时前台服务带 `location` 类型、等车近站开定位；没有精确定位退回 `specialUse` 且不开定位；单线路不要 `location`；结束追踪时关定位并停服务；过时的启动请求先进前台再停；服务销毁时结束会话；一起等：3 条线每轮只 1 次站点请求、最先到的写进会话、带 `location` 类型，上车后只请求那一条线并以终点为目标 | Robolectric (JVM) |
 | `service/vendor` | `LiveUpdatePromotionTest` | Android 16 Live Update 推广通知构建与厂商识别 | Robolectric (JVM) |
 |  | `XiaomiFocusAdapterTest` | 小米焦点通知 JSON 负载构建 | Robolectric (JVM) |
@@ -114,6 +114,7 @@ Koin 由 `TrackrApp.onCreate` 启动，Robolectric 用例里每个用例都会�
 | `:feature:stop` `ui/screens/stopdetail` | `StopDetailViewModelTest` | 站点详情：初次加载站台并解析站名、切物理站台后用那个站台刷新、收藏切换、轮询暂停恢复、上一轮没回来跳过本轮、回到页面只在数据过时时刷新（关了自动轮询不刷）；第 21 步 v3：站台按「往 终点」命名、缺数据或同名退回「站台 1 / 2」，行的到站文字和小字；选几条一起等（不设上限、不可选的行忽略、换站台清空勾选、返回先退出选线）、存成 1 程路线（只存一次）、开始一起等（失败留在选线并提示）；本站一起等进行中：按到站排序、切到会话的站台、页面自己不轮询、结束后补刷、别的站不显示；「再加一条」带上正在等的线、「我上车了」、「上了哪辆？」选车 / 还没上 / 划掉；乘车码（有默认直接开、「每次询问」弹选择、勾选记成默认）；下拉刷新 | commonTest（JVM；iOS 只编译和链接测试，不跑） |
 |  | `StopDetailScreenTest` | v3 站点详情（无状态 `StopDetailScreen(state, onEvent)`）：普通模式显示站台、线路行、没有「查看全线」，点行进线路、点站台切换、按钮发事件；选线模式计数和按钮、没勾时按钮不可点；一起等视图最先到的在前、有「我上车了」，上车后隐藏 | Robolectric Compose UI |
 |  | `ChooseBoardedBusTest` | 「上了哪辆？」弹层：标题、说明和每辆车都显示，点车发车 id，点「还没上」发 null | Robolectric Compose UI |
+|  | `ChooseBoardedBusViewModelTest` | 「上了哪辆？」导航弹层（`ScreenKey.ChooseBoardedBus`）：有待选时显示每辆车和终点、选了交给 `TrackingController`、「还没上」后关；没有待选、链接里是别的会话、追踪结束都关 | commonTest（JVM；iOS 未验） |
 | `:feature:line` `ui/screens/linedetail` | `LineDetailViewModelTest` | 线路详情（第 20 步 v3）：初次加载拆成静态 / 实时两半（带目标站序只请求一次、不带时为默认站补一次）；选站 / 手动刷新后下一轮从那一刻起再等 10 秒；下拉刷新只在下拉时画圈；站表先读磁盘缓存（网络没回来先显示、不挡请求、站表变了才写回、静态部分沿用旧实例、缓存上点过的站不被初次结果改掉）；跟车；收藏切换及提示条（有分组时带「换分组」、换分组后提示）；定时提醒保存并提示；换向找同名站；乘车码弹层与偏好；追踪当前站（提前 2 站）和「追踪本站」判断；车都过了用时刻表补下一班（快来的车不用）；上一轮没回来跳过；回到页面只在过时时刷新 | commonTest（JVM；iOS 只编译和链接测试，不跑） |
 |  | `BusFollowContentTest` | 跟车内容渲染与空车辆处理 | Robolectric Compose UI |
 |  | `StationArrivalContentTest` | 线路页主卡：在路上（大字分钟、小字站数、车牌、预计到达、下一辆）、到站了、车都过了只给下一班始发时间（没有时用时刻表或提示）、首班、末班已过、实时没回来显示「正在查车…」、追踪中标记、预警 chips 已去掉、「全线 N 辆车在途 · 查看」与「XX站上车」点击；反向切换按钮不在主卡 | Robolectric Compose UI |
@@ -141,7 +142,7 @@ Koin 由 `TrackrApp.onCreate` 启动，Robolectric 用例里每个用例都会�
 | `:core:domain` `math` | `CoordTransformTest` | WGS-84 / GCJ-02 坐标转换 | commonTest（JVM + iOS 模拟器） |
 | `:core:domain` `tracking` | `TrackingEngineTest` | 追踪状态机：单线路选车、换车重置提醒、车辆短暂消失保持原车；路线两阶段（候车锁车、乘车到站、信号丢失）；定位跟车检测（待确认、上车、没赶上、超时兜底、错锁纠正）与定位档位；自适应轮询间隔与失败退避；下车站判定（含 WGS-84 转 GCJ-02）；开始 / 换乘切程（代际号 +1、只发换乘提醒）/ 走完结束 / 手动下一程 / 我上车了 / 改提醒站数；服务定位过滤；一起等（第 15 步，`watch_*`）：多线取最快、先后变化、到站提醒每辆一次、没定位不自动判上车、只有一辆在站、两辆在站定位分得清不弹窗 / 分不清或没定位写 `boardChoice`、选车与「还没上」、`boardChoice` 5 分钟清掉或被定位分清、手动上车按 A..A+1 最近、锁不到后续补锁并以终点为目标、某线无数据、10 条线等车阶段只发 1 次站点请求、有定位自动判上车且待确认只请求在站的线、只有 1 程无下车站到终点结束、上车后旧结果丢弃；第 21 步：站点页存的 1 程无下车站路线存了能原样读回、开始时按一起等追，有下车站的路线照旧按路线追 | commonTest（JVM + iOS 模拟器） |
 | `:core:domain` 根目录 | `JvmParityTest` | 第 7 步换掉的 JVM API 与新写法逐个比对：公里数格式化、角度转弧度（逐位相同）、两种测距公式、分钟取整、提醒时刻格式化 | androidHostTest（只 JVM） |
-| `:core:navigation` | `NavigatorTest` | `Navigator` 纯逻辑：栈顶去重压栈、逐页返回、非首页页签根页返回回首页、首页根页返回交给系统；切页签保留各自的栈、再点当前页签回根并发 `reselect`；`applyDeepLink`（第 18 步合成返回栈：冷 / 热启动都把目标页签栈重置为 `[根, 目标]`、别的页签不动、重放幂等、跳过根和相邻重复、未知页签落到首页）；`showInTab`（规划页去收藏：栈里已有就退到它、没有就回根再压，不叠重复页）；页签隐藏时清栈回首页；`isShowingRootOf`（首页轮询条件）；`stacksShown`（叠放起始页签 / 只显示当前页签）；`TopLevel.visibleTabs` 没 Key 时只去掉「路线规划」；第 17 步起 3 个页签，「收藏」不能再当页签切、作为首页栈的子页打开，`popChildPage` 只在当前栈里退、根页不切页签 | commonTest（JVM + iOS 模拟器） |
+| `:core:navigation` | `NavigatorTest` | `Navigator` 纯逻辑：栈顶去重压栈、逐页返回、非首页页签根页返回回首页、首页根页返回交给系统；切页签保留各自的栈、再点当前页签回根并发 `reselect`；`applyDeepLink`（第 18 步合成返回栈：冷 / 热启动都把目标页签栈重置为 `[根, 目标]`、别的页签不动、重放幂等、跳过根和相邻重复、未知页签落到首页）；`showInTab`（规划页去收藏：栈里已有就退到它、没有就回根再压，不叠重复页）；页签隐藏时清栈回首页；`isShowingRootOf`（首页轮询条件）；`stacksShown`（叠放起始页签 / 只显示当前页签）；`TopLevel.visibleTabs` 没 Key 时只去掉「路线规划」；第 17 步起 3 个页签，「收藏」不能再当页签切、作为首页栈的子页打开，`popChildPage` 只在当前栈里退、根页不切页签；弹层 Key（`OverlayKey`）：叠在页签根页上仍算根页（底栏不收起）、叠在子页上不算，`open` 重放不叠第二个，`dismiss` 只拿掉那个弹层（不在栈里时什么都不做，页签根页不动） | commonTest（JVM + iOS 模拟器） |
 |  | `DeepLinkParserTest` | `DeepLinkParser` / `DeepLinkUris`（第 18 步，§3.6 表）：line / route / stop / tracking/board / transit-code 五种链接；和拼链接的函数往返（含掌上公交带中文和冒号的 id、线名里的 `& = # ? / +`）；scheme / host 不分大小写；外来 scheme、未知 host、段数不对、空白 / 控制字符 / 超长 id、坏的百分号编码忽略；可选参数坏了退回默认值 | commonTest（JVM + iOS 模拟器） |
 |  | `NavigationKeyTest` | `ScreenKey` 用 JSON 序列化与反序列化（第 16 步从 `:androidApp` 搬来） | commonTest（JVM + iOS 模拟器） |
 |  | `NavigationStateRestorationTest` | `StateRestorationTester` 模拟进程重建后 3 条栈和当前页签、页内 `rememberSaveable` 都恢复；存档后页签少了一个（4 → 3）时每条栈仍归原页签、不按位置错给「更多」；切页签不丢另一条栈的页内状态和 ViewModel、弹出页面只清它自己的 ViewModel；`TrackrSavedStateConfiguration` 登记了全部 `ScreenKey`，默认配置存不了 | Robolectric Compose UI（只 JVM） |

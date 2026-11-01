@@ -59,4 +59,14 @@ sealed interface ScreenKey : NavKey {
     /** 编辑收藏（§3.1 公交页签子页，第 22 步做页面；第 17 步只占位） */
     @Serializable
     data object FavoritesEdit : ScreenKey
+
+    /**
+     * 「上了哪辆？」弹层（§2.6 第 ④ 条、§3.7）：叠在当前栈顶，用 `BottomSheetSceneStrategy` 显示。
+     * 通知点开（`trackr://tracking/board?session=`）或站点页遇到待选时打开；会话换了、待选没了就自己关掉。
+     */
+    @Serializable
+    data class ChooseBoardedBus(val sessionId: String) : ScreenKey, OverlayKey
 }
+
+/** 叠在页面上的弹层 Key：在栈里，但不算「离开了页签根页」（底栏照常显示）。 */
+interface OverlayKey

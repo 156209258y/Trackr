@@ -140,8 +140,8 @@ private fun TrackrNavApp(
                     homeViewModel.setPollingActive(false)
                 }
             }
-            // 「上了哪辆？」弹层第 21 步做；在那之前只把 App 拉到前台，栈不动
-            is DeepLink.ChooseBoardedBus -> Unit
+            // 「上了哪辆？」：弹层叠在当前栈顶，页签和下面的页都不动；栈顶已是它就不重复叠
+            is DeepLink.ChooseBoardedBus -> navigator.open(ScreenKey.ChooseBoardedBus(link.sessionId))
             // 乘车码由平台层直接拉起，不会传到这里
             is DeepLink.TransitCode -> Unit
         }

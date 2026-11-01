@@ -86,6 +86,16 @@ class Navigator(private val state: NavigationState) {
         if (stack.size > 1) stack.removeLastOrNull()
     }
 
+    /**
+     * 关掉当前栈里的弹层 [key]（弹层自己关：选完了、待选没了、会话换了）。
+     * 不用 [back]：弹层关的时候用户可能已经按了返回，再退一页会把下面的页也退掉。不在栈里就什么都不做。
+     */
+    fun dismiss(key: ScreenKey) {
+        val stack = state.currentStack
+        val index = stack.lastIndexOf(key)
+        if (index > 0) stack.removeAt(index)
+    }
+
     /** 页签集合变化（D2：没 Key 隐藏「路线」）：当前页签不在了就清空它的栈并回起始页签。 */
     fun onTabsChanged(visible: Set<ScreenKey>) {
         if (state.topLevel !in visible) {

@@ -383,6 +383,30 @@ class LiveProgressNotificationHelperTest {
     }
 
     @Test
+    fun watchTogether_boardChoice_tapOpensChooseBoardedBusLink() {
+        val pending = LiveProgressNotifier.WatchNotice(
+            lines = threeLines.lines,
+            boardChoice = BoardChoice(
+                options = listOf(
+                    BoardOption(lineId = "L1", lineName = "325", busId = "a"),
+                    BoardOption(lineId = "L2", lineName = "M194", busId = "b")
+                ),
+                sinceMillis = 0L
+            ),
+            sessionId = "s-1"
+        )
+        val notification = liveNotifier.buildNotification(context, watchWaitingState(), watch = pending)
+        val tap = org.robolectric.Shadows.shadowOf(notification.contentIntent).savedIntent
+        assertEquals(android.content.Intent.ACTION_VIEW, tap.action)
+        assertEquals("trackr://tracking/board?session=s-1", tap.dataString)
+        assertEquals("com.trackr.MainActivity", tap.component?.className)
+
+        // 没有待选：点通知照旧只拉起 App，不带链接
+        val plain = liveNotifier.buildNotification(context, watchWaitingState(), watch = threeLines.copy(sessionId = "s-1"))
+        assertNull(org.robolectric.Shadows.shadowOf(plain.contentIntent).savedIntent.data)
+    }
+
+    @Test
     fun watchTogether_lineShortTexts() {
         assertEquals("M194 9 分钟", liveNotifier.watchLineShort(watched("L2", "M194", eta = 540, stops = 4)))
         assertEquals("M194 3 站", liveNotifier.watchLineShort(watched("L2", "M194", stops = 3)))
