@@ -1517,8 +1517,9 @@ class TrackingEngineTest {
         poll: WatchPoll,
         locationEnabled: Boolean = false,
         fix: UserFix? = null,
-        now: Long = NOW_MILLIS
-    ) = TrackingEngine.reduceWatchPoll(session, poll, locationEnabled, fix, now, ELAPSED_NOW)
+        now: Long = NOW_MILLIS,
+        elapsedMillis: Long = ELAPSED_NOW
+    ) = TrackingEngine.reduceWatchPoll(session, poll, locationEnabled, fix, now, elapsedMillis)
 
     @Test
     fun watch_begin_dedupesLinesAndWaitsOnFirst() {
@@ -1846,7 +1847,8 @@ class TrackingEngineTest {
             linePoll("L1" to listOf(lineBus("a", order = 6, metersNorth = 150, progress = 0.3f))),
             locationEnabled = true,
             fix = userFix(150, elapsedMillis = ELAPSED_NOW + 10_000),
-            now = NOW_MILLIS + 10_000
+            now = NOW_MILLIS + 10_000,
+            elapsedMillis = ELAPSED_NOW + 10_000
         ).session
         assertEquals(LegPhase.WAITING_BOARD, first.state.legPhase)
         // 没请求的 M194 保持上次的数据
@@ -1856,7 +1858,8 @@ class TrackingEngineTest {
             linePoll("L1" to listOf(lineBus("a", order = 6, metersNorth = 320, progress = 0.6f))),
             locationEnabled = true,
             fix = userFix(310, elapsedMillis = ELAPSED_NOW + 20_000),
-            now = NOW_MILLIS + 20_000
+            now = NOW_MILLIS + 20_000,
+            elapsedMillis = ELAPSED_NOW + 20_000
         ).session
         assertEquals(LegPhase.ON_BOARD, boarded.state.legPhase)
         assertEquals("L1", boarded.leg.lineId)
