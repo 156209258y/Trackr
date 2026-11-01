@@ -4,17 +4,20 @@ import androidx.navigation3.runtime.EntryProviderScope
 import androidx.navigation3.runtime.NavKey
 import com.trackr.core.navigation.Navigator
 import com.trackr.core.navigation.ScreenKey
-import com.trackr.ui.navigation.PendingScreen
+import com.trackr.ui.screens.favoritesedit.FavoritesEditRoute
 import com.trackr.ui.screens.favoritesedit.FavoritesEditViewModel
+import org.koin.compose.viewmodel.koinViewModel
 import org.koin.core.module.dsl.viewModel
 import org.koin.dsl.module
 
 /**
- * 编辑收藏页的导航入口（第 22 步做页面，第 17 步只占位、还没有入口）。
- * 旧收藏页（`ScreenKey.FavoritesGroup`）在 `:composeApp`：它同时要本模块和 `:feature:route` 的 ViewModel。
+ * 编辑收藏页的导航入口（第 22 步）。
+ * 旧收藏页（`ScreenKey.FavoritesGroup`）已删除，首页「编辑」、路线卡的「去看看」都进这一页。
  */
 fun EntryProviderScope<NavKey>.favoritesEntries(navigator: Navigator) {
-    entry<ScreenKey.FavoritesEdit> { PendingScreen("编辑收藏") }
+    entry<ScreenKey.FavoritesEdit> {
+        FavoritesEditRoute(viewModel = koinViewModel(), navigator = navigator)
+    }
 }
 
 /** 编辑收藏的 Koin 定义（原 `FavoritesGroupViewModel` 拆出来的分组增删改、筛选部分） */

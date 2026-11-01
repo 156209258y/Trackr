@@ -19,8 +19,3 @@ internal expect fun PermissionOnboarding()
 @Composable
 internal expect fun bottomTabIcon(key: ScreenKey): ImageVector
 
-/**
- * 旧收藏页（第 22 步删）。第 17 步起不再是页签，压在首页栈上；它同时用
- * `:feature:favorites` 和 `:feature:route` 的 ViewModel，所以放在这里而不是某个 feature。
- */
-internal expect fun EntryProviderScope<NavKey>.favoritesGroupEntries(navigator: Navigator, hasMapKey: Boolean)

@@ -33,9 +33,9 @@ fun BusHomeRoute(viewModel: BusHomeViewModel, navigator: Navigator) {
                 BusHomeEvent.OpenSearch -> if (canNavigate) navigator.open(ScreenKey.Search)
                 is BusHomeEvent.OpenLine -> if (canNavigate) navigator.open(event.target.toKey())
                 is BusHomeEvent.OpenStop -> if (canNavigate) navigator.open(event.target.toKey())
-                // 「编辑」和路线：新编辑页、路线详情在第 22 步做，先开旧收藏页（第 17 步起它是首页栈的子页）
-                BusHomeEvent.EditFavorites,
-                is BusHomeEvent.OpenRoute -> if (canNavigate) navigator.open(ScreenKey.FavoritesGroup)
+                // 「编辑」进编辑收藏页；路线卡进新的路线详情（第 22 步）
+                BusHomeEvent.EditFavorites -> if (canNavigate) navigator.open(ScreenKey.FavoritesEdit)
+                is BusHomeEvent.OpenRoute -> if (canNavigate) navigator.open(ScreenKey.RouteDetail(event.routeId))
                 else -> viewModel.onEvent(event)
             }
         }

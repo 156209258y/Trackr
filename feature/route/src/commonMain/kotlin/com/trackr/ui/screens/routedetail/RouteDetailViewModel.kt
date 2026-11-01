@@ -13,6 +13,8 @@ import com.trackr.core.model.BusLineDetail
 import com.trackr.core.model.CandidateLine
 import com.trackr.core.model.CandidateLineRealtimeInfo
 import com.trackr.core.model.DataSourceType
+import com.trackr.core.model.FavoriteGroup
+import com.trackr.core.model.GroupCategory
 import com.trackr.core.model.GroupTrackingSessionState
 import com.trackr.core.model.TrackingTarget
 import com.trackr.core.model.TransitCity
@@ -248,6 +250,65 @@ class RouteDetailViewModel(
      */
     fun stopGroupTracking() {
         trackingController.stopTracking()
+    }
+
+    // ---- 路线详情页（第 22 步）：改名、改分组、生成返程、删除、临时方案存成收藏 ----
+
+    /** 收藏分组（详情页「改分组」和「收藏」弹层用） */
+    val favoriteGroups: StateFlow<List<FavoriteGroup>> = groupRepository.favoriteGroups
+
+    /** 改路线名 */
+    fun renameGroup(groupId: String, name: String) {
+        val trimmed = name.trim()
+        if (trimmed.isEmpty()) return
+        viewModelScope.launch(ioDispatcher) {
+            val group = groupRepository.getGroupById(groupId) ?: return@launch
+            if (group.name == trimmed) return@launch
+            groupRepository.updateGroup(group.copy(name = trimmed))
+        }
+    }
+
+    /** 放到某个收藏分组；null = 不分组 */
+    fun moveGroupToFavoriteGroup(groupId: String, favoriteGroupId: String?) {
+        viewModelScope.launch(ioDispatcher) {
+            val group = groupRepository.getGroupById(groupId) ?: return@launch
+            if (group.customGroupId == favoriteGroupId) return@launch
+            groupRepository.updateGroup(
+                group.copy(
+                    customGroupId = favoriteGroupId,
+                    category = if (favoriteGroupId == null) GroupCategory.CUSTOM else group.category
+                )
+            )
+        }
+    }
+
+    /** 地图临时方案存成收藏（可同时改名字、放到分组） */
+    fun saveTemporaryGroup(groupId: String, name: String, favoriteGroupId: String?) {
+        viewModelScope.launch(ioDispatcher) {
+            groupRepository.saveOrConvertTemporaryGroup(
+                groupId = groupId,
+                newName = name.trim().ifEmpty { null },
+                customGroupId = favoriteGroupId
+            )
+        }
+    }
+
+    fun deleteGroup(groupId: String) {
+        viewModelScope.launch(ioDispatcher) {
+            groupRepository.deleteGroup(groupId)
+        }
+    }
+
+    fun createReverseGroup(group: TransitGroup) {
+        viewModelScope.launch(ioDispatcher) {
+            val targetGroupId = when (group.customGroupId) {
+                "commute" -> "home"
+                "home" -> "commute"
+                else -> group.customGroupId ?: if (group.category == GroupCategory.COMMUTE) "home" else null
+            }
+            val reversed = alignment.buildReverseTransitGroup(group, targetGroupId)
+            groupRepository.addGroup(reversed)
+        }
     }
 
     /**

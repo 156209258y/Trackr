@@ -57,7 +57,6 @@ import com.trackr.feature.search.searchEntries
 import com.trackr.feature.stop.stopEntries
 import com.trackr.ui.navigation.LocalAppViewModelStoreOwner
 import com.trackr.ui.navigation.rememberVisibleTabs
-import com.trackr.ui.screens.favoritesedit.FavoritesEditViewModel
 import com.trackr.feature.bus.home.BusHomeViewModel
 import com.trackr.ui.screens.routedetail.RouteDetailViewModel
 import com.trackr.ui.screens.routeplan.RoutePlanViewModel
@@ -120,7 +119,6 @@ private fun TrackrNavApp(
     }
     koinViewModel<RoutePlanViewModel>(viewModelStoreOwner = appViewModelStoreOwner)
     koinViewModel<RouteDetailViewModel>(viewModelStoreOwner = appViewModelStoreOwner)
-    koinViewModel<FavoritesEditViewModel>(viewModelStoreOwner = appViewModelStoreOwner)
 
     // D2：没有高德 Key 就不显示「路线规划」；Key 被清空且正停在那个页签时回首页、清掉它的栈
     val visibleTabs = rememberVisibleTabs(koinInject<AmapKeyRepository>(), navigator)
@@ -260,7 +258,6 @@ private fun TrackrNavApp(
             entries = navigationState.toDecoratedEntries(startUnderneath = true, entryProvider = entryProvider {
                 busEntries(navigator)
                 routeEntries(navigator)
-                favoritesGroupEntries(navigator, hasMapKey = hasMapKey)
                 searchEntries(navigator)
                 lineEntries(navigator)
                 stopEntries(navigator)

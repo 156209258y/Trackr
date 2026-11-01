@@ -15,7 +15,7 @@ import com.trackr.data.remote.amap.AndroidAmapRouteGateway
 import com.trackr.data.remote.amap.AndroidAmapSdkKeyApplier
 import com.trackr.data.remote.amap.AndroidMapSdkInitializer
 import com.trackr.ui.navigation.LocalAppViewModelStoreOwner
-import com.trackr.ui.navigation.PendingScreen
+import com.trackr.ui.screens.routedetail.RouteDetailRoute
 import com.trackr.ui.screens.routedetail.RouteDetailViewModel
 import com.trackr.ui.screens.routeplan.RoutePlanRoute
 import com.trackr.ui.screens.routeplan.RoutePlanViewModel
@@ -34,9 +34,9 @@ actual fun EntryProviderScope<NavKey>.routeEntries(navigator: Navigator) {
         RoutePlanRoute(
             viewModel = routePlanViewModel,
             routeDetailViewModel = routeDetailViewModel,
-            // 「去看看」：切到首页页签，让收藏页成为栈顶（已有就退到它，没有就回根再打开）
+            // 「去看看」：切到首页页签，让编辑收藏页成为栈顶（已有就退到它，没有就回根再打开）
             onNavigateToFavorites = dropUnlessResumed {
-                navigator.showInTab(ScreenKey.Home, ScreenKey.FavoritesGroup)
+                navigator.showInTab(ScreenKey.Home, ScreenKey.FavoritesEdit)
             },
             onNavigateToLineDetail = { line, targetOrder ->
                 // 只在 RESUMED 时跳，防连点重复入栈（同 dropUnlessResumed）
@@ -55,8 +55,12 @@ actual fun EntryProviderScope<NavKey>.routeEntries(navigator: Navigator) {
         )
     }
 
-    // 路线详情：第 22 步做页面，第 17 步只占位（还没有入口）
-    entry<ScreenKey.RouteDetail> { PendingScreen("路线详情") }
+    // 路线详情（第 22 步）：和规划页共用一个 RouteDetailViewModel，追踪状态两边一致
+    entry<ScreenKey.RouteDetail> { key ->
+        val appOwner = LocalAppViewModelStoreOwner.current
+        val routeDetailViewModel: RouteDetailViewModel = koinViewModel(viewModelStoreOwner = appOwner)
+        RouteDetailRoute(groupId = key.groupId, viewModel = routeDetailViewModel, navigator = navigator)
+    }
 }
 
 /** 高德 Android SDK 相关的绑定（§2.9：SDK 封装在 :feature:route 的 androidMain） */

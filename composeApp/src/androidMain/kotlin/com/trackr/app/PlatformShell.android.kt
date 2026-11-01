@@ -28,11 +28,8 @@ import androidx.navigation3.runtime.EntryProviderScope
 import androidx.navigation3.runtime.NavKey
 import com.trackr.core.navigation.Navigator
 import com.trackr.core.navigation.ScreenKey
-import com.trackr.ui.navigation.dropUnlessResumed
-import com.trackr.ui.screens.favoritesedit.FavoritesEditViewModel
-import com.trackr.ui.screens.favoritesgroup.FavoritesGroupScreen
-import com.trackr.ui.screens.routedetail.RouteDetailViewModel
 import com.trackr.ui.navigation.LocalAppViewModelStoreOwner
+import com.trackr.ui.navigation.dropUnlessResumed
 import com.trackr.feature.bus.home.BusHomeViewModel
 import com.trackr.ui.screens.routeplan.ProvideAmapMapSession
 import org.koin.compose.viewmodel.koinViewModel
@@ -143,35 +140,6 @@ internal actual fun PermissionOnboarding() {
                 ) {
                     Text("暂不授权")
                 }
-            }
-        )
-    }
-}
-
-/** 旧收藏页（第 22 步删），压在首页栈上 */
-internal actual fun EntryProviderScope<NavKey>.favoritesGroupEntries(navigator: Navigator, hasMapKey: Boolean) {
-    entry<ScreenKey.FavoritesGroup> {
-        val appOwner = LocalAppViewModelStoreOwner.current
-        val favoritesEditViewModel: FavoritesEditViewModel = koinViewModel(viewModelStoreOwner = appOwner)
-        val routeDetailViewModel: RouteDetailViewModel = koinViewModel(viewModelStoreOwner = appOwner)
-        FavoritesGroupScreen(
-            viewModel = favoritesEditViewModel,
-            routeDetailViewModel = routeDetailViewModel,
-            onNavigateToRoutePlan = if (hasMapKey) {
-                dropUnlessResumed { navigator.selectTab(ScreenKey.RoutePlan) }
-            } else null,
-            // 第 17 步起它总是首页栈的子页（栈深 > 1），左上角返回总在
-            onNavigateBack = dropUnlessResumed { navigator.popChildPage() },
-            onNavigateToLineDetail = dropUnlessResumed { cityId, lineId, targetOrder, stopId, source, lineName ->
-                val key = ScreenKey.LineDetail(
-                    cityId = cityId,
-                    lineId = lineId,
-                    targetOrder = targetOrder,
-                    stopId = stopId,
-                    source = source,
-                    lineName = lineName
-                )
-                navigator.open(key)
             }
         )
     }

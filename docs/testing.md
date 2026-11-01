@@ -125,9 +125,11 @@ Koin 由 `TrackrApp.onCreate` 启动，Robolectric 用例里每个用例都会�
 | `:feature:route` `ui/screens/routeplan` | `RoutePlanViewModelTest` | 路线规划：输入提示防抖只请求最后一个词、太短的词不请求并清空、同城同词命中 LRU 缓存；算路取消上一次、相同查询走缓存、「我的位置」不可用时报错且不查 POI、跨城才带 `cityd`；高德 Key 跟着仓库走、旧 Web 槽不当 Android Key；存入收藏没选分组时用当前选中的收藏分组 | commonTest（JVM；iOS 只编译和链接测试，不跑） |
 |  | `RoutePlanScreenTest` | 路线规划搜索台、起终点互换、存入收藏分组弹窗、方案卡片与特征标签（每个方案一个、并列给第一个、都不突出就不给）、方案摘要时间与分段文字、跟车状态文字、方案面板切页与按选中方案开始跟车、跟车中显示状态条；没有「配置Key」胶囊；只有 Web Key / 没有地图会话时不画地图、没有回中按钮 | Robolectric Compose UI |
 | `:feature:route` `ui/screens/routedetail` | `RouteDetailViewModelTest` | 路线详情：给某程加候选线、多线路 ETA 聚合并选最快的线、开始跟车用卡片上选的候选线、临时方案开始跟车不保存且收藏前显示为临时 | commonTest（JVM；iOS 只编译和链接测试，不跑） |
+|  | `RouteDetailScreenTest` | 路线详情页（第 22 步）：两程与候选线都显示、点候选线发出选中、开始追踪、临时方案「收藏」弹层（只问名字和分组）、给某程添加候选线 | Robolectric Compose UI |
 | `:feature:route` `data/remote/amap` | `AmapSdkManagerTest` | 高德 SDK 封装：Android / Web Key 都是用户填的优先、空了回落内置（去空格）；隐私合规不崩、注入 Key 安全返回、没 Key 返回 false；地图不可用原因（Key 和 ABI 都有时为空、模拟器 ABI 不支持、缺 Key）。内置 Key 由 `setBuiltInKeys` 设定，不受本机 `local.properties` 影响 | Robolectric (JVM) |
 |  | `AmapSdkTransitServiceTest` | 高德 SDK 公交路径转换为方案（含折线和末段步行、多候选线用主线站点）、无 Key 时的提示 | Robolectric (JVM) |
 | `:feature:favorites` `ui/screens/favoritesedit` | `FavoritesEditViewModelTest` | 编辑收藏：初始分组与类别筛选、自定义收藏分组增删与筛选、删除 / 保存临时分组、存通勤路线自动在「家」里补返程、通勤与家分开筛选、手动生成返程、一次性数据修复只迁一次旧通勤并记版本；ViewModel 清掉时把进程级的选中收藏分组一起清掉 | commonTest（JVM；iOS 只编译和链接测试，不跑） |
+|  | `FavoritesEditScreenTest` | 编辑收藏页（第 22 步）：分组和路线都显示、新建分组、点路线进详情、删路线先确认 | Robolectric Compose UI |
 | `:feature:favorites` `ui/screens/favoritesgroup` | `FavoritesGroupNavigationEventTest` | 分组编辑弹窗：没改动直接关，有改动时点取消 / 按返回键弹放弃确认 | Robolectric Compose UI |
 |  | `TransitGroupCardTrackingTest` | 分组卡片跟车各阶段：未追踪显示首程大字和第二程预计上车时间；等车显示阶段徽标、「我上车了」和「在这」；乘车临近换乘显示下车大字、下一程实时和信号丢失 | Robolectric Compose UI |
 | `:feature:me` `ui/screens/me` | `MeViewModelTest` | 「我的」页（第 25 步）：数据源只有车来了 / 掌上公交二选一、乘车码偏好、到站前提醒全局设置（1–3 站）、定时提醒行显示最早一条开着的提醒和开关、实时通知 / 锁屏开关、状态栏胶囊（实时通知关着或 iOS 不显示、去设置、回前台重查）、高德 Key 状态文字跟着仓库、子页提示显示一次就删、提醒短文字；长辈版开关位置预留（不显示） | commonTest（JVM） |

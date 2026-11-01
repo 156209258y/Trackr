@@ -114,6 +114,13 @@ class FavoritesEditViewModel(
         }
     }
 
+    /** 路线列表拖动排序（第 22 步的编辑收藏页） */
+    fun reorderGroups(groupIds: List<String>) {
+        viewModelScope.launch {
+            groupRepository.reorderGroups(groupIds)
+        }
+    }
+
     fun deleteFavoriteGroup(groupId: String) {
         viewModelScope.launch {
             groupRepository.deleteFavoriteGroup(groupId)
