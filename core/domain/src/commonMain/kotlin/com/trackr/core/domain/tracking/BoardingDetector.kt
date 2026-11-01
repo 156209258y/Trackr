@@ -107,7 +107,9 @@ internal object BoardingDetector {
 
         // 定位服务可能在同一轮回调同一个快照多次。连续计数只消费新定位，
         // 否则一条定位会把“连续两次”误算成两次。
-        val isNewFix = user != null && user.elapsedMillis != session.boardingLastFixElapsedMillis
+        // 测试/旧调用方可能没有单调时刻（-1）；这种定位无法去重，按新快照处理。
+        val isNewFix = user != null &&
+            (user.elapsedMillis < 0L || user.elapsedMillis != session.boardingLastFixElapsedMillis)
         if (isNewFix && input.hasBoardStop) {
             val userToStop = distance(user.lat, user.lng, input.boardStopLat, input.boardStopLng)
             val userToBus = candidate?.let { distance(user.lat, user.lng, it.wgsLat, it.wgsLng) }
