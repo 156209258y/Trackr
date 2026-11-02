@@ -17,3 +17,7 @@ kotlin {
         }
     }
 }
+
+compose.resources {
+    packageOfResClass = "com.trackr.feature.favorites.resources"
+}

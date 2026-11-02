@@ -57,16 +57,45 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.compose.dropUnlessResumed
 import com.trackr.core.designsystem.resources.Res
+import com.trackr.core.designsystem.resources.action_back
+import com.trackr.core.designsystem.resources.action_cancel
+import com.trackr.core.designsystem.resources.action_delete
+import com.trackr.core.designsystem.resources.action_done
+import com.trackr.core.designsystem.resources.action_save
+import com.trackr.core.designsystem.resources.group_none
 import com.trackr.core.designsystem.resources.ic_back
+import com.trackr.core.designsystem.resources.ic_delete
 import com.trackr.core.designsystem.resources.ic_drag
 import com.trackr.core.designsystem.resources.ic_edit
-import com.trackr.core.designsystem.resources.ic_delete
 import com.trackr.core.designsystem.resources.ic_plus
 import com.trackr.core.designsystem.resources.ic_route
 import com.trackr.core.model.FavoriteGroup
 import com.trackr.core.model.TransitGroup
 import com.trackr.core.navigation.Navigator
 import com.trackr.core.navigation.ScreenKey
+import com.trackr.feature.favorites.resources.Res as FavoritesRes
+import com.trackr.feature.favorites.resources.fav_edit_create
+import com.trackr.feature.favorites.resources.fav_edit_delete_favorite
+import com.trackr.feature.favorites.resources.fav_edit_delete_group_body
+import com.trackr.feature.favorites.resources.fav_edit_delete_group_empty
+import com.trackr.feature.favorites.resources.fav_edit_delete_group_title
+import com.trackr.feature.favorites.resources.fav_edit_delete_route_body
+import com.trackr.feature.favorites.resources.fav_edit_delete_route_title
+import com.trackr.feature.favorites.resources.fav_edit_delete_this_group
+import com.trackr.feature.favorites.resources.fav_edit_drag
+import com.trackr.feature.favorites.resources.fav_edit_empty
+import com.trackr.feature.favorites.resources.fav_edit_group_actions
+import com.trackr.feature.favorites.resources.fav_edit_group_dialog_title
+import com.trackr.feature.favorites.resources.fav_edit_group_name
+import com.trackr.feature.favorites.resources.fav_edit_group_name_hint
+import com.trackr.feature.favorites.resources.fav_edit_hint
+import com.trackr.feature.favorites.resources.fav_edit_new_group
+import com.trackr.feature.favorites.resources.fav_edit_no_routes
+import com.trackr.feature.favorites.resources.fav_edit_route_count
+import com.trackr.feature.favorites.resources.fav_edit_section_favorites
+import com.trackr.feature.favorites.resources.fav_edit_section_groups
+import com.trackr.feature.favorites.resources.fav_edit_title
+import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.resources.vectorResource
 
 /** 编辑收藏页的动作 */
@@ -102,18 +131,18 @@ fun FavoritesEditScreen(
         contentWindowInsets = WindowInsets.safeDrawing,
         topBar = {
             TopAppBar(
-                title = { Text(text = "编辑收藏", fontWeight = FontWeight.Bold) },
+                title = { Text(text = stringResource(FavoritesRes.string.fav_edit_title), fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = { onEvent(FavoritesEditEvent.Back) }) {
                         Icon(
                             imageVector = vectorResource(Res.drawable.ic_back),
-                            contentDescription = "返回"
+                            contentDescription = stringResource(Res.string.action_back)
                         )
                     }
                 },
                 actions = {
                     TextButton(onClick = { onEvent(FavoritesEditEvent.Done) }) {
-                        Text("完成")
+                        Text(stringResource(Res.string.action_done))
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -133,7 +162,7 @@ fun FavoritesEditScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             item(key = "groups_title") {
-                SectionTitle("分组")
+                SectionTitle(stringResource(FavoritesRes.string.fav_edit_section_groups))
             }
 
             item(key = "groups_card") {
@@ -181,7 +210,7 @@ fun FavoritesEditScreen(
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = "新建分组",
+                                text = stringResource(FavoritesRes.string.fav_edit_new_group),
                                 style = MaterialTheme.typography.bodyLarge,
                                 color = MaterialTheme.colorScheme.primary
                             )
@@ -191,13 +220,13 @@ fun FavoritesEditScreen(
             }
 
             item(key = "routes_title") {
-                SectionTitle("收藏")
+                SectionTitle(stringResource(FavoritesRes.string.fav_edit_section_favorites))
             }
 
             if (groups.isEmpty()) {
                 item(key = "empty") {
                     Text(
-                        text = "还没有收藏的路线。在路线规划页收藏，或从首页的路线卡进来。",
+                        text = stringResource(FavoritesRes.string.fav_edit_empty),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp)
@@ -230,7 +259,7 @@ fun FavoritesEditScreen(
 
             item(key = "hint") {
                 Text(
-                    text = "拖动左边的把手排序。删分组时，里面的路线会变成「不分组」；点一条路线可以改分组或删除。",
+                    text = stringResource(FavoritesRes.string.fav_edit_hint),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(horizontal = 4.dp)
@@ -241,9 +270,9 @@ fun FavoritesEditScreen(
 
     if (showCreateGroup) {
         NameDialog(
-            title = "新建分组",
+            title = stringResource(FavoritesRes.string.fav_edit_new_group),
             initial = "",
-            confirmLabel = "创建",
+            confirmLabel = stringResource(FavoritesRes.string.fav_edit_create),
             onDismiss = { showCreateGroup = false },
             onConfirm = { name ->
                 showCreateGroup = false
@@ -271,18 +300,18 @@ fun FavoritesEditScreen(
     deletingRoute?.let { group ->
         AlertDialog(
             onDismissRequest = { deletingRoute = null },
-            title = { Text("删除这条收藏？") },
-            text = { Text("「${group.name}」删掉后不影响线路和收藏的车。") },
+            title = { Text(stringResource(FavoritesRes.string.fav_edit_delete_route_title)) },
+            text = { Text(stringResource(FavoritesRes.string.fav_edit_delete_route_body, group.name)) },
             confirmButton = {
                 TextButton(onClick = {
                     deletingRoute = null
                     onEvent(FavoritesEditEvent.DeleteRoute(group.id))
                 }) {
-                    Text("删除", color = MaterialTheme.colorScheme.error)
+                    Text(stringResource(Res.string.action_delete), color = MaterialTheme.colorScheme.error)
                 }
             },
             dismissButton = {
-                TextButton(onClick = { deletingRoute = null }) { Text("取消") }
+                TextButton(onClick = { deletingRoute = null }) { Text(stringResource(Res.string.action_cancel)) }
             }
         )
     }
@@ -322,7 +351,7 @@ private fun GroupRow(
                 color = MaterialTheme.colorScheme.onSurface
             )
             Text(
-                text = if (count == 0) "还没有路线" else "$count 条路线",
+                text = if (count == 0) stringResource(FavoritesRes.string.fav_edit_no_routes) else stringResource(FavoritesRes.string.fav_edit_route_count, count),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -330,7 +359,7 @@ private fun GroupRow(
         IconButton(onClick = onEdit, modifier = Modifier.testTag("btn_edit_group_${group.id}")) {
             Icon(
                 imageVector = vectorResource(Res.drawable.ic_edit),
-                contentDescription = "改名或删除",
+                contentDescription = stringResource(FavoritesRes.string.fav_edit_group_actions),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(18.dp)
             )
@@ -374,7 +403,7 @@ private fun RouteRow(
                 text = buildString {
                     append("${group.originStopName} → ${group.destinationStopName}")
                     append(" · ")
-                    append(groupName ?: "不分组")
+                    append(groupName ?: stringResource(Res.string.group_none))
                 },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -384,7 +413,7 @@ private fun RouteRow(
         IconButton(onClick = onDelete, modifier = Modifier.testTag("btn_delete_route_${group.id}")) {
             Icon(
                 imageVector = vectorResource(Res.drawable.ic_delete),
-                contentDescription = "删除收藏",
+                contentDescription = stringResource(FavoritesRes.string.fav_edit_delete_favorite),
                 tint = MaterialTheme.colorScheme.error.copy(alpha = 0.8f),
                 modifier = Modifier.size(18.dp)
             )
@@ -397,7 +426,7 @@ private fun RouteRow(
 private fun DragHandle(modifier: Modifier) {
     Icon(
         imageVector = vectorResource(Res.drawable.ic_drag),
-        contentDescription = "拖动排序",
+        contentDescription = stringResource(FavoritesRes.string.fav_edit_drag),
         tint = MaterialTheme.colorScheme.outlineVariant,
         modifier = modifier
             .size(28.dp)
@@ -477,8 +506,8 @@ private fun NameDialog(
             OutlinedTextField(
                 value = name,
                 onValueChange = { name = it },
-                label = { Text("分组名称") },
-                placeholder = { Text("例如：健身房、常用路线") },
+                label = { Text(stringResource(FavoritesRes.string.fav_edit_group_name)) },
+                placeholder = { Text(stringResource(FavoritesRes.string.fav_edit_group_name_hint)) },
                 singleLine = true,
                 modifier = Modifier
                     .fillMaxWidth()
@@ -491,7 +520,7 @@ private fun NameDialog(
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("取消") }
+            TextButton(onClick = onDismiss) { Text(stringResource(Res.string.action_cancel)) }
         }
     )
 }
@@ -510,48 +539,48 @@ private fun EditGroupDialog(
     if (confirmingDelete) {
         AlertDialog(
             onDismissRequest = { confirmingDelete = false },
-            title = { Text("删除分组「${group.name}」？") },
+            title = { Text(stringResource(FavoritesRes.string.fav_edit_delete_group_title, group.name)) },
             text = {
                 Text(
-                    if (count == 0) "这个分组会被删掉。"
-                    else "分组会被删掉，里面 $count 条路线会变成「不分组」。"
+                    if (count == 0) stringResource(FavoritesRes.string.fav_edit_delete_group_empty)
+                    else stringResource(FavoritesRes.string.fav_edit_delete_group_body, count)
                 )
             },
             confirmButton = {
                 TextButton(onClick = onDelete) {
-                    Text("删除", color = MaterialTheme.colorScheme.error)
+                    Text(stringResource(Res.string.action_delete), color = MaterialTheme.colorScheme.error)
                 }
             },
             dismissButton = {
-                TextButton(onClick = { confirmingDelete = false }) { Text("取消") }
+                TextButton(onClick = { confirmingDelete = false }) { Text(stringResource(Res.string.action_cancel)) }
             }
         )
     } else {
         AlertDialog(
             onDismissRequest = onDismiss,
-            title = { Text("分组") },
+            title = { Text(stringResource(FavoritesRes.string.fav_edit_group_dialog_title)) },
             text = {
                 Column {
                     OutlinedTextField(
                         value = name,
                         onValueChange = { name = it },
-                        label = { Text("分组名称") },
+                        label = { Text(stringResource(FavoritesRes.string.fav_edit_group_name)) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     TextButton(onClick = { confirmingDelete = true }) {
-                        Text("删除这个分组", color = MaterialTheme.colorScheme.error)
+                        Text(stringResource(FavoritesRes.string.fav_edit_delete_this_group), color = MaterialTheme.colorScheme.error)
                     }
                 }
             },
             confirmButton = {
                 TextButton(onClick = { onRename(name.trim()) }, enabled = name.isNotBlank()) {
-                    Text("保存")
+                    Text(stringResource(Res.string.action_save))
                 }
             },
             dismissButton = {
-                TextButton(onClick = onDismiss) { Text("取消") }
+                TextButton(onClick = onDismiss) { Text(stringResource(Res.string.action_cancel)) }
             }
         )
     }
