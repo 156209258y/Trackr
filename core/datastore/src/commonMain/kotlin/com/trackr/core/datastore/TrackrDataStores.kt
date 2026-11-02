@@ -47,6 +47,12 @@ object SettingsKeys {
 
     /** 到站前提醒：车离上车站还有几站时提醒（第 25 步「我的」全局设置，1–3，旧存储没有这个键）；没有 = 2 */
     val ALERT_THRESHOLD_STOPS = intPreferencesKey("alert_threshold_stops")
+
+    /** 界面模式（`UiMode` 的名字，第 30 步新加，旧存储没有这个键）；没有或认不出 = 标准版 */
+    val UI_MODE = stringPreferencesKey("ui_mode")
+
+    /** 系统字体放大时的「试试长辈版」提示点过了（第 30 步新加）；没有 = 还没点过 */
+    val FONT_SCALE_PROMPT_DISMISSED = booleanPreferencesKey("font_scale_prompt_dismissed")
     val FAVORITES_GROUP_MIGRATION_VERSION = intPreferencesKey("favorites_group_migration_version")
 
     /** 旧 SharedPreferences 的设置导入到第几代（见 LegacySettingsMigration）；没有 = 还没导入 */

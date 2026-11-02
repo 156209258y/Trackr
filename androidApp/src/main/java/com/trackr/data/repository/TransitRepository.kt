@@ -23,6 +23,7 @@ import com.trackr.core.model.ProvinceCityCatalog
 import com.trackr.core.model.TransitCity
 import com.trackr.core.model.TransitCodeProvider
 import com.trackr.core.model.TransitSearchResult
+import com.trackr.core.model.UiMode
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -107,6 +108,12 @@ class TransitRepository(
     )
     override val alertThresholdStops: StateFlow<Int> = _alertThresholdStops.asStateFlow()
 
+    private val _uiMode = MutableStateFlow(UiMode.entries.firstOrNull { it.name == initial.uiMode } ?: UiMode.Standard)
+    override val uiMode: StateFlow<UiMode> = _uiMode.asStateFlow()
+
+    private val _fontScalePromptDismissed = MutableStateFlow(initial.fontScalePromptDismissed ?: false)
+    override val fontScalePromptDismissed: StateFlow<Boolean> = _fontScalePromptDismissed.asStateFlow()
+
     private val _userLocation = MutableStateFlow<Pair<Double, Double>?>(null)
     override val userLocation: StateFlow<Pair<Double, Double>?> = _userLocation.asStateFlow()
 
@@ -160,6 +167,17 @@ class TransitRepository(
         val clamped = stops.coerceIn(AlertThreshold.MIN_STOPS, AlertThreshold.MAX_STOPS)
         _alertThresholdStops.value = clamped
         writer.enqueue { store.saveAlertThresholdStops(clamped) }
+    }
+
+    override fun setUiMode(mode: UiMode) {
+        _uiMode.value = mode
+        writer.enqueue { store.saveUiMode(mode.name) }
+    }
+
+    override fun dismissFontScalePrompt() {
+        if (_fontScalePromptDismissed.value) return
+        _fontScalePromptDismissed.value = true
+        writer.enqueue { store.saveFontScalePromptDismissed(true) }
     }
 
     private fun loadInitialEngineMode(): EngineMode {

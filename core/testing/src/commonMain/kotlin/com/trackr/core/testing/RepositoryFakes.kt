@@ -19,6 +19,7 @@ import com.trackr.core.model.TransitCity
 import com.trackr.core.model.TransitCodeProvider
 import com.trackr.core.model.TransitGroup
 import com.trackr.core.model.TransitSearchResult
+import com.trackr.core.model.UiMode
 import com.trackr.core.model.UserFix
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -69,6 +70,20 @@ class FakeSettingsRepository(
 
     private val _alertThresholdStops = MutableStateFlow(2)
     override val alertThresholdStops: StateFlow<Int> = _alertThresholdStops.asStateFlow()
+
+    private val _uiMode = MutableStateFlow(UiMode.Standard)
+    override val uiMode: StateFlow<UiMode> = _uiMode.asStateFlow()
+
+    private val _fontScalePromptDismissed = MutableStateFlow(false)
+    override val fontScalePromptDismissed: StateFlow<Boolean> = _fontScalePromptDismissed.asStateFlow()
+
+    override fun setUiMode(mode: UiMode) {
+        _uiMode.value = mode
+    }
+
+    override fun dismissFontScalePrompt() {
+        _fontScalePromptDismissed.value = true
+    }
 
     override fun setEngineMode(mode: EngineMode) {
         _engineMode.value = mode

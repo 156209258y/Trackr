@@ -16,6 +16,7 @@ import com.trackr.core.model.TransitCity
 import com.trackr.core.model.TransitCodeProvider
 import com.trackr.core.model.TransitGroup
 import com.trackr.core.model.TransitSearchResult
+import com.trackr.core.model.UiMode
 import com.trackr.core.model.UserFix
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
@@ -54,6 +55,12 @@ interface SettingsRepository {
      */
     val alertThresholdStops: StateFlow<Int>
 
+    /** 界面模式（重构计划 §8.2）：没存过或认不出按 [UiMode.Standard] */
+    val uiMode: StateFlow<UiMode>
+
+    /** 系统字体放大时的「试试长辈版」提示已经点过（打开或先不用），之后不再提示 */
+    val fontScalePromptDismissed: StateFlow<Boolean>
+
     fun setEngineMode(mode: EngineMode)
     fun setNearbyStopsCount(count: Int)
     fun setLiveNotificationEnabled(enabled: Boolean)
@@ -61,6 +68,8 @@ interface SettingsRepository {
 
     /** 超出 1–3 时夹到范围内 */
     fun setAlertThresholdStops(stops: Int)
+    fun setUiMode(mode: UiMode)
+    fun dismissFontScalePrompt()
     suspend fun selectCity(city: TransitCity)
     suspend fun setPreferredTransitCodeProvider(provider: TransitCodeProvider)
 }

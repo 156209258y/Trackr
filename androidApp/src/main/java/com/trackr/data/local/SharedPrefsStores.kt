@@ -61,6 +61,8 @@ class SharedPrefsTransitStore(private val prefs: SharedPreferences) : TransitLoc
         liveNotificationEnabled = if (prefs.contains(KEY_LIVE_NOTIFICATION)) prefs.getBoolean(KEY_LIVE_NOTIFICATION, true) else null,
         showOnLockScreen = if (prefs.contains(KEY_SHOW_ON_LOCK_SCREEN)) prefs.getBoolean(KEY_SHOW_ON_LOCK_SCREEN, true) else null,
         alertThresholdStops = if (prefs.contains(KEY_ALERT_THRESHOLD_STOPS)) prefs.getInt(KEY_ALERT_THRESHOLD_STOPS, 2) else null,
+        uiMode = prefs.getString(KEY_UI_MODE, null),
+        fontScalePromptDismissed = if (prefs.contains(KEY_FONT_SCALE_PROMPT_DISMISSED)) prefs.getBoolean(KEY_FONT_SCALE_PROMPT_DISMISSED, false) else null,
         searchHistory = decodeOrEmpty(prefs.getString(KEY_SEARCH_HISTORY, null))
     )
 
@@ -92,6 +94,14 @@ class SharedPrefsTransitStore(private val prefs: SharedPreferences) : TransitLoc
         prefs.edit().putInt(KEY_ALERT_THRESHOLD_STOPS, stops).apply()
     }
 
+    override suspend fun saveUiMode(name: String) {
+        prefs.edit().putString(KEY_UI_MODE, name).apply()
+    }
+
+    override suspend fun saveFontScalePromptDismissed(dismissed: Boolean) {
+        prefs.edit().putBoolean(KEY_FONT_SCALE_PROMPT_DISMISSED, dismissed).apply()
+    }
+
     override suspend fun saveSearchHistory(list: List<String>) {
         prefs.edit().putString(KEY_SEARCH_HISTORY, legacyJson.encodeToString(list)).apply()
     }
@@ -116,6 +126,8 @@ class SharedPrefsTransitStore(private val prefs: SharedPreferences) : TransitLoc
         private const val KEY_LIVE_NOTIFICATION = "is_live_notification_enabled"
         private const val KEY_SHOW_ON_LOCK_SCREEN = "show_on_lock_screen"
         private const val KEY_ALERT_THRESHOLD_STOPS = "alert_threshold_stops"
+        private const val KEY_UI_MODE = "ui_mode"
+        private const val KEY_FONT_SCALE_PROMPT_DISMISSED = "font_scale_prompt_dismissed"
         /** 收藏的车（[SharedPrefsFavoritesStore] 读写） */
         const val KEY_FAVORITES = "favorites_json"
         private const val KEY_SEARCH_HISTORY = "search_history_json"

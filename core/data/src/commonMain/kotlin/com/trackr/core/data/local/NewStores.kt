@@ -30,6 +30,8 @@ class RoomDataStoreTransitStore(
             liveNotificationEnabled = prefs[SettingsKeys.LIVE_NOTIFICATION_ENABLED],
             showOnLockScreen = prefs[SettingsKeys.SHOW_ON_LOCK_SCREEN],
             alertThresholdStops = prefs[SettingsKeys.ALERT_THRESHOLD_STOPS],
+            uiMode = prefs[SettingsKeys.UI_MODE],
+            fontScalePromptDismissed = prefs[SettingsKeys.FONT_SCALE_PROMPT_DISMISSED],
             searchHistory = db.searchHistory().getAll().map { it.query }
         )
     }
@@ -60,6 +62,14 @@ class RoomDataStoreTransitStore(
 
     override suspend fun saveAlertThresholdStops(stops: Int) {
         settings.edit { it[SettingsKeys.ALERT_THRESHOLD_STOPS] = stops }
+    }
+
+    override suspend fun saveUiMode(name: String) {
+        settings.edit { it[SettingsKeys.UI_MODE] = name }
+    }
+
+    override suspend fun saveFontScalePromptDismissed(dismissed: Boolean) {
+        settings.edit { it[SettingsKeys.FONT_SCALE_PROMPT_DISMISSED] = dismissed }
     }
 
     override suspend fun saveSearchHistory(list: List<String>) {
