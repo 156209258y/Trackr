@@ -3,6 +3,7 @@ package com.trackr.ui.screens.routeplan.map
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
@@ -21,6 +22,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.trackr.data.remote.amap.AmapSdkManager
 import com.trackr.feature.route.resources.Res as RouteRes
@@ -40,7 +43,7 @@ actual val isRouteMapSupported: Boolean = true
  * - 软失败（底图 15 秒没就绪）→ 保留真实地图，浮层提示，避免把「加载慢」当成「用不了」。
  */
 @Composable
-actual fun RouteMap(state: RouteMapState, modifier: Modifier) {
+actual fun RouteMap(state: RouteMapState, modifier: Modifier, bottomInset: () -> Dp) {
     val session = LocalAmapMapSession.current
     val androidKey = state.androidKey
     // 地图跟随系统深色：深色时切高德夜间样式，避免夜里一张白底图刺眼
@@ -98,13 +101,14 @@ actual fun RouteMap(state: RouteMapState, modifier: Modifier) {
             )
         }
 
-        // 回到定位按钮（右侧居中），只在画地图时有
+        // 回到定位按钮：贴着底部方案面板的上沿，面板变高变矮时跟着一起上下
         if (showMap) {
             FloatingActionButton(
                 onClick = { recenterTrigger++ },
                 modifier = Modifier
-                    .align(Alignment.CenterEnd)
+                    .align(Alignment.BottomEnd)
                     .padding(end = 16.dp)
+                    .offset { IntOffset(0, -(bottomInset().roundToPx() + 12.dp.roundToPx())) }
                     .size(42.dp)
                     .testTag("btn_recenter"),
                 shape = CircleShape,

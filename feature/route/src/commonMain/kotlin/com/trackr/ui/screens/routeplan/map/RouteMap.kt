@@ -2,6 +2,8 @@ package com.trackr.ui.screens.routeplan.map
 
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import com.trackr.core.model.AmapTransitSchemeResult
 import com.trackr.core.model.GeoPoint
 
@@ -28,6 +30,12 @@ const val ROUTE_PLAN_NO_MAP_TAG = "route_plan_no_map"
  * 规划页的全屏地图（含回到定位按钮、底图加载失败浮层）。
  * Android：高德 3D 地图（`AndroidView`，实例由 Activity 级 `AmapMapSession` 托管，随 Activity 暂停 / 恢复）；
  * 地图建不出来时只画底色区。iOS：第 38 步接高德 iOS SDK，之前只画底色区。
+ *
+ * @param bottomInset 底部方案面板的实时高度；回到定位按钮贴着它的上沿，跟着面板一起上下移动
  */
 @Composable
-expect fun RouteMap(state: RouteMapState, modifier: Modifier = Modifier)
+expect fun RouteMap(
+    state: RouteMapState,
+    modifier: Modifier = Modifier,
+    bottomInset: () -> Dp = { 0.dp }
+)

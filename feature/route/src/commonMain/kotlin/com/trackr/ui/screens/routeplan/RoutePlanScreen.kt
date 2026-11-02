@@ -42,7 +42,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.navigationevent.NavigationEventInfo
 import androidx.navigationevent.compose.NavigationBackHandler
@@ -73,6 +76,8 @@ fun RoutePlanScreen(
     snackbarHostState: SnackbarHostState = remember { SnackbarHostState() }
 ) {
     val scope = rememberCoroutineScope()
+    // 底部方案面板的实时高度：地图上的「回到定位」按钮贴着它的上沿一起上下移动
+    val sheetHeight = remember { mutableStateOf(0.dp) }
 
     // 返回键先收起提示：先终点、再起点（和原来一样）
     NavigationBackHandler(
@@ -98,7 +103,11 @@ fun RoutePlanScreen(
 
     Box(modifier = modifier.fillMaxSize()) {
         if (state.canShowMap) {
-            RouteMap(state = state.map, modifier = Modifier.fillMaxSize())
+            RouteMap(
+                state = state.map,
+                modifier = Modifier.fillMaxSize(),
+                bottomInset = { sheetHeight.value }
+            )
         } else {
             NoMapBackground()
         }
@@ -126,7 +135,8 @@ fun RoutePlanScreen(
                 state = state,
                 pagerState = pagerState,
                 onEvent = onEvent,
-                onSelectTab = { index -> scope.launch { pagerState.animateScrollToPage(index) } }
+                onSelectTab = { index -> scope.launch { pagerState.animateScrollToPage(index) } },
+                onHeightChanged = { height -> sheetHeight.value = height }
             )
         }
     }
@@ -149,13 +159,17 @@ private fun BottomSheetCard(
     state: RoutePlanUiState,
     pagerState: PagerState,
     onEvent: (RoutePlanEvent) -> Unit,
-    onSelectTab: (Int) -> Unit
+    onSelectTab: (Int) -> Unit,
+    onHeightChanged: (Dp) -> Unit = {}
 ) {
     val navBarPadding = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+    val density = LocalDensity.current
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .shadow(elevation = 16.dp, shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
+            // 在 animateContentSize 外面：拿到的是动画中的高度，「回到定位」按钮才能跟着一起滑
+            .onSizeChanged { onHeightChanged(with(density) { it.height.toDp() }) }
             .animateContentSize()
             .testTag("bottom_route_sheet"),
         shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
