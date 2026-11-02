@@ -11,6 +11,7 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.material3.Icon
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.NavigationBar
@@ -23,6 +24,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -33,6 +35,8 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.dropUnlessResumed
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -58,6 +62,7 @@ import com.trackr.feature.search.searchEntries
 import com.trackr.feature.stop.stopEntries
 import com.trackr.ui.navigation.LocalAppViewModelStoreOwner
 import com.trackr.ui.navigation.rememberVisibleTabs
+import com.trackr.ui.bottombar.LocalBottomBarCollapseOffset
 import com.trackr.feature.bus.home.BusHomeViewModel
 import com.trackr.ui.screens.routedetail.RouteDetailViewModel
 import com.trackr.ui.screens.routeplan.RoutePlanViewModel
@@ -232,70 +237,83 @@ private fun TrackrNavApp(
         label = "navBarTranslationY"
     )
 
-    Scaffold(
-        modifier = Modifier.nestedScroll(nestedScrollConnection),
-        contentWindowInsets = WindowInsets(0.dp),
-        bottomBar = {
-            AnimatedVisibility(
-                visible = isTopLevel,
-                enter = slideInVertically(
-                    initialOffsetY = { it },
-                    animationSpec = tween(280)
-                ) + fadeIn(animationSpec = tween(200)),
-                exit = slideOutVertically(
-                    targetOffsetY = { it },
-                    animationSpec = tween(280)
-                ) + fadeOut(animationSpec = tween(200))
-            ) {
-                NavigationBar(
-                    modifier = Modifier.graphicsLayer {
-                        translationY = navBarTranslationY * size.height
-                    }
+    // 页面里贴底的悬浮元素（首页「乘车码」）要跟着底栏一起收起：给它一个「底栏已经滑下去多少」的距离。
+    // 高度含系统导航栏内边距，收起后按钮仍停在系统栏上方，所以只按净高度挪。
+    var navBarHeightPx by remember { mutableIntStateOf(0) }
+    val density = LocalDensity.current
+    val systemNavBarInsetPx = WindowInsets.navigationBars.getBottom(density)
+    val bottomBarCollapseOffset: () -> Float = {
+        navBarTranslationY * (navBarHeightPx - systemNavBarInsetPx).coerceAtLeast(0)
+    }
+
+    CompositionLocalProvider(LocalBottomBarCollapseOffset provides bottomBarCollapseOffset) {
+        Scaffold(
+            modifier = Modifier.nestedScroll(nestedScrollConnection),
+            contentWindowInsets = WindowInsets(0.dp),
+            bottomBar = {
+                AnimatedVisibility(
+                    visible = isTopLevel,
+                    enter = slideInVertically(
+                        initialOffsetY = { it },
+                        animationSpec = tween(280)
+                    ) + fadeIn(animationSpec = tween(200)),
+                    exit = slideOutVertically(
+                        targetOffsetY = { it },
+                        animationSpec = tween(280)
+                    ) + fadeOut(animationSpec = tween(200))
                 ) {
-                    visibleTabs.forEach { key ->
-                        val label = bottomTabLabel(key)
-                        NavigationBarItem(
-                            selected = navigationState.topLevel == key,
-                            // 点当前页签回到它的根页；点别的页签切过去，各自的返回栈保留
-                            onClick = dropUnlessResumed {
-                                if (key == ScreenKey.RoutePlan && privacyConsent != true) {
-                                    showAmapPrivacyDialog = true
-                                } else {
-                                    navigator.selectTab(key)
-                                }
-                            },
-                            icon = {
-                                Icon(
-                                    imageVector = bottomTabIcon(key),
-                                    contentDescription = label
-                                )
-                            },
-                            label = { Text(label) }
-                        )
+                    NavigationBar(
+                        modifier = Modifier
+                            .onSizeChanged { navBarHeightPx = it.height }
+                            .graphicsLayer {
+                                translationY = navBarTranslationY * size.height
+                            }
+                    ) {
+                        visibleTabs.forEach { key ->
+                            val label = bottomTabLabel(key)
+                            NavigationBarItem(
+                                selected = navigationState.topLevel == key,
+                                // 点当前页签回到它的根页；点别的页签切过去，各自的返回栈保留
+                                onClick = dropUnlessResumed {
+                                    if (key == ScreenKey.RoutePlan && privacyConsent != true) {
+                                        showAmapPrivacyDialog = true
+                                    } else {
+                                        navigator.selectTab(key)
+                                    }
+                                },
+                                icon = {
+                                    Icon(
+                                        imageVector = bottomTabIcon(key),
+                                        contentDescription = label
+                                    )
+                                },
+                                label = { Text(label) }
+                            )
+                        }
                     }
                 }
             }
+        ) { _ ->
+            NavDisplay(
+                // 只显示当前页签的栈（和第 16 步之前一样）：非首页页签根页按返回交给系统，切页签走横向滑动
+                entries = navigationState.toDecoratedEntries(startUnderneath = true, entryProvider = entryProvider {
+                    busEntries(navigator)
+                    routeEntries(navigator)
+                    searchEntries(navigator)
+                    lineEntries(navigator)
+                    stopEntries(navigator)
+                    meEntries(navigator)
+                    favoritesEntries(navigator)
+                }),
+                onBack = { navigator.back() },
+                modifier = Modifier.fillMaxSize(),
+                // 弹层型目的地（§3.7）：entry 带 BottomSheetSceneStrategy.bottomSheet() 就叠在上一页上；其余照常单页
+                sceneStrategies = remember { listOf(BottomSheetSceneStrategy<NavKey>()) },
+                transitionSpec = TrackrTransitions.push,
+                popTransitionSpec = TrackrTransitions.pop,
+                predictivePopTransitionSpec = TrackrTransitions.predictivePop
+            )
         }
-    ) { _ ->
-        NavDisplay(
-            // 只显示当前页签的栈（和第 16 步之前一样）：非首页页签根页按返回交给系统，切页签走横向滑动
-            entries = navigationState.toDecoratedEntries(startUnderneath = true, entryProvider = entryProvider {
-                busEntries(navigator)
-                routeEntries(navigator)
-                searchEntries(navigator)
-                lineEntries(navigator)
-                stopEntries(navigator)
-                meEntries(navigator)
-                favoritesEntries(navigator)
-            }),
-            onBack = { navigator.back() },
-            modifier = Modifier.fillMaxSize(),
-            // 弹层型目的地（§3.7）：entry 带 BottomSheetSceneStrategy.bottomSheet() 就叠在上一页上；其余照常单页
-            sceneStrategies = remember { listOf(BottomSheetSceneStrategy<NavKey>()) },
-            transitionSpec = TrackrTransitions.push,
-            popTransitionSpec = TrackrTransitions.pop,
-            predictivePopTransitionSpec = TrackrTransitions.predictivePop
-        )
     }
 
     if (showAmapPrivacyDialog && hasMapKey && privacyConsent != true) {

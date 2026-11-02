@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.calculateEndPadding
 import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
@@ -34,6 +35,7 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.trackr.ui.components.message.HostMessage
 import com.trackr.ui.components.message.UserMessageHost
@@ -50,6 +52,8 @@ import com.trackr.feature.bus.resources.bus_home_switch_city
 import com.trackr.ui.components.transitcode.TransitCodeChooserSheet
 import com.trackr.ui.components.transitcode.TransitCodeFab
 import com.trackr.ui.components.transitcode.rememberTransitCodeFabState
+import com.trackr.ui.bottombar.LocalBottomBarCollapseOffset
+import kotlin.math.roundToInt
 import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.resources.vectorResource
 
@@ -80,6 +84,8 @@ fun BusHomeScreen(
     modifier: Modifier = Modifier
 ) {
     val fabState = rememberTransitCodeFabState()
+    // 底栏（页签）收起时，「乘车码」跟着一起往下走；底栏是根布局画的，这里只读它滑下去的距离
+    val bottomBarCollapseOffset = LocalBottomBarCollapseOffset.current
 
     Scaffold(
         modifier = modifier.nestedScroll(fabState.nestedScrollConnection),
@@ -94,8 +100,10 @@ fun BusHomeScreen(
             TransitCodeFab(
                 expanded = fabState.expanded,
                 onClick = { onEvent(BusHomeEvent.TransitCodeClicked) },
-                // 底栏（页签）盖在页面上面，按钮要让开它
-                modifier = Modifier.padding(bottom = BOTTOM_BAR_HEIGHT)
+                // 底栏（页签）盖在页面上面，按钮要让开它；底栏收起时再把它挪到系统导航栏上方
+                modifier = Modifier
+                    .padding(bottom = BOTTOM_BAR_HEIGHT)
+                    .offset { IntOffset(0, bottomBarCollapseOffset().roundToInt()) }
             )
         },
         // 一次性消息：一条一条显示，显示完回报
