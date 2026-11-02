@@ -46,12 +46,13 @@ fun LineDetailRoute(
         state,
         { event ->
             when (event) {
-                LineDetailEvent.Back -> onBack()
+                // 顶栏返回：卡片里有车辆列表 / 跟随就先退一级，站点卡时才离开页面
+                LineDetailEvent.Back -> if (!viewModel.backFromPanel()) onBack()
                 is LineDetailEvent.Refresh -> viewModel.refreshNow(fromPull = event.fromPull)
                 is LineDetailEvent.SelectStop -> viewModel.selectStop(event.stop)
                 is LineDetailEvent.FollowBus -> viewModel.selectBusToFollow(event.bus)
                 LineDetailEvent.OpenBusList -> viewModel.openBusList()
-                LineDetailEvent.BackToStationCard -> viewModel.backToStationCard()
+                LineDetailEvent.BackFromPanel -> viewModel.backFromPanel()
                 LineDetailEvent.SwitchDirection -> viewModel.switchOppositeDirection()
                 LineDetailEvent.ToggleFavorite -> viewModel.toggleFavoriteStop()
                 LineDetailEvent.OpenGroupPicker -> viewModel.openGroupPicker()

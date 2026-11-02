@@ -116,6 +116,8 @@ data class LineDetailUiState(
     val selectedStop: BusStop? = null,
     val panelMode: PanelMode = PanelMode.STATION_CARD,
     val followedBusId: String? = null,
+    /** 单车跟随时返回到哪一级：从车辆列表进来回列表，从走向条点车进来回站点卡 */
+    val followBackTo: PanelMode = PanelMode.STATION_CARD,
     val timetable: LineTimetable? = null,
     val isTimetableSheetOpen: Boolean = false,
     val errorMessage: String? = null,
@@ -571,7 +573,13 @@ class LineDetailViewModel(
 
     /** 选中并跟随某辆车 */
     fun selectBusToFollow(bus: LiveBus) {
-        _uiState.update { it.copy(followedBusId = bus.busId, panelMode = PanelMode.BUS_FOLLOW) }
+        _uiState.update {
+            it.copy(
+                followedBusId = bus.busId,
+                panelMode = PanelMode.BUS_FOLLOW,
+                followBackTo = if (it.panelMode == PanelMode.BUS_LIST) PanelMode.BUS_LIST else PanelMode.STATION_CARD
+            )
+        }
     }
 
     /** 展开全线车辆列表 */
@@ -579,9 +587,19 @@ class LineDetailViewModel(
         _uiState.update { it.copy(panelMode = PanelMode.BUS_LIST, followedBusId = null) }
     }
 
-    /** 从车辆列表或单车跟随返回站点到站卡 */
-    fun backToStationCard() {
-        _uiState.update { it.copy(panelMode = PanelMode.STATION_CARD, followedBusId = null) }
+    /**
+     * 返回上一级：单车跟随 → 车辆列表（从走向条点车进来的回站点卡），车辆列表 → 站点卡。
+     * @return false 表示已经在站点卡，调用方应该退出页面
+     */
+    fun backFromPanel(): Boolean {
+        val state = _uiState.value
+        val target = when (state.panelMode) {
+            PanelMode.STATION_CARD -> return false
+            PanelMode.BUS_LIST -> PanelMode.STATION_CARD
+            PanelMode.BUS_FOLLOW -> state.followBackTo
+        }
+        _uiState.update { it.copy(panelMode = target, followedBusId = null) }
+        return true
     }
 
     /**

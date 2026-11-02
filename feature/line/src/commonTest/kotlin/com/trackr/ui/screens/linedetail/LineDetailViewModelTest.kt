@@ -330,11 +330,31 @@ class LineDetailViewModelTest {
         val viewModel = createViewModel()
         testScheduler.runCurrent()
 
+        viewModel.openBusList()
         viewModel.selectBusToFollow(buses.first())
         assertEquals("b1", viewModel.uiState.value.followedBusId)
         assertEquals(PanelMode.BUS_FOLLOW, viewModel.uiState.value.panelMode)
 
-        viewModel.backToStationCard()
+        // 从车辆列表进来的跟随：返回先回列表，再回站点卡，最后交给页面退出
+        assertTrue(viewModel.backFromPanel())
+        assertNull(viewModel.uiState.value.followedBusId)
+        assertEquals(PanelMode.BUS_LIST, viewModel.uiState.value.panelMode)
+
+        assertTrue(viewModel.backFromPanel())
+        assertEquals(PanelMode.STATION_CARD, viewModel.uiState.value.panelMode)
+        assertFalse(viewModel.backFromPanel())
+    }
+
+    @Test
+    fun testFollowBus_fromRouteRail_backReturnsToStationCard() = runTest(main.dispatcher) {
+        val viewModel = createViewModel()
+        testScheduler.runCurrent()
+
+        // 走向条上直接点车：没有经过车辆列表，返回就回站点卡
+        viewModel.selectBusToFollow(buses.first())
+        assertEquals(PanelMode.BUS_FOLLOW, viewModel.uiState.value.panelMode)
+
+        assertTrue(viewModel.backFromPanel())
         assertNull(viewModel.uiState.value.followedBusId)
         assertEquals(PanelMode.STATION_CARD, viewModel.uiState.value.panelMode)
     }

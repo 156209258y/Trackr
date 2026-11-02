@@ -56,6 +56,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.navigationevent.NavigationEventInfo
+import androidx.navigationevent.compose.NavigationBackHandler
+import androidx.navigationevent.compose.rememberNavigationEventState
 import com.trackr.core.designsystem.component.DataSourceBadge
 import com.trackr.core.designsystem.component.DataSourceBadgeStyle
 import com.trackr.core.designsystem.component.FullscreenErrorView
@@ -114,7 +117,8 @@ sealed interface LineDetailEvent {
     data class SelectStop(val stop: BusStop) : LineDetailEvent
     data class FollowBus(val bus: LiveBus) : LineDetailEvent
     data object OpenBusList : LineDetailEvent
-    data object BackToStationCard : LineDetailEvent
+    /** 卡片内的返回：退一级（跟随 → 车辆列表 / 站点卡，车辆列表 → 站点卡）；顶栏返回也先走它 */
+    data object BackFromPanel : LineDetailEvent
     data object SwitchDirection : LineDetailEvent
     data object ToggleFavorite : LineDetailEvent
     data object OpenGroupPicker : LineDetailEvent
@@ -162,6 +166,13 @@ fun LineDetailScreen(
     val scope = rememberCoroutineScope()
 
     val static = state.static
+
+    // 车辆列表 / 单车跟随里，系统返回 = 退一级，不离开线路详情
+    NavigationBackHandler(
+        state = rememberNavigationEventState(NavigationEventInfo.None),
+        isBackEnabled = state.panelMode != PanelMode.STATION_CARD,
+        onBackCompleted = { onEvent(LineDetailEvent.BackFromPanel) }
+    )
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -513,7 +524,7 @@ private fun HeroCard(
                 PanelMode.BUS_LIST -> BusListContent(
                     lineDetail = rememberLineDetail(static, state.live),
                     selectedStop = state.selectedStop,
-                    onBack = { onEvent(LineDetailEvent.BackToStationCard) },
+                    onBack = { onEvent(LineDetailEvent.BackFromPanel) },
                     onSelectBus = { onEvent(LineDetailEvent.FollowBus(it)) }
                 )
 
@@ -522,7 +533,7 @@ private fun HeroCard(
                     BusFollowContent(
                         lineDetail = detail,
                         followedBus = detail.buses.find { it.busId == state.followedBusId },
-                        onBack = { onEvent(LineDetailEvent.BackToStationCard) }
+                        onBack = { onEvent(LineDetailEvent.BackFromPanel) }
                     )
                 }
             }
