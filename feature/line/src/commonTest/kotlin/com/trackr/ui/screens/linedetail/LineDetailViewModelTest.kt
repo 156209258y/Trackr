@@ -611,6 +611,28 @@ class LineDetailViewModelTest {
     }
 
     @Test
+    fun testInitialLoad_tappedStopWinsOverLeadBusAtTerminal() = runTest(main.dispatcher) {
+        // 首车已在终点站，但用户是从第 2 站点进来的：默认候车站仍是第 2 站，不按车猜
+        fakeRepository.lineDetailResult = Result.success(
+            BusLineDetail(
+                line = forwardDirection,
+                reverseDirection = reverseDirection,
+                stops = stops,
+                buses = listOf(
+                    LiveBus(busId = "b3", plateOrFleetNo = "沪A9999", order = 3, etaSeconds = 60, isArrived = true)
+                ),
+                targetOrder = 2
+            )
+        )
+        val repo = CountingLineRepository(fakeRepository.realtime)
+        val viewModel = createViewModel(targetOrder = 2, realtime = repo)
+        testScheduler.runCurrent()
+
+        assertEquals(2, viewModel.uiState.value.selectedStop?.order)
+        assertEquals(listOf<Int?>(2), repo.lineDetailTargetOrders)
+    }
+
+    @Test
     fun testPolling_skipsWhenPreviousLoadStillInFlight() = runTest(main.dispatcher) {
         val repo = CountingLineRepository(fakeRepository.realtime)
         val gate = CompletableDeferred<Unit>()
