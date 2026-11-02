@@ -15,6 +15,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.remember
+import com.trackr.core.model.UiMode
 
 /**
  * 应用主题（设计稿 v3，重构计划 §8.3）。v3 蓝固定主色，不用动态取色。
@@ -94,10 +95,10 @@ internal object StandardTokens : ThemeTokens {
     override val motion = MotionScheme.expressive()
 }
 
-/** 第 30 步加 ElderTokens（高对比、eta 56sp、触控 64dp、MotionScheme.standard()）；之前长辈模式先用标准 Token。 */
+/** 长辈版 Token 见 ElderTokens.kt（高对比、eta 56sp、触控 64dp、MotionScheme.standard()） */
 internal fun tokensFor(uiMode: UiMode): ThemeTokens = when (uiMode) {
     UiMode.Standard -> StandardTokens
-    UiMode.Elder -> StandardTokens
+    UiMode.Elder -> ElderTokens
 }
 
 /**

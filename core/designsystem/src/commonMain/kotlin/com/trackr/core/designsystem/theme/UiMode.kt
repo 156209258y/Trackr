@@ -1,11 +1,7 @@
 package com.trackr.core.designsystem.theme
 
 import androidx.compose.runtime.staticCompositionLocalOf
+import com.trackr.core.model.UiMode
 
-/**
- * 界面模式（重构计划 §8）。[Elder] 的高对比、大字号 Token 在第 30 步加；在那之前按 [Standard] 显示。
- * 第 7 步建 `:core:model` 时，如果设置层要用这个类型，再决定是否搬过去（本模块改依赖 `:core:model`）。
- */
-enum class UiMode { Standard, Elder }
-
+/** 当前界面模式，由 [TrackrTheme] 在主题根提供一次。组件一般不读它，只读 Token（§8.3）。 */
 val LocalUiMode = staticCompositionLocalOf { UiMode.Standard }

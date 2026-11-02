@@ -4,6 +4,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
+import com.trackr.core.model.UiMode
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -113,6 +115,82 @@ class TrackrThemeTest {
         assertEquals(StandardShapes.small, RoundedCornerShape(8.dp))
         assertEquals(StandardShapes.medium, RoundedCornerShape(16.dp))
         assertEquals(StandardShapes.extraLarge, RoundedCornerShape(28.dp))
+    }
+
+    @Test
+    fun elder_largerTypeAnd64dpTouchTarget() {
+        var etaSize = 0.sp
+        var itemSize = 0.sp
+        var bodySize = 0.sp
+        var smallest = 100.sp
+        var minTouch = 0.dp
+        var dimens: TrackrDimens? = null
+        var mode: UiMode? = null
+        composeTestRule.setContent {
+            TrackrTheme(uiMode = UiMode.Elder, darkTheme = false) {
+                val t = MaterialTheme.typography
+                etaSize = t.eta.fontSize
+                itemSize = t.item.fontSize
+                bodySize = t.bodyMedium.fontSize
+                smallest = listOf(t.bodySmall, t.labelSmall, t.labelMedium, t.titleSmall)
+                    .minOf { it.fontSize.value }.sp
+                minTouch = LocalMinimumInteractiveComponentSize.current
+                dimens = TrackrTheme.dimens
+                mode = TrackrTheme.uiMode
+            }
+        }
+        composeTestRule.waitForIdle()
+        assertEquals(56.sp, etaSize)
+        assertEquals(22.sp, itemSize)
+        assertEquals(20.sp, bodySize)
+        assertEquals(18.sp, smallest) // 长辈版不出现 18sp 以下
+        assertEquals(64.dp, minTouch)
+        assertEquals(64.dp, dimens!!.minTouchTarget)
+        assertEquals(16.dp, dimens!!.screenPadding)
+        assertEquals(UiMode.Elder, mode)
+    }
+
+    @Test
+    fun elder_highContrastPalette() {
+        var light: Pair<Color, Color>? = null
+        var colors: TrackrColors? = null
+        composeTestRule.setContent {
+            TrackrTheme(uiMode = UiMode.Elder, darkTheme = false) {
+                light = MaterialTheme.colorScheme.onSurface to MaterialTheme.colorScheme.surface
+                colors = TrackrTheme.colors
+            }
+        }
+        composeTestRule.waitForIdle()
+        assertEquals(Color.Black to Color.White, light)
+        assertEquals(ElderLightTrackrColors, colors)
+        // 正文（onSurfaceVariant 也算）对卡片底 ≥ 7:1
+        assertTrue(contrast(ElderLightColorScheme.onSurfaceVariant, ElderLightColorScheme.surface) >= 7.0)
+        assertTrue(contrast(ElderDarkColorScheme.onSurfaceVariant, ElderDarkColorScheme.surface) >= 7.0)
+        assertTrue(contrast(ElderLightTrackrColors.walk, ElderLightColorScheme.surface) >= 7.0)
+        assertTrue(contrast(ElderLightTrackrColors.go, ElderLightColorScheme.surface) >= 4.5)
+        assertTrue(contrast(ElderLightTrackrColors.warn, ElderLightColorScheme.surface) >= 4.5)
+    }
+
+    @Test
+    fun elder_darkUsesBlackBackground() {
+        var bg = Color.Unspecified
+        var text = Color.Unspecified
+        composeTestRule.setContent {
+            TrackrTheme(uiMode = UiMode.Elder, darkTheme = true) {
+                bg = MaterialTheme.colorScheme.background
+                text = MaterialTheme.colorScheme.onBackground
+            }
+        }
+        composeTestRule.waitForIdle()
+        assertEquals(Color.Black, bg)
+        assertEquals(Color.White, text)
+    }
+
+    /** WCAG 对比度 */
+    private fun contrast(a: Color, b: Color): Double {
+        val la = a.luminance() + 0.05
+        val lb = b.luminance() + 0.05
+        return maxOf(la, lb) / minOf(la, lb)
     }
 
     @Test

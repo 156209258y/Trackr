@@ -15,6 +15,8 @@ kotlin {
 
     sourceSets {
         commonMain.dependencies {
+            // TrackrTheme(uiMode) 的参数类型 UiMode 在 :core:model（设置层也要用）
+            api(project(":core:model"))
             implementation(libs.compose.mp.runtime)
             implementation(libs.compose.mp.foundation)
             implementation(libs.compose.mp.ui)
