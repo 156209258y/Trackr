@@ -46,6 +46,7 @@ import com.trackr.feature.line.resources.line_elder_favorite
 import com.trackr.feature.line.resources.line_elder_keep_alert
 import com.trackr.feature.line.resources.line_elder_no_stop
 import com.trackr.feature.line.resources.line_elder_pick_stop
+import com.trackr.feature.line.resources.line_elder_read_aloud
 import com.trackr.feature.line.resources.line_elder_stop_alert
 import com.trackr.feature.line.resources.line_elder_stop_alert_confirm
 import com.trackr.feature.line.resources.line_elder_switch_direction
@@ -72,6 +73,7 @@ internal object ElderLineTags {
     const val ALERT = "elder_line_alert"
     const val SWITCH_DIRECTION = "elder_line_switch_direction"
     const val FAVORITE = "elder_line_favorite"
+    const val READ_ALOUD = "elder_line_read_aloud"
 }
 
 /**
@@ -79,7 +81,7 @@ internal object ElderLineTags {
  * 和 `LineDetailRoute` 的事件处理（追踪前的实时活动权限引导、乘车码默认渠道都一样）。
  *
  * 线路号 +「始发 → 终点」+ 运营时间；「在 X 站 上车」+「换站」；大字到站 + 一句说明（含下一辆）；
- * 主按钮「车快到时叫我」（提醒中换成「不用叫了」，先确认）；「换方向」「收藏」；底部「出示乘车码」。
+ *「读给我听」（第 33 步，朗读大字那一句）；主按钮「车快到时叫我」（提醒中换成「不用叫了」，先确认）；「换方向」「收藏」；底部「出示乘车码」。
  * 没有走向条、全部车辆、单车跟随、时刻表、定时提醒和地图；沿途车站放进「换站」（[ElderPickStopScreen]）。
  */
 @Composable
@@ -224,6 +226,15 @@ private fun ElderLineContent(
         }
 
         ElderArrivalCard(state = state, static = static, onPickStop = onPickStop)
+
+        ElderButton(
+            text = stringResource(LineRes.string.line_elder_read_aloud),
+            onClick = { onEvent(LineDetailEvent.ReadAloud) },
+            enabled = state.selectedStop != null,
+            modifier = Modifier
+                .fillMaxWidth()
+                .testTag(ElderLineTags.READ_ALOUD)
+        )
 
         if (state.isTrackingThisStop) {
             ElderButton(

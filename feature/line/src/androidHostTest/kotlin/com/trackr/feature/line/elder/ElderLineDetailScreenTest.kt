@@ -161,7 +161,9 @@ class ElderLineDetailScreenTest {
     fun buttons_sendSharedEvents() {
         setContent(stateOf())
 
-        composeTestRule.onNodeWithTag(ElderLineTags.ALERT).performClick()
+        composeTestRule.onNodeWithTag(ElderLineTags.READ_ALOUD).performScrollTo().performClick()
+        assertEquals(LineDetailEvent.ReadAloud, events.last())
+        composeTestRule.onNodeWithTag(ElderLineTags.ALERT).performScrollTo().performClick()
         assertEquals(LineDetailEvent.ToggleTracking, events.last())
         composeTestRule.onNodeWithTag(ElderLineTags.SWITCH_DIRECTION).performScrollTo().performClick()
         assertEquals(LineDetailEvent.SwitchDirection, events.last())
@@ -171,6 +173,13 @@ class ElderLineDetailScreenTest {
         assertEquals(LineDetailEvent.OpenTransitCode, events.last())
         composeTestRule.onNodeWithTag(ELDER_BACK_TAG).performClick()
         assertEquals(LineDetailEvent.Back, events.last())
+    }
+
+    @Test
+    fun readAloud_shownWhileTracking() {
+        setContent(stateOf(tracking = true))
+        composeTestRule.onNodeWithText("读给我听").performScrollTo().assertIsDisplayed().performClick()
+        assertEquals(LineDetailEvent.ReadAloud, events.last())
     }
 
     @Test

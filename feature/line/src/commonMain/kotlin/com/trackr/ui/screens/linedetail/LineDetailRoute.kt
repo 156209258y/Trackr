@@ -87,6 +87,7 @@ fun LineDetailRoute(
                     transitCodeLauncher.open(event.provider)
                 }
                 is LineDetailEvent.MessageShown -> viewModel.onMessageShown(event.id)
+                LineDetailEvent.ReadAloud -> viewModel.onReadAloud()
             }
         }
     )

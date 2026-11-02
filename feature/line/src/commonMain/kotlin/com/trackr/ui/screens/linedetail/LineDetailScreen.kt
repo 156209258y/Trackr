@@ -139,6 +139,8 @@ sealed interface LineDetailEvent {
     data object DismissTransitCodeSheet : LineDetailEvent
     data class PickTransitCode(val provider: TransitCodeProvider, val saveAsDefault: Boolean) : LineDetailEvent
     data class MessageShown(val id: Long) : LineDetailEvent
+    /** 长辈版「读给我听」：朗读主卡上的到站 */
+    data object ReadAloud : LineDetailEvent
 }
 
 /** 走向条之前的列表项数（方向头、主卡；有错误条时多一项） */

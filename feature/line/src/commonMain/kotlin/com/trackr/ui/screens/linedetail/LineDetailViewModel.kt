@@ -8,7 +8,10 @@ import com.trackr.core.data.repository.FavoritesRepository
 import com.trackr.core.data.repository.RealtimeRepository
 import com.trackr.core.data.repository.SettingsRepository
 import com.trackr.core.data.repository.TrackingRepository
+import com.trackr.core.domain.arrival.ArrivalText
 import com.trackr.core.domain.math.RouteProjectionMath
+import com.trackr.core.domain.platform.Announcer
+import com.trackr.core.domain.platform.NoAnnouncer
 import com.trackr.core.domain.platform.ProcessMonotonicClock
 import com.trackr.core.domain.platform.TrackingController
 import com.trackr.core.model.BusLineDetail
@@ -26,6 +29,7 @@ import com.trackr.core.model.TrackingSessionState
 import com.trackr.core.model.TrackingTarget
 import com.trackr.core.model.TransitCodeProvider
 import com.trackr.data.repository.IScheduledReminderRepository
+import com.trackr.ui.screens.linedetail.components.stationArrivalState
 import com.trackr.ui.util.FixedDelayPollingStrategy
 import com.trackr.ui.util.PollingCoordinator
 import kotlinx.coroutines.CancellationException
@@ -138,7 +142,7 @@ data class LineDetailUiState(
 /**
  * 线路详情 ViewModel：
  * 站表先读磁盘缓存再等网络；每 10 秒轮询（只在页面 RESUMED 时）；选站后按该站拿精确 ETA；单车跟随；换向找同名站；
- * ☆ 一点即收藏（提示条可「换分组」）；定时提醒；追踪本站。
+ * ☆ 一点即收藏（提示条可「换分组」）；定时提醒；追踪本站；长辈版「读给我听」。
  */
 @OptIn(ExperimentalAtomicApi::class)
 class LineDetailViewModel(
@@ -159,6 +163,8 @@ class LineDetailViewModel(
     private val trackingController: TrackingController,
     /** 线路站表磁盘缓存（只用来先显示，§2.4） */
     private val lineStopsCache: LineStopsCache = NoLineStopsCache,
+    /** 「读给我听」（长辈版，§8.6） */
+    private val announcer: Announcer = NoAnnouncer,
     private val enableAutoPolling: Boolean = true,
     private val nowHHmm: () -> String = { shanghaiNowHHmm() },
     /** 单调时钟（毫秒），用于判断恢复页面时数据是否过期；测试可注入 */
@@ -779,6 +785,27 @@ class LineDetailViewModel(
         }
     }
 
+    /**
+     * 「读给我听」：把主卡上的到站读出来，和屏幕大字同一套状态（[stationArrivalState]），
+     * 如「325路，开往科技园，还有 2 站，大约 4 分钟到科技园站」。手机读不了时给一条提示。
+     */
+    fun onReadAloud() {
+        val state = _uiState.value
+        val static = state.static ?: return
+        val stop = state.selectedStop ?: return
+        val live = state.live
+        val now = live?.let { ArrivalText.localTimeOf(it.updatedAtMillis) }
+        val sentence = ArrivalText.spoken(
+            stationArrivalState(static, live, stop.order, now),
+            lineName = static.line.name,
+            stopName = stop.name,
+            towards = static.line.endStop
+        )
+        viewModelScope.launch {
+            if (!announcer.speak(sentence)) postMessage(TTS_UNAVAILABLE_MESSAGE)
+        }
+    }
+
     /** 提示条显示过了 */
     fun onMessageShown(id: Long) {
         _uiState.update { state -> state.copy(userMessages = state.userMessages.filterNot { it.id == id }) }
@@ -792,6 +819,8 @@ class LineDetailViewModel(
     override fun onCleared() {
         super.onCleared()
         pausePolling()
+        // 离开线路页就别再读了
+        announcer.stop()
     }
 
     companion object {
@@ -800,6 +829,9 @@ class LineDetailViewModel(
 
         /** 追踪时提前几站提醒（原预警 chips 的默认值；全局设置见第 25 步） */
         const val DEFAULT_ALERT_THRESHOLD_STOPS = 2
+
+        /** 手机读不了（没有朗读引擎或不支持中文）时的提示 */
+        const val TTS_UNAVAILABLE_MESSAGE = "这台手机读不了：请在系统设置的「文字转语音」里装上中文语音"
     }
 }
 

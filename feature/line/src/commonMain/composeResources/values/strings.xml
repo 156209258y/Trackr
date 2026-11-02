@@ -54,6 +54,7 @@
     <string name="line_elder_picked">现在选的</string>
     <string name="line_elder_board_at">在 %1$s 上车</string>
     <string name="line_elder_pick_stop">换站</string>
+    <string name="line_elder_read_aloud">读给我听</string>
     <string name="line_elder_alert_me">车快到时叫我</string>
     <string name="line_elder_alerting">车快到时会叫你</string>
     <string name="line_elder_stop_alert">不用叫了</string>

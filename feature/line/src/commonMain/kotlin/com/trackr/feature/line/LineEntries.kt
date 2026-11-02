@@ -62,7 +62,8 @@ val lineModule = module {
             reminderRepository = get(),
             trackingRepository = get(),
             trackingController = get(),
-            lineStopsCache = get()
+            lineStopsCache = get(),
+            announcer = get()
         )
     }
 }

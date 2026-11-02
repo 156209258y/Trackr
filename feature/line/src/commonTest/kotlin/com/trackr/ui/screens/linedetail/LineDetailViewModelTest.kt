@@ -15,6 +15,7 @@ import com.trackr.core.model.TrackingTarget
 import com.trackr.core.model.TransitCity
 import com.trackr.core.model.TransitCodeProvider
 import com.trackr.core.model.ScheduledReminder
+import com.trackr.core.testing.FakeAnnouncer
 import com.trackr.core.testing.FakeTrackingController
 import com.trackr.core.data.repository.RealtimeRepository
 import com.trackr.core.testing.FakeFavoritesRepository
@@ -154,7 +155,8 @@ class LineDetailViewModelTest {
         stationId: String? = null,
         realtime: RealtimeRepository = fakeRepository.realtime,
         cache: LineStopsCache = FakeLineStopsCache(),
-        reminders: FakeScheduledReminderRepository = FakeScheduledReminderRepository()
+        reminders: FakeScheduledReminderRepository = FakeScheduledReminderRepository(),
+        announcer: FakeAnnouncer = FakeAnnouncer()
     ): LineDetailViewModel {
         return LineDetailViewModel(
             cityId = "034",
@@ -169,8 +171,76 @@ class LineDetailViewModelTest {
             trackingRepository = trackingRepository,
             trackingController = trackingController,
             lineStopsCache = cache,
+            announcer = announcer,
             enableAutoPolling = false
         )
+    }
+
+    // ---------- 读给我听（第 33 步） ----------
+
+    @Test
+    fun readAloud_speaksSameArrivalAsMainCard() = runTest(main.dispatcher) {
+        val announcer = FakeAnnouncer()
+        val viewModel = createViewModel(targetOrder = 3, announcer = announcer)
+        testScheduler.runCurrent()
+
+        viewModel.onReadAloud()
+        testScheduler.runCurrent()
+
+        assertEquals(listOf("49路，开往上海体育馆，还有 1 站，大约 2 分钟到上海体育馆站"), announcer.spoken)
+        assertTrue(viewModel.uiState.value.userMessages.isEmpty())
+    }
+
+    @Test
+    fun readAloud_allPassed_readsNextDepartureTime() = runTest(main.dispatcher) {
+        fakeRepository.lineDetailResult = Result.success(
+            BusLineDetail(
+                line = forwardDirection,
+                reverseDirection = reverseDirection,
+                stops = stops,
+                buses = emptyList(),
+                targetOrder = 2,
+                nextDepartureFromStart = "07:20"
+            )
+        )
+        val announcer = FakeAnnouncer()
+        val viewModel = createViewModel(targetOrder = 2, announcer = announcer)
+        testScheduler.runCurrent()
+
+        viewModel.onReadAloud()
+        testScheduler.runCurrent()
+
+        assertEquals(listOf("49路，开往上海体育馆，车都过了，下一班 7点20分 从 汉口路 发车"), announcer.spoken)
+    }
+
+    @Test
+    fun readAloud_ttsUnavailable_postsMessage() = runTest(main.dispatcher) {
+        val announcer = FakeAnnouncer(isAvailable = false)
+        val viewModel = createViewModel(targetOrder = 3, announcer = announcer)
+        testScheduler.runCurrent()
+
+        viewModel.onReadAloud()
+        testScheduler.runCurrent()
+
+        assertTrue(announcer.spoken.isEmpty())
+        assertEquals(
+            listOf(LineDetailViewModel.TTS_UNAVAILABLE_MESSAGE),
+            viewModel.uiState.value.userMessages.map { it.text }
+        )
+    }
+
+    @Test
+    fun readAloud_beforeLineLoaded_doesNothing() = runTest(main.dispatcher) {
+        fakeRepository.lineDetailResult = Result.failure(IllegalStateException("网络异常"))
+        val announcer = FakeAnnouncer()
+        val viewModel = createViewModel(targetOrder = 3, announcer = announcer)
+        testScheduler.runCurrent()
+
+        viewModel.onReadAloud()
+        testScheduler.runCurrent()
+
+        assertTrue(announcer.spoken.isEmpty())
+        assertTrue(viewModel.uiState.value.userMessages.isEmpty())
     }
 
     @Test
