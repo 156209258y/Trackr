@@ -63,9 +63,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.trackr.ui.components.arrival.LineBadge
 import com.trackr.core.designsystem.component.EmptyStateView
 import com.trackr.core.designsystem.resources.Res
+import com.trackr.core.designsystem.resources.action_back
+import com.trackr.core.designsystem.resources.action_cancel
+import com.trackr.core.designsystem.resources.action_clear
 import com.trackr.core.designsystem.resources.ic_back
 import com.trackr.core.designsystem.resources.ic_chevron_right
 import com.trackr.core.designsystem.resources.ic_close
@@ -75,6 +77,14 @@ import com.trackr.core.designsystem.theme.item
 import com.trackr.core.model.BusLineDirection
 import com.trackr.core.model.NearbyStop
 import com.trackr.core.model.TransitSearchResult
+import com.trackr.feature.search.resources.Res as SearchRes
+import com.trackr.feature.search.resources.search_clear_history_title
+import com.trackr.feature.search.resources.search_empty
+import com.trackr.feature.search.resources.search_empty_hint
+import com.trackr.feature.search.resources.search_hint
+import com.trackr.feature.search.resources.search_recent
+import com.trackr.ui.components.arrival.LineBadge
+import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.resources.vectorResource
 
 /** 搜索页发给 Route 的事件（重构计划阶段 D：无状态 `XxxScreen(state, onEvent)`） */
@@ -137,8 +147,8 @@ fun SearchScreen(
             )
 
             !state.isSearching && result != null && result.lines.isEmpty() && result.stops.isEmpty() -> EmptyStateView(
-                message = "没找到和「${queryText.trim()}」有关的线路或车站",
-                subMessage = "试试只输路号数字（比如 20），或站名里的几个字",
+                message = stringResource(SearchRes.string.search_empty, queryText.trim()),
+                subMessage = stringResource(SearchRes.string.search_empty_hint),
                 icon = vectorResource(Res.drawable.ic_search),
                 modifier = Modifier
                     .consumeWindowInsets(innerPadding)
@@ -178,7 +188,7 @@ private fun SearchTopBar(
             verticalAlignment = Alignment.CenterVertically
         ) {
             IconButton(onClick = { onEvent(SearchEvent.Back) }) {
-                Icon(imageVector = vectorResource(Res.drawable.ic_back), contentDescription = "返回")
+                Icon(imageVector = vectorResource(Res.drawable.ic_back), contentDescription = stringResource(Res.string.action_back))
             }
             OutlinedTextField(
                 value = query,
@@ -189,7 +199,7 @@ private fun SearchTopBar(
                     .testTag(SEARCH_FIELD_TAG),
                 placeholder = {
                     Text(
-                        text = "搜索 $cityName 公交线路、车站",
+                        text = stringResource(SearchRes.string.search_hint, cityName),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -208,7 +218,7 @@ private fun SearchTopBar(
                 trailingIcon = {
                     if (query.isNotEmpty()) {
                         IconButton(onClick = { onEvent(SearchEvent.QueryChanged("")) }) {
-                            Icon(imageVector = vectorResource(Res.drawable.ic_close), contentDescription = "清空")
+                            Icon(imageVector = vectorResource(Res.drawable.ic_close), contentDescription = stringResource(Res.string.action_clear))
                         }
                     }
                 }
@@ -234,17 +244,17 @@ private fun SearchHistoryView(
     if (showClearDialog) {
         AlertDialog(
             onDismissRequest = { showClearDialog = false },
-            title = { Text("清空最近搜过的词？") },
+            title = { Text(stringResource(SearchRes.string.search_clear_history_title)) },
             confirmButton = {
                 TextButton(onClick = {
                     showClearDialog = false
                     onEvent(SearchEvent.ClearHistory)
                 }) {
-                    Text("清空", color = MaterialTheme.colorScheme.error)
+                    Text(stringResource(Res.string.action_clear), color = MaterialTheme.colorScheme.error)
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showClearDialog = false }) { Text("取消") }
+                TextButton(onClick = { showClearDialog = false }) { Text(stringResource(Res.string.action_cancel)) }
             }
         )
     }
@@ -260,11 +270,11 @@ private fun SearchHistoryView(
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Text(
-                text = "最近搜过",
+                text = stringResource(SearchRes.string.search_recent),
                 style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            TextButton(onClick = { showClearDialog = true }) { Text("清空") }
+            TextButton(onClick = { showClearDialog = true }) { Text(stringResource(Res.string.action_clear)) }
         }
         FlowRow(
             horizontalArrangement = Arrangement.spacedBy(dimens.spaceS),

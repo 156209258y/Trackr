@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- feature/search 的页面文案（第 28 步从代码里搬出来）。 -->
+<resources>
+    <string name="search_empty">没找到和「%1$s」有关的线路或车站</string>
+    <string name="search_empty_hint">试试只输路号数字（比如 20），或站名里的几个字</string>
+    <string name="search_hint">搜索 %1$s 公交线路、车站</string>
+    <string name="search_clear_history_title">清空最近搜过的词？</string>
+    <string name="search_recent">最近搜过</string>
+</resources>
