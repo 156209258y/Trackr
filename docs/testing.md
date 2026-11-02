@@ -105,7 +105,7 @@ Koin 由 `TrackrApp.onCreate` 启动，Robolectric 用例里每个用例都会�
 | `:core:ui` `ui/util` | `PollingCoordinatorTest` | 定时 / 倒计时轮询策略：按周期触发、每秒倒计时到点触发、动作抛异常不打断；协调器生命周期与手动控制、重启倒计时（关了自动轮询也通知 tick）、`restart()` 让定时轮询从现在起重新等一个周期（暂停时不启动）、scope 取消后停止 | commonTest（JVM；iOS 只编译和链接测试，不跑） |
 | `:core:ui` `ui/components/transitcode` | `TransitCodeFabTest` | 乘车码悬浮按钮：默认展开、点一下就打开；往下滑缩成图标（读屏仍读「乘车码」、能点）、往上滑展开；小于 8 px 的抖动不切换、在顶部继续下拉也展开 | Robolectric Compose UI |
 | `:core:ui` `ui/components` | `BusArrivalBadgeTest` | 到站状态徽标文字与高亮（走 `ArrivalText`）：到站、快到算到站、0 站未到算下一站、剩余站数带 / 不带 ETA、3 分钟内高亮、站序无效、优先用状态文字、没车兜底 | androidHostTest（只 JVM） |
-| `:core:ui` `ui/screens/favoritesgroup` | `TransitGroupCardTextTest` | 分组卡片文案：乘车站数（没对齐显示待定）、直达 / 换乘摘要、上车时间（首程 ETA + 乘车站数、步行按 80 米/分、第三程累加前面各程、乘车中以下车站为锚点、前一程没对齐给空）、跟车阶段标签与进度、换乘前下一程实时、卡片大字（等车 / 未追踪 / 乘车中到站） | androidHostTest（只 JVM） |
+| `:core:ui` `ui/screens/favoritesgroup` | `LegTextsTest` | 规划页、路线详情还在用的纯函数：线路 id 是合成的算站数没对齐、跟车阶段标签、点线路进详情用上车站序号、到站分钟（先用 ETA，没有就按站数估） | commonTest（JVM） |
 | `:feature:bus` `feature/bus/home` | `BusHomeViewModelTest` | 公交首页（第 19 步由 `HomeViewModelTest` 改名，原用例全部保留）：初始加载已选城市、切城市、城市汉字与拼音过滤、按数据源过滤城市、收藏监听；切数据源立即刷新附近站、附近站固定 6 个（「附近站数」设置不再影响首页）；启动定位（没存城市切到定位城市、存过就保留、离开已存城市回到城市中心）、下拉刷新保留城市、城市选择器里重新定位；结束追踪（追踪卡消失、路线状态清掉）；轮询暂停恢复，`setPollingActive` 恢复时离上次刷新 ≥15 秒立即补刷、不到不补；没可用定位时报错并保留位置；收藏合一（车和路线一个列表、分组 chips 筛选、分组删了回到「全部」）、没车时写下一班发车时间、数据没变沿用旧实例；乘车码（选了平台直接开、「每次询问」弹选择、勾「以后都用这个」才记成默认）；附近站请求失败发一次性消息 | commonTest（JVM；iOS 未验） |
 | `:feature:bus` `feature/bus/home` | `BusHomeScreenTest` | 无状态 `BusHomeScreen`：标题是城市名、没有乘车码卡、悬浮按钮发事件；收藏行写上车站和「始发 → 终点」、点开线路页、「编辑」；有分组才显示 chips；没收藏一句话、没有「编辑」；一起等卡最先到的放大、多于 3 条折叠成「还有 N 条」点开展开、「结束」；附近站线路行进线路页、站名进站点页 | Robolectric Compose UI |
 | `:feature:bus` `feature/bus/citypicker` | `CityPickerItemRowTest` | 城市选择列表项渲染与点击、没省份标签时不显示省份 | Robolectric Compose UI |
@@ -130,8 +130,6 @@ Koin 由 `TrackrApp.onCreate` 启动，Robolectric 用例里每个用例都会�
 |  | `AmapSdkTransitServiceTest` | 高德 SDK 公交路径转换为方案（含折线和末段步行、多候选线用主线站点）、无 Key 时的提示 | Robolectric (JVM) |
 | `:feature:favorites` `ui/screens/favoritesedit` | `FavoritesEditViewModelTest` | 编辑收藏：初始分组与类别筛选、自定义收藏分组增删与筛选、删除 / 保存临时分组、存通勤路线自动在「家」里补返程、通勤与家分开筛选、手动生成返程、一次性数据修复只迁一次旧通勤并记版本；ViewModel 清掉时把进程级的选中收藏分组一起清掉 | commonTest（JVM；iOS 只编译和链接测试，不跑） |
 |  | `FavoritesEditScreenTest` | 编辑收藏页（第 22 步）：分组和路线都显示、新建分组、点路线进详情、删路线先确认 | Robolectric Compose UI |
-| `:feature:favorites` `ui/screens/favoritesgroup` | `FavoritesGroupNavigationEventTest` | 分组编辑弹窗：没改动直接关，有改动时点取消 / 按返回键弹放弃确认 | Robolectric Compose UI |
-|  | `TransitGroupCardTrackingTest` | 分组卡片跟车各阶段：未追踪显示首程大字和第二程预计上车时间；等车显示阶段徽标、「我上车了」和「在这」；乘车临近换乘显示下车大字、下一程实时和信号丢失 | Robolectric Compose UI |
 | `:feature:me` `ui/screens/me` | `MeViewModelTest` | 「我的」页（第 25 步）：数据源只有车来了 / 掌上公交二选一、乘车码偏好、到站前提醒全局设置（1–3 站）、定时提醒行显示最早一条开着的提醒和开关、实时通知 / 锁屏开关、状态栏胶囊（实时通知关着或 iOS 不显示、去设置、回前台重查）、高德 Key 状态文字跟着仓库、子页提示显示一次就删、提醒短文字；长辈版开关位置预留（不显示） | commonTest（JVM） |
 |  | `ReminderEditViewModelTest` | 定时提醒编辑：读出已有提醒、提醒已删、改时间 / 重复日后保存是原位替换并给「我的」发提示、预设重复日、开了「到点自动开始追踪」又没有精确闹钟权限时提示（回前台重查、去设置、打不开设置时给提示）、删除要确认、连点保存只存一次 | commonTest（JVM） |
 |  | `AmapKeyViewModelTest` | 高德 Key 页：包名 + SHA-1 来自 `AppSigningInfo`、iOS 没有 Android 槽和 SHA-1、只写改过的那一槽、清空一槽不动另一槽、长度不对不让存、提示文字跟输入和内置 Key、复制 / 打不开浏览器的提示 | commonTest（JVM） |
