@@ -15,6 +15,7 @@ import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
+import androidx.glance.Image
 import androidx.glance.ImageProvider
 import androidx.glance.LocalContext
 import androidx.glance.action.ActionParameters
@@ -38,6 +39,7 @@ import androidx.glance.layout.fillMaxSize
 import androidx.glance.layout.fillMaxWidth
 import androidx.glance.layout.height
 import androidx.glance.layout.padding
+import androidx.glance.layout.size
 import androidx.glance.layout.width
 import androidx.glance.state.GlanceStateDefinition
 import androidx.glance.state.PreferencesGlanceStateDefinition
@@ -212,10 +214,11 @@ private fun FavoriteContent(
                 style = TextStyle(color = TextTertiary, fontSize = 11.sp),
                 modifier = GlanceModifier.padding(end = 6.dp)
             )
-            Text(
-                text = "🔄",
-                style = TextStyle(fontSize = 14.sp),
+            Image(
+                provider = ImageProvider(R.drawable.ic_widget_refresh),
+                contentDescription = "刷新",
                 modifier = GlanceModifier
+                    .size(26.dp)
                     .padding(4.dp)
                     .clickable(actionRunCallback<RefreshBusStopWidgetAction>())
             )
