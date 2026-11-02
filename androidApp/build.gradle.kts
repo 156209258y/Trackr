@@ -8,6 +8,8 @@ plugins {
     alias(libs.plugins.trackr.android.application)
     alias(libs.plugins.kotlin.plugin.compose)
     alias(libs.plugins.kotlin.plugin.serialization)
+    // 第 27 步：消费 :baselineprofile 生成的 Baseline Profile；另会加 nonMinifiedRelease、benchmarkRelease 两个构建类型（生成和测量用）
+    alias(libs.plugins.androidx.baselineprofile)
     id("jacoco")
 }
 
@@ -153,6 +155,9 @@ dependencies {
     // 第 26 步：桌面小组件迁 Glance，周期刷新走 WorkManager
     implementation(libs.androidx.glance.appwidget)
     implementation(libs.androidx.work.runtime.ktx)
+    // 第 27 步：安装后把 Baseline Profile 交给 ART 预编译（商店外安装也生效）
+    implementation(libs.androidx.profileinstaller)
+    baselineProfile(project(":baselineprofile"))
 
     testImplementation(libs.junit)
     testImplementation(libs.androidx.glance.appwidget.testing)
