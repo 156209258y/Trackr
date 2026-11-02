@@ -42,3 +42,5 @@ include(":feature:route")
 include(":feature:favorites")
 include(":feature:me")
 include(":composeApp")
+// 第 27 步：Baseline Profile 生成器 + Macrobenchmark（要连真机跑）
+include(":baselineprofile")
