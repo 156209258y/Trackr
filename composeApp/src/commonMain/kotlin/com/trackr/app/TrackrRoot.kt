@@ -42,6 +42,7 @@ import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.ui.NavDisplay
 import com.trackr.core.data.repository.AmapKeyRepository
 import com.trackr.core.designsystem.theme.TrackrTheme
+import com.trackr.core.model.UiMode
 import com.trackr.core.navigation.Navigator
 import com.trackr.core.navigation.ScreenKey
 import com.trackr.core.navigation.TrackrTransitions
@@ -64,7 +65,8 @@ import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
 
 /**
- * 应用的根 Composable（重构计划 §2.2、§3.3）：主题（按 [AppShellViewModel] 的界面模式）、底栏、各页签的返回栈和 NavDisplay。
+ * 应用的根 Composable（重构计划 §2.2、§3.3、§8.4）：主题和导航结构都按 [AppShellViewModel] 的界面模式选——
+ * 标准版是底栏 + 各页签的返回栈（[TrackrNavApp]），长辈版是一条栈、没有底栏（[ElderNavApp]）。
  * 第 17 步从 `MainActivity` 原样搬来；`MainActivity` 只剩 Intent 处理和 `setContent { TrackrRoot(…) }`。
  *
  * @param deepLink 待落栈的链接（`DeepLinkParser` 解析小组件 / 快捷方式 / 通知的 `trackr://` 得到，§3.6）。
@@ -76,7 +78,7 @@ fun TrackrRoot(
     onDeepLinkConsumed: () -> Unit = {},
     onAmapPrivacyAccepted: () -> Unit = {}
 ) {
-    // 界面模式在 NavDisplay 之上读（§8.2）；第 30 步只换主题，导航结构第 31 步再按模式分
+    // 界面模式在 NavDisplay 之上读（§8.2）：决定主题和导航结构（标准版 / 长辈版，§8.4）
     val shellViewModel = koinViewModel<AppShellViewModel>()
     val shell by shellViewModel.shell.collectAsStateWithLifecycle()
     TrackrTheme(uiMode = shell.uiMode) {
@@ -89,11 +91,24 @@ fun TrackrRoot(
                 // Android：地图会话（切页签不销毁地图）；iOS：直接显示
                 val amapKeys = koinInject<AmapKeyRepository>()
                 val privacyConsent by amapKeys.privacyConsent.collectAsStateWithLifecycle()
-                PlatformHost(enabled = privacyConsent == true) {
-                    TrackrNavApp(
-                        deepLink = deepLink,
-                        onDeepLinkConsumed = onDeepLinkConsumed,
-                        onAmapPrivacyAccepted = onAmapPrivacyAccepted
+                // 长辈版没有地图规划，不建地图会话
+                PlatformHost(enabled = privacyConsent == true && shell.uiMode == UiMode.Standard) {
+                    // 标准版 3 个页签各一条栈；长辈版一条栈、没有底栏（§8.4）。切换模式时新模式从首页开始（Q9）
+                    UiModeNavHost(
+                        uiMode = shell.uiMode,
+                        standard = {
+                            TrackrNavApp(
+                                deepLink = deepLink,
+                                onDeepLinkConsumed = onDeepLinkConsumed,
+                                onAmapPrivacyAccepted = onAmapPrivacyAccepted
+                            )
+                        },
+                        elder = {
+                            ElderNavApp(
+                                deepLink = deepLink,
+                                onDeepLinkConsumed = onDeepLinkConsumed
+                            )
+                        }
                     )
                 }
                 // 申请定位与通知权限（Android：首次打开时弹说明再申请；iOS 阶段 G 再做）。
