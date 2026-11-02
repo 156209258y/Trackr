@@ -6,11 +6,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.viewinterop.AndroidView
 import com.amap.api.maps.AMap
 import com.amap.api.maps.CameraUpdateFactory
@@ -25,6 +28,9 @@ import com.trackr.ui.screens.routeplan.AmapMapSession
 import kotlinx.coroutines.delay
 
 private fun GeoPoint.toLatLng(): LatLng = LatLng(lat, lng)
+
+/** 选中方案只有一个点（或所有点几乎重合）时的取景级别：街道级，能看清上下车站 */
+private const val SINGLE_POINT_ZOOM = 16f
 
 /**
  * 真实高德 3D 矢量地图视图（TextureMapView），实例由 [AmapMapSession] 托管。
@@ -63,6 +69,9 @@ internal fun AmapRealVectorMapView(
     val isMapLoaded = session.isLoadedState.value
     val runtimeError = session.runtimeErrorState.value
 
+    // 取景内边距要按地图可视尺寸算（底部方案面板会盖住画面下约 40%），所以先量一下自己的尺寸
+    var mapSize by remember { mutableStateOf(IntSize.Zero) }
+
     AndroidView(
         factory = { _ ->
             // 容器可能是从上一个页面「摘下」的，先确保它没有残留父节点，否则 addView 会抛异常
@@ -71,7 +80,7 @@ internal fun AmapRealVectorMapView(
             session.updateKey(customApiKey)
             session.container
         },
-        modifier = modifier
+        modifier = modifier.onSizeChanged { mapSize = it }
     )
 
     LaunchedEffect(customApiKey) { session.updateKey(customApiKey) }
@@ -125,18 +134,34 @@ internal fun AmapRealVectorMapView(
         )
     }
 
-    // 取景层（有方案时）：只在方案列表变化 / 用户点重置时 fit bounds 一次，范围覆盖全部方案。
-    // 不能把 myLocation 或选中方案作为 key——否则用户拖动或切换方案时视角会被反复拉回去。
-    LaunchedEffect(schemes, aMap, isMapLoaded, recenterTrigger) {
-        if (aMap == null || !isMapLoaded || schemes.isEmpty()) return@LaunchedEffect
-        val allPoints = schemes.flatMap { schemeBoundsPoints(it) }.map { it.toLatLng() }
-        if (allPoints.isEmpty()) return@LaunchedEffect
-        val boundsBuilder = LatLngBounds.builder()
-        allPoints.forEach { boundsBuilder.include(it) }
-        runCatching {
-            aMap.animateCamera(CameraUpdateFactory.newLatLngBounds(boundsBuilder.build(), 180))
-        }.onFailure {
-            aMap.animateCamera(CameraUpdateFactory.newLatLngZoom(allPoints.first(), 14f))
+    // 取景层（有方案时）：以**当前选中方案**为主角 fit bounds——选中方案是粗彩线的主角，
+    // 其他方案只是细灰线参考，不能把视角拉走（以前合并全部方案，3 个目的地各不相同，直接缩到全市）。
+    // key 只放方案列表 / 选中下标 / 重置按钮：用户手动拖动地图时这些值不变，不会被反复拉回去。
+    LaunchedEffect(schemes, selectedIndex, aMap, isMapLoaded, recenterTrigger, mapSize) {
+        if (aMap == null || !isMapLoaded) return@LaunchedEffect
+        // 内边距要按真实可视尺寸算；尺寸还没量出来就先不动相机（onSizeChanged 到了会重跑）
+        if (mapSize.width <= 0 || mapSize.height <= 0) return@LaunchedEffect
+        val framing = mapFramingFor(schemes, selectedIndex) ?: return@LaunchedEffect
+        val padding = mapFramingPadding(mapSize.width, mapSize.height)
+        val camera = when (framing) {
+            is MapFraming.Bounds -> CameraUpdateFactory.newLatLngBoundsRect(
+                LatLngBounds(
+                    LatLng(framing.south, framing.west),
+                    LatLng(framing.north, framing.east)
+                ),
+                padding.left,
+                padding.right,
+                padding.top,
+                padding.bottom
+            )
+            is MapFraming.Point -> CameraUpdateFactory.newLatLngZoom(framing.point.toLatLng(), SINGLE_POINT_ZOOM)
+        }
+        runCatching { aMap.animateCamera(camera) }.onFailure {
+            val anchor = when (framing) {
+                is MapFraming.Bounds -> GeoPoint(framing.south, framing.west)
+                is MapFraming.Point -> framing.point
+            }
+            aMap.animateCamera(CameraUpdateFactory.newLatLngZoom(anchor.toLatLng(), 14f))
         }
     }
 

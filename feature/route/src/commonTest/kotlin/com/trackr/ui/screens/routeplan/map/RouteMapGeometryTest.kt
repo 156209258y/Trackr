@@ -11,6 +11,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertNotEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 /** 地图画什么：按形状点画线（743e932）、缺点才退回两点、城市中心转 GCJ-02（301c124） */
 class RouteMapGeometryTest {
@@ -119,5 +120,78 @@ class RouteMapGeometryTest {
         assertNotEquals(GeoPoint(wgsLat, wgsLng), gcj)
         assertEquals(wgs84ToGcj02Point(wgsLat, wgsLng), gcj)
         assertNull(cityCenterGcj02("不存在的城市"))
+    }
+
+    // ---- 取景：只跟当前选中方案（否则 3 个方案各不相同，合并后缩到全市） ----
+
+    private val nearA = GeoPoint(25.43, 119.00)
+    private val nearB = GeoPoint(25.45, 119.03)
+    private val farC = GeoPoint(25.90, 119.60)
+    private val farD = GeoPoint(25.95, 119.65)
+
+    private fun schemesForFraming() = listOf(
+        scheme(listOf(leg(0, nearA, nearB))),
+        scheme(listOf(leg(0, farC, farD))),
+        scheme(listOf(leg(1, farD, farC)))
+    )
+
+    @Test
+    fun framing_usesSelectedSchemeOnly_notAllSchemes() {
+        val framing = assertNotNull(mapFramingFor(schemesForFraming(), selectedIndex = 0))
+        assertEquals(MapFraming.Bounds(south = nearA.lat, west = nearA.lng, north = nearB.lat, east = nearB.lng), framing)
+    }
+
+    @Test
+    fun framing_followsSelectedIndex() {
+        val framing = assertNotNull(mapFramingFor(schemesForFraming(), selectedIndex = 1))
+        assertEquals(MapFraming.Bounds(south = farC.lat, west = farC.lng, north = farD.lat, east = farD.lng), framing)
+    }
+
+    @Test
+    fun framing_fallsBackToAllSchemes_whenSelectionHasNoPoints() {
+        // 第 1 个方案坐标全缺（上下车站都是 0.0），只能退回全部方案合并
+        val schemes = listOf(
+            scheme(listOf(leg(0, GeoPoint(0.0, 0.0), GeoPoint(0.0, 0.0)))),
+            scheme(listOf(leg(0, nearA, nearB)))
+        )
+        val framing = assertNotNull(mapFramingFor(schemes, selectedIndex = 0))
+        assertEquals(MapFraming.Bounds(south = nearA.lat, west = nearA.lng, north = nearB.lat, east = nearB.lng), framing)
+    }
+
+    @Test
+    fun framing_outOfRangeIndex_fallsBackToAllSchemes() {
+        val framing = assertNotNull(mapFramingFor(schemesForFraming(), selectedIndex = 9))
+        assertEquals(MapFraming.Bounds(south = nearA.lat, west = nearA.lng, north = farD.lat, east = farD.lng), framing)
+    }
+
+    @Test
+    fun framing_singlePoint_becomesPointFraming() {
+        val framing = assertNotNull(mapFramingFor(listOf(scheme(listOf(leg(0, nearA, nearA)))), selectedIndex = 0))
+        assertEquals(MapFraming.Point(nearA), framing)
+    }
+
+    @Test
+    fun framing_noSchemes_isNull() {
+        assertNull(mapFramingFor(emptyList(), selectedIndex = 0))
+    }
+
+    @Test
+    fun padding_reservesBottomForTheSchemePanel() {
+        // 1080x2400 的屏幕：下边距要至少盖住方案面板那一块（约 40%），左边距保持很窄
+        val padding = mapFramingPadding(viewWidth = 1080, viewHeight = 2400)
+        assertTrue(padding.bottom >= 960, "底部面板 40% 高应让出下边距，实际 ${padding.bottom}")
+        assertTrue(padding.bottom > padding.left, "下边距必须明显大于左右边距")
+        assertTrue(padding.top + padding.bottom <= 2400 * 0.8, "上下合计不能把可见区域挤没")
+    }
+
+    @Test
+    fun padding_staysSymmetricFallback_whenSizeUnknown() {
+        assertEquals(MapFramingPadding(180, 180, 180, 180), mapFramingPadding(viewWidth = 0, viewHeight = 0))
+    }
+
+    @Test
+    fun padding_neverEatsTheWholeViewport_onShortScreens() {
+        val padding = mapFramingPadding(viewWidth = 1080, viewHeight = 500, bottomPanelFraction = 0.9)
+        assertTrue(padding.top + padding.bottom < 500, "极端比例下也要留出可见区域")
     }
 }

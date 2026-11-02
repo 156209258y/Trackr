@@ -116,6 +116,71 @@ fun schemeBoundsPoints(scheme: AmapTransitSchemeResult): List<GeoPoint> = buildL
     schemeDestination(scheme)?.let { add(it) }
 }
 
+/** 地图取景：要么 fit 一个经纬度矩形，要么退化成一个点（单点方案直接定级放大） */
+sealed interface MapFraming {
+    /** 西南角 / 东北角（GCJ-02），已经是归一化过的顺序 */
+    data class Bounds(val south: Double, val west: Double, val north: Double, val east: Double) : MapFraming
+
+    data class Point(val point: GeoPoint) : MapFraming
+}
+
+/** 取景四周内边距（像素）；对应高德 newLatLngBoundsRect 的 left / right / top / bottom */
+data class MapFramingPadding(val left: Int, val right: Int, val top: Int, val bottom: Int) {
+    val isSymmetric: Boolean get() = left == right && left == top && top == bottom
+}
+
+/** 底部方案面板大致盖住的地图高度比例（RoutePlanScreen 底部卡片 + 底栏约 40%） */
+const val ROUTE_PLAN_PANEL_HEIGHT_FRACTION = 0.40
+
+/** 范围小于这个跨度（约 11 米）当成一个点：零面积 bounds 高德会拒绝，不如直接定级 */
+private const val FRAMING_MIN_SPAN_DEGREES = 1e-4
+
+/**
+ * 取景该用哪些点：**当前选中方案**优先（设计稿：选中的方案是主角，其余只画细灰线作参考），
+ * 选中方案没有可用点（下标越界 / 坐标全缺）时才退回全部方案合并。
+ *
+ * 之前是所有方案合并成一个 bounds，3 个方案目的地各不相同，合并后范围极大，地图缩到城乡级别，
+ * 一条线路都看不见。
+ */
+fun mapFramingFor(schemes: List<AmapTransitSchemeResult>, selectedIndex: Int): MapFraming? {
+    val selected = schemes.getOrNull(selectedIndex)?.let { schemeBoundsPoints(it) }
+    val points = selected?.takeIf { it.isNotEmpty() }
+        ?: schemes.flatMap { schemeBoundsPoints(it) }
+    return framingOf(points)
+}
+
+private fun framingOf(points: List<GeoPoint>): MapFraming? {
+    if (points.isEmpty()) return null
+    val south = points.minOf { it.lat }
+    val north = points.maxOf { it.lat }
+    val west = points.minOf { it.lng }
+    val east = points.maxOf { it.lng }
+    return if (north - south < FRAMING_MIN_SPAN_DEGREES && east - west < FRAMING_MIN_SPAN_DEGREES) {
+        MapFraming.Point(points.first())
+    } else {
+        MapFraming.Bounds(south = south, west = west, north = north, east = east)
+    }
+}
+
+/**
+ * 取景内边距（像素）。底部方案面板盖住画面下约 [ROUTE_PLAN_PANEL_HEIGHT_FRACTION]，
+ * 所以下边距要按面板高度留出来，路线才会落在面板上方的可见区域，而不是被卡片压住一半；
+ * 顶部同样让出搜索岛的位置。尺寸还没量出来（宽高 <= 0）时退回旧的对称 180px。
+ */
+fun mapFramingPadding(
+    viewWidth: Int,
+    viewHeight: Int,
+    bottomPanelFraction: Double = ROUTE_PLAN_PANEL_HEIGHT_FRACTION
+): MapFramingPadding {
+    if (viewWidth <= 0 || viewHeight <= 0) return MapFramingPadding(180, 180, 180, 180)
+    val side = maxOf(24, (viewWidth * 0.06).toInt())
+    val top = maxOf(24, (viewHeight * 0.10).toInt())
+    // 上下合计不超过画面 80%，保证还有一段可用视野；面板最多按 45% 算，防止窄屏把画面挤没
+    val bottomCap = minOf((viewHeight * 0.45).toInt(), viewHeight - top - (viewHeight * 0.20).toInt())
+    val bottom = minOf((viewHeight * bottomPanelFraction).toInt(), maxOf(0, bottomCap))
+    return MapFramingPadding(left = side, right = side, top = top, bottom = bottom)
+}
+
 /** 系统定位是 WGS-84，高德地图要 GCJ-02；两者在国内差 300~600 米 */
 fun wgs84ToGcj02Point(lat: Double, lng: Double): GeoPoint {
     val (gcjLat, gcjLng) = CoordTransform.wgs84ToGcj02(lat, lng)
