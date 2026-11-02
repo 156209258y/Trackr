@@ -33,7 +33,17 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.trackr.core.designsystem.resources.Res
 import com.trackr.core.designsystem.resources.ic_qr_code
+import com.trackr.core.designsystem.resources.transit_code
 import com.trackr.core.model.TransitCodeProvider
+import com.trackr.feature.line.resources.Res as LineRes
+import com.trackr.feature.line.resources.line_code_alipay
+import com.trackr.feature.line.resources.line_code_alipay_desc
+import com.trackr.feature.line.resources.line_code_long_press
+import com.trackr.feature.line.resources.line_code_pick
+import com.trackr.feature.line.resources.line_code_remember
+import com.trackr.feature.line.resources.line_code_unionpay
+import com.trackr.feature.line.resources.line_code_unionpay_desc
+import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.resources.vectorResource
 
 /**
@@ -65,13 +75,13 @@ fun TransitCodeBottomSheet(
                 .padding(bottom = 24.dp)
         ) {
             Text(
-                text = "乘车码",
+                text = stringResource(Res.string.transit_code),
                 style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                 color = MaterialTheme.colorScheme.onSurface
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = "请选择要唤醒的乘车码平台",
+                text = stringResource(LineRes.string.line_code_pick),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -109,13 +119,13 @@ fun TransitCodeBottomSheet(
 
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "支付宝乘车码",
+                            text = stringResource(LineRes.string.line_code_alipay),
                             style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.SemiBold),
                             color = MaterialTheme.colorScheme.onSurface
                         )
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
-                            text = "系统级一键秒开，推荐优先使用",
+                            text = stringResource(LineRes.string.line_code_alipay_desc),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -156,13 +166,13 @@ fun TransitCodeBottomSheet(
 
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "云闪付乘车码",
+                            text = stringResource(LineRes.string.line_code_unionpay),
                             style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.SemiBold),
                             color = MaterialTheme.colorScheme.onSurface
                         )
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
-                            text = "唤醒云闪付乘车码，享受银联乘车优惠",
+                            text = stringResource(LineRes.string.line_code_unionpay_desc),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -191,13 +201,13 @@ fun TransitCodeBottomSheet(
                     modifier = Modifier.weight(1f)
                 ) {
                     Text(
-                        text = "记住选择，下次直接唤醒",
+                        text = stringResource(LineRes.string.line_code_remember),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
-                        text = "（可长按切换）",
+                        text = stringResource(LineRes.string.line_code_long_press),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.primary
                     )

@@ -21,6 +21,15 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.trackr.core.designsystem.resources.Res
 import com.trackr.core.designsystem.resources.ic_bell
+import com.trackr.feature.line.resources.Res as LineRes
+import com.trackr.feature.line.resources.line_focus_body
+import com.trackr.feature.line.resources.line_focus_device_xiaomi
+import com.trackr.feature.line.resources.line_focus_fallback
+import com.trackr.feature.line.resources.line_focus_go
+import com.trackr.feature.line.resources.line_focus_later
+import com.trackr.feature.line.resources.line_focus_permission_xiaomi
+import com.trackr.feature.line.resources.line_focus_title
+import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.resources.vectorResource
 
 /**
@@ -31,9 +40,9 @@ fun FocusPermissionGuideDialog(
     onDismissRequest: () -> Unit,
     onContinueWithoutSettings: () -> Unit,
     onGoToSettings: () -> Unit,
-    title: String = "开启焦点通知（超级岛）",
-    deviceHint: String = "检测到您正在使用小米澎湃OS（Xiaomi HyperOS）。",
-    permissionName: String = "允许焦点通知"
+    title: String = stringResource(LineRes.string.line_focus_title),
+    deviceHint: String = stringResource(LineRes.string.line_focus_device_xiaomi),
+    permissionName: String = stringResource(LineRes.string.line_focus_permission_xiaomi)
 ) {
     AlertDialog(
         onDismissRequest = onDismissRequest,
@@ -74,14 +83,14 @@ fun FocusPermissionGuideDialog(
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    text = "开启「$permissionName」后，即可在屏幕挖孔两侧显示实时公交小胶囊，并在下拉时展开实时到站倒计时与站点进度。",
+                    text = stringResource(LineRes.string.line_focus_body, permissionName),
                     fontSize = 13.sp,
                     lineHeight = 19.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Spacer(modifier = Modifier.height(6.dp))
                 Text(
-                    text = "未开启时仍可正常使用普通通知栏进度追踪。",
+                    text = stringResource(LineRes.string.line_focus_fallback),
                     fontSize = 12.sp,
                     color = MaterialTheme.colorScheme.primary
                 )
@@ -92,7 +101,7 @@ fun FocusPermissionGuideDialog(
                 onClick = onGoToSettings,
                 shape = RoundedCornerShape(10.dp)
             ) {
-                Text("前往开启")
+                Text(stringResource(LineRes.string.line_focus_go))
             }
         },
         dismissButton = {
@@ -100,7 +109,7 @@ fun FocusPermissionGuideDialog(
                 onClick = onContinueWithoutSettings,
                 shape = RoundedCornerShape(10.dp)
             ) {
-                Text("暂不开启")
+                Text(stringResource(LineRes.string.line_focus_later))
             }
         }
     )

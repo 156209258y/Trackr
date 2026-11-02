@@ -60,6 +60,11 @@ import com.trackr.core.designsystem.theme.busColors
 import com.trackr.core.model.BusStop
 import com.trackr.core.model.LiveBus
 import com.trackr.core.model.sanitizePlateOrFleetNo
+import com.trackr.feature.line.resources.Res as LineRes
+import com.trackr.feature.line.resources.line_arrived
+import com.trackr.feature.line.resources.line_rail_bus
+import com.trackr.feature.line.resources.line_rail_waiting
+import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.resources.vectorResource
 
 // 第 20 步：挪到 commonMain，只保留纵向时间轴（横向走向条与 RouteRailLayoutMode 已删除）
@@ -459,7 +464,7 @@ private fun VerticalTimelineRow(
                         color = MaterialTheme.colorScheme.primary
                     ) {
                         Text(
-                            text = "候车中",
+                            text = stringResource(LineRes.string.line_rail_waiting),
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onPrimary,
@@ -514,13 +519,13 @@ private fun VerticalTimelineRow(
                 ) {
                     Icon(
                         imageVector = vectorResource(Res.drawable.ic_bus),
-                        contentDescription = "车辆",
+                        contentDescription = stringResource(LineRes.string.line_rail_bus),
                         tint = if (bus.isArrived) Color.White else busColors.busChipContent,
                         modifier = Modifier.size(13.dp)
                     )
                     Spacer(modifier = Modifier.width(3.dp))
                     Text(
-                        text = if (bus.isArrived) "已到站" else formatBusChipShortText(bus.plateOrFleetNo),
+                        text = if (bus.isArrived) stringResource(LineRes.string.line_arrived) else formatBusChipShortText(bus.plateOrFleetNo),
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
                         color = if (bus.isArrived) Color.White else busColors.busChipContent

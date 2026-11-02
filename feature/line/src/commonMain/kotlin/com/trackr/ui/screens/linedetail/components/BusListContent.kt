@@ -36,7 +36,25 @@ import com.trackr.core.model.BusLineDetail
 import com.trackr.core.model.BusStop
 import com.trackr.core.model.LiveBus
 import com.trackr.core.model.sanitizePlateOrFleetNo
+import com.trackr.feature.line.resources.Res as LineRes
+import com.trackr.feature.line.resources.line_arrived
+import com.trackr.feature.line.resources.line_list_approaching
+import com.trackr.feature.line.resources.line_list_arrive_at
+import com.trackr.feature.line.resources.line_list_back
+import com.trackr.feature.line.resources.line_list_count
+import com.trackr.feature.line.resources.line_list_current_stop
+import com.trackr.feature.line.resources.line_list_empty
+import com.trackr.feature.line.resources.line_list_entering
+import com.trackr.feature.line.resources.line_list_follow
+import com.trackr.feature.line.resources.line_list_kind_at_stop
+import com.trackr.feature.line.resources.line_list_kind_moving
+import com.trackr.feature.line.resources.line_list_kind_passed
+import com.trackr.feature.line.resources.line_list_passed
+import com.trackr.feature.line.resources.line_list_passed_stop
+import com.trackr.feature.line.resources.line_list_title
+import com.trackr.feature.line.resources.line_no_prediction
 import com.trackr.ui.components.common.BusArrivalBadge
+import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.resources.vectorResource
 
 /**
@@ -65,20 +83,20 @@ fun BusListContent(
             IconButton(onClick = onBack, modifier = Modifier.size(32.dp)) {
                 Icon(
                     imageVector = vectorResource(Res.drawable.ic_back),
-                    contentDescription = "返回站点卡",
+                    contentDescription = stringResource(LineRes.string.line_list_back),
                     modifier = Modifier.size(18.dp)
                 )
             }
             Spacer(modifier = Modifier.width(4.dp))
             Text(
-                text = "到「${selectedStop?.name ?: "当前站"}」的全部车辆",
+                text = stringResource(LineRes.string.line_list_title, selectedStop?.name ?: stringResource(LineRes.string.line_list_current_stop)),
                 fontSize = 17.sp,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.weight(1f)
             )
             Text(
-                text = "共 ${lineDetail.buses.size} 辆",
+                text = stringResource(LineRes.string.line_list_count, lineDetail.buses.size),
                 fontSize = 13.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -94,7 +112,7 @@ fun BusListContent(
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = "当前线路上暂无在途运营车辆",
+                    text = stringResource(LineRes.string.line_list_empty),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontSize = 14.sp
                 )
@@ -151,9 +169,9 @@ fun BusListContent(
                                 val cleanPlate = sanitizePlateOrFleetNo(bus.plateOrFleetNo)
                                 val displayPlate = cleanPlate.ifBlank {
                                     when {
-                                        isPassed -> "已过站车辆"
-                                        isAtStop -> "已到站车辆"
-                                        else -> "在途车辆"
+                                        isPassed -> stringResource(LineRes.string.line_list_kind_passed)
+                                        isAtStop -> stringResource(LineRes.string.line_list_kind_at_stop)
+                                        else -> stringResource(LineRes.string.line_list_kind_moving)
                                     }
                                 }
                                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -179,10 +197,10 @@ fun BusListContent(
                                 Spacer(modifier = Modifier.height(2.dp))
                                 Text(
                                     text = when {
-                                        isPassed -> "已过该站"
-                                        isAtStop -> "已到站"
-                                        stopsLeft > 0 -> "还有 $stopsLeft 站 · 正在接近第 ${bus.order} 站"
-                                        else -> "正在进站"
+                                        isPassed -> stringResource(LineRes.string.line_list_passed_stop)
+                                        isAtStop -> stringResource(LineRes.string.line_arrived)
+                                        stopsLeft > 0 -> stringResource(LineRes.string.line_list_approaching, stopsLeft, bus.order)
+                                        else -> stringResource(LineRes.string.line_list_entering)
                                     },
                                     fontSize = 12.sp,
                                     color = if (isPassed) busColors.busPassedGray else MaterialTheme.colorScheme.onSurfaceVariant
@@ -194,10 +212,10 @@ fun BusListContent(
                                 verticalArrangement = Arrangement.spacedBy(2.dp)
                             ) {
                                 val statusText = when {
-                                    isPassed -> "已过站"
-                                    isAtStop -> "已到站"
+                                    isPassed -> stringResource(LineRes.string.line_list_passed)
+                                    isAtStop -> stringResource(LineRes.string.line_arrived)
                                     bus.etaSeconds > 0 -> RouteProjectionMath.formatEtaText(bus.etaSeconds)
-                                    else -> "无预测"
+                                    else -> stringResource(LineRes.string.line_no_prediction)
                                 }
                                 BusArrivalBadge(
                                     text = statusText,
@@ -205,7 +223,7 @@ fun BusListContent(
                                 )
                                 if (!isPassed && !bus.expectedArrivalTimeText.isNullOrEmpty()) {
                                     Text(
-                                        text = "${bus.expectedArrivalTimeText} 到",
+                                        text = stringResource(LineRes.string.line_list_arrive_at, bus.expectedArrivalTimeText.toString()),
                                         fontSize = 11.sp,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
@@ -215,7 +233,7 @@ fun BusListContent(
                             Spacer(modifier = Modifier.width(4.dp))
                             Icon(
                                 imageVector = vectorResource(Res.drawable.ic_chevron_right),
-                                contentDescription = "查看单车跟随",
+                                contentDescription = stringResource(LineRes.string.line_list_follow),
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.size(18.dp)
                             )

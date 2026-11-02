@@ -45,10 +45,18 @@ import com.trackr.core.domain.arrival.ArrivalText
 import com.trackr.core.model.BusStop
 import com.trackr.core.model.LiveBus
 import com.trackr.core.model.sanitizePlateOrFleetNo
+import com.trackr.feature.line.resources.Res as LineRes
+import com.trackr.feature.line.resources.line_station_buses_on_line
+import com.trackr.feature.line.resources.line_station_change_stop
+import com.trackr.feature.line.resources.line_station_no_buses
+import com.trackr.feature.line.resources.line_station_order
+import com.trackr.feature.line.resources.line_station_pick_stop
+import com.trackr.feature.line.resources.line_station_tracking
 import com.trackr.ui.components.common.arrivalToneColor
 import com.trackr.ui.screens.linedetail.LineLive
 import com.trackr.ui.screens.linedetail.LineStatic
 import kotlinx.datetime.LocalTime
+import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.resources.vectorResource
 
 /**
@@ -141,7 +149,7 @@ fun StationArrivalContent(
                 TrackingBadge()
             } else if (selectedStop != null) {
                 Text(
-                    text = "第 $currentOrder 站",
+                    text = stringResource(LineRes.string.line_station_order, currentOrder),
                     fontSize = 12.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -203,7 +211,7 @@ fun StationArrivalContent(
             )
             TextButton(onClick = onOpenBusList) {
                 Text(
-                    text = if (buses.isNotEmpty()) "全线 ${buses.size} 辆车在途 · 查看" else "全线暂无在途车辆",
+                    text = if (buses.isNotEmpty()) stringResource(LineRes.string.line_station_buses_on_line, buses.size) else stringResource(LineRes.string.line_station_no_buses),
                     fontSize = 13.sp,
                     fontWeight = FontWeight.SemiBold
                 )
@@ -226,7 +234,7 @@ private fun StopPickChip(stop: BusStop?, onClick: () -> Unit) {
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = stop?.let { boardingLabel(it.name) } ?: "选择候车站",
+                text = stop?.let { boardingLabel(it.name) } ?: stringResource(LineRes.string.line_station_pick_stop),
                 fontSize = 15.sp,
                 fontWeight = FontWeight.Bold,
                 maxLines = 1,
@@ -234,7 +242,7 @@ private fun StopPickChip(stop: BusStop?, onClick: () -> Unit) {
             )
             Icon(
                 imageVector = vectorResource(Res.drawable.ic_arrow_drop_down),
-                contentDescription = "换上车站",
+                contentDescription = stringResource(LineRes.string.line_station_change_stop),
                 modifier = Modifier.size(20.dp)
             )
         }
@@ -252,7 +260,7 @@ private fun TrackingBadge() {
         )
         Spacer(modifier = Modifier.width(6.dp))
         Text(
-            text = "追踪中",
+            text = stringResource(LineRes.string.line_station_tracking),
             fontSize = 12.sp,
             fontWeight = FontWeight.SemiBold,
             color = MaterialTheme.colorScheme.primary

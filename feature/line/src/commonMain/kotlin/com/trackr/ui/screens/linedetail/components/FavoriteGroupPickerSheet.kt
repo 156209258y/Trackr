@@ -19,8 +19,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.trackr.core.designsystem.component.TrackrBottomSheet
 import com.trackr.core.designsystem.resources.Res
+import com.trackr.core.designsystem.resources.group_none
 import com.trackr.core.designsystem.resources.ic_check
 import com.trackr.core.model.FavoriteGroup
+import com.trackr.feature.line.resources.Res as LineRes
+import com.trackr.feature.line.resources.line_group_current
+import com.trackr.feature.line.resources.line_group_pick_title
+import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.resources.vectorResource
 
 /**
@@ -39,12 +44,12 @@ fun FavoriteGroupPickerSheet(
 ) {
     TrackrBottomSheet(onDismissRequest = onDismiss) {
         Text(
-            text = "放进哪个分组",
+            text = stringResource(LineRes.string.line_group_pick_title),
             fontSize = 18.sp,
             fontWeight = FontWeight.Bold,
             modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)
         )
-        GroupRow(name = "不分组", selected = currentGroupId == null, onClick = { onPick(null) })
+        GroupRow(name = stringResource(Res.string.group_none), selected = currentGroupId == null, onClick = { onPick(null) })
         groups.forEach { group ->
             GroupRow(name = group.name, selected = currentGroupId == group.id, onClick = { onPick(group.id) })
         }
@@ -71,7 +76,7 @@ private fun GroupRow(name: String, selected: Boolean, onClick: () -> Unit) {
         if (selected) {
             Icon(
                 imageVector = vectorResource(Res.drawable.ic_check),
-                contentDescription = "当前分组",
+                contentDescription = stringResource(LineRes.string.line_group_current),
                 tint = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.size(20.dp)
             )

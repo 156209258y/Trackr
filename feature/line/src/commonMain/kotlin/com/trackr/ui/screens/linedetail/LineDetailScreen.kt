@@ -65,6 +65,11 @@ import com.trackr.core.designsystem.component.DataSourceBadgeStyle
 import com.trackr.core.designsystem.component.FullscreenErrorView
 import com.trackr.core.designsystem.component.FullscreenLoadingView
 import com.trackr.core.designsystem.resources.Res
+import com.trackr.core.designsystem.resources.action_back
+import com.trackr.core.designsystem.resources.action_end_tracking
+import com.trackr.core.designsystem.resources.action_favorite
+import com.trackr.core.designsystem.resources.action_retry
+import com.trackr.core.designsystem.resources.action_unfavorite
 import com.trackr.core.designsystem.resources.ic_back
 import com.trackr.core.designsystem.resources.ic_clock
 import com.trackr.core.designsystem.resources.ic_play
@@ -72,6 +77,7 @@ import com.trackr.core.designsystem.resources.ic_qr_code
 import com.trackr.core.designsystem.resources.ic_star
 import com.trackr.core.designsystem.resources.ic_star_filled
 import com.trackr.core.designsystem.resources.ic_swap
+import com.trackr.core.designsystem.resources.transit_code
 import com.trackr.core.designsystem.theme.busColors
 import com.trackr.core.model.BusLineDetail
 import com.trackr.core.model.BusStop
@@ -79,6 +85,16 @@ import com.trackr.core.model.DataSourceType
 import com.trackr.core.model.LineOperatingState
 import com.trackr.core.model.LiveBus
 import com.trackr.core.model.TransitCodeProvider
+import com.trackr.feature.line.resources.Res as LineRes
+import com.trackr.feature.line.resources.line_detail_error
+import com.trackr.feature.line.resources.line_detail_fare
+import com.trackr.feature.line.resources.line_detail_hours
+import com.trackr.feature.line.resources.line_detail_loading
+import com.trackr.feature.line.resources.line_detail_reminder
+import com.trackr.feature.line.resources.line_detail_reverse
+import com.trackr.feature.line.resources.line_detail_stop_count
+import com.trackr.feature.line.resources.line_detail_timetable
+import com.trackr.feature.line.resources.line_detail_track_this
 import com.trackr.ui.components.ScheduledReminderDialog
 import com.trackr.ui.components.TransitCodeBottomSheet
 import com.trackr.ui.components.routeRailItemIndex
@@ -89,6 +105,7 @@ import com.trackr.ui.screens.linedetail.components.BusListContent
 import com.trackr.ui.screens.linedetail.components.FavoriteGroupPickerSheet
 import com.trackr.ui.screens.linedetail.components.StationArrivalContent
 import kotlinx.coroutines.launch
+import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.resources.vectorResource
 
 /** 线路详情页发出的事件（无状态页面只发事件，见 [LineDetailRoute]） */
@@ -193,11 +210,11 @@ fun LineDetailScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding),
-                message = "正在连接实时公交数据…"
+                message = stringResource(LineRes.string.line_detail_loading)
             )
 
             static == null -> FullscreenErrorView(
-                errorMessage = state.errorMessage ?: "未获取到该线路信息",
+                errorMessage = state.errorMessage ?: stringResource(LineRes.string.line_detail_error),
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding),
@@ -342,17 +359,17 @@ private fun LineTopBar(
         },
         navigationIcon = {
             IconButton(onClick = onBack) {
-                Icon(imageVector = vectorResource(Res.drawable.ic_back), contentDescription = "返回")
+                Icon(imageVector = vectorResource(Res.drawable.ic_back), contentDescription = stringResource(Res.string.action_back))
             }
         },
         actions = {
             IconButton(onClick = onReminder, enabled = actionsEnabled) {
-                Icon(imageVector = vectorResource(Res.drawable.ic_clock), contentDescription = "定时提醒")
+                Icon(imageVector = vectorResource(Res.drawable.ic_clock), contentDescription = stringResource(LineRes.string.line_detail_reminder))
             }
             IconButton(onClick = onToggleFavorite, enabled = actionsEnabled) {
                 Icon(
                     imageVector = vectorResource(if (isFavorite) Res.drawable.ic_star_filled else Res.drawable.ic_star),
-                    contentDescription = if (isFavorite) "取消收藏" else "收藏",
+                    contentDescription = if (isFavorite) stringResource(Res.string.action_unfavorite) else stringResource(Res.string.action_favorite),
                     tint = if (isFavorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
@@ -401,16 +418,16 @@ private fun DirectionHeader(
                             modifier = Modifier.size(16.dp)
                         )
                         Spacer(modifier = Modifier.width(4.dp))
-                        Text(text = "换向", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                        Text(text = stringResource(LineRes.string.line_detail_reverse), fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                     }
                 }
             }
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
             val meta = listOfNotNull(
-                "运营 ${line.firstTime.ifEmpty { "—" }}–${line.lastTime.ifEmpty { "—" }}",
-                line.price.takeIf { it.isNotEmpty() }?.let { "票价 $it" },
-                "共 ${static.stops.size} 站"
+                stringResource(LineRes.string.line_detail_hours, line.firstTime.ifEmpty { "—" }, line.lastTime.ifEmpty { "—" }),
+                line.price.takeIf { it.isNotEmpty() }?.let { stringResource(LineRes.string.line_detail_fare, it) },
+                stringResource(LineRes.string.line_detail_stop_count, static.stops.size)
             ).joinToString(" · ")
             Text(
                 text = meta,
@@ -419,7 +436,7 @@ private fun DirectionHeader(
                 modifier = Modifier.weight(1f, fill = false)
             )
             TextButton(onClick = onOpenTimetable) {
-                Text(text = "时刻表 ›", fontSize = 13.sp)
+                Text(text = stringResource(LineRes.string.line_detail_timetable), fontSize = 13.sp)
             }
         }
     }
@@ -445,7 +462,7 @@ private fun ErrorBanner(text: String, onRetry: () -> Unit) {
                 modifier = Modifier.weight(1f)
             )
             TextButton(onClick = onRetry) {
-                Text(text = "重试", color = MaterialTheme.colorScheme.onErrorContainer, fontSize = 12.sp)
+                Text(text = stringResource(Res.string.action_retry), color = MaterialTheme.colorScheme.onErrorContainer, fontSize = 12.sp)
             }
         }
     }
@@ -560,7 +577,7 @@ private fun LineBottomBar(
                         .weight(1f)
                         .height(52.dp)
                 ) {
-                    Text(text = "结束追踪", fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                    Text(text = stringResource(Res.string.action_end_tracking), fontSize = 15.sp, fontWeight = FontWeight.Bold)
                 }
             } else {
                 Button(
@@ -577,7 +594,7 @@ private fun LineBottomBar(
                         modifier = Modifier.size(18.dp)
                     )
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text(text = "追踪这班车", fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                    Text(text = stringResource(LineRes.string.line_detail_track_this), fontSize = 15.sp, fontWeight = FontWeight.Bold)
                 }
             }
             FilledTonalIconButton(
@@ -587,7 +604,7 @@ private fun LineBottomBar(
             ) {
                 Icon(
                     imageVector = vectorResource(Res.drawable.ic_qr_code),
-                    contentDescription = "乘车码",
+                    contentDescription = stringResource(Res.string.transit_code),
                     modifier = Modifier.size(24.dp)
                 )
             }

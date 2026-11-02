@@ -32,6 +32,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.trackr.core.designsystem.resources.Res
+import com.trackr.core.designsystem.resources.action_back
 import com.trackr.core.designsystem.resources.ic_back
 import com.trackr.core.designsystem.resources.ic_bus
 import com.trackr.core.designsystem.theme.busColors
@@ -39,9 +40,25 @@ import com.trackr.core.domain.math.RouteProjectionMath
 import com.trackr.core.model.BusLineDetail
 import com.trackr.core.model.LiveBus
 import com.trackr.core.model.sanitizePlateOrFleetNo
+import com.trackr.feature.line.resources.Res as LineRes
+import com.trackr.feature.line.resources.line_follow_approaching
+import com.trackr.feature.line.resources.line_follow_at_stop
+import com.trackr.feature.line.resources.line_follow_eta
+import com.trackr.feature.line.resources.line_follow_gone
+import com.trackr.feature.line.resources.line_follow_heading
+import com.trackr.feature.line.resources.line_follow_next
+import com.trackr.feature.line.resources.line_follow_passed
+import com.trackr.feature.line.resources.line_follow_speed
+import com.trackr.feature.line.resources.line_follow_stops
+import com.trackr.feature.line.resources.line_follow_stops_flow
+import com.trackr.feature.line.resources.line_follow_title
+import com.trackr.feature.line.resources.line_follow_to_terminus
+import com.trackr.feature.line.resources.line_follow_unknown_plate
+import com.trackr.feature.line.resources.line_no_prediction
 import com.trackr.ui.components.StationNode
 import com.trackr.ui.components.common.BusArrivalBadge
 import com.trackr.ui.components.drawVerticalTrackLine
+import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.resources.vectorResource
 
 /**
@@ -69,7 +86,7 @@ fun BusFollowContent(
             IconButton(onClick = onBack, modifier = Modifier.size(32.dp)) {
                 Icon(
                     imageVector = vectorResource(Res.drawable.ic_back),
-                    contentDescription = "返回",
+                    contentDescription = stringResource(Res.string.action_back),
                     modifier = Modifier.size(18.dp)
                 )
             }
@@ -77,7 +94,7 @@ fun BusFollowContent(
             Column(modifier = Modifier.weight(1f)) {
                 val followedPlate = followedBus?.let { sanitizePlateOrFleetNo(it.plateOrFleetNo) }?.ifBlank { null }
                 Text(
-                    text = "单车跟随 · ${followedPlate ?: "指定车辆"}",
+                    text = stringResource(LineRes.string.line_follow_title, followedPlate ?: stringResource(LineRes.string.line_follow_unknown_plate)),
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold,
                     maxLines = 1,
@@ -85,7 +102,7 @@ fun BusFollowContent(
                     color = MaterialTheme.colorScheme.onSurface
                 )
                 Text(
-                    text = "开往  ${lineDetail.line.endStop}",
+                    text = stringResource(LineRes.string.line_follow_heading, lineDetail.line.endStop),
                     fontSize = 12.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -102,7 +119,7 @@ fun BusFollowContent(
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = "这辆车已不在线上（可能已收班或已到达终点）。",
+                    text = stringResource(LineRes.string.line_follow_gone),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontSize = 13.sp
                 )
@@ -124,19 +141,19 @@ fun BusFollowContent(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("距终点", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text("$stopsLeftToTerminus 站", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                        Text(stringResource(LineRes.string.line_follow_to_terminus), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(stringResource(LineRes.string.line_follow_stops, stopsLeftToTerminus), fontSize = 16.sp, fontWeight = FontWeight.Bold)
                     }
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("时速", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(stringResource(LineRes.string.line_follow_speed), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Text("${followedBus.speedKmh.toInt()} km/h", fontSize = 16.sp, fontWeight = FontWeight.Bold)
                     }
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.spacedBy(2.dp)
                     ) {
-                        Text("到终点预测", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        val etaText = if (followedBus.etaSeconds > 0) RouteProjectionMath.formatEtaText(followedBus.etaSeconds) else "无预测"
+                        Text(stringResource(LineRes.string.line_follow_eta), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        val etaText = if (followedBus.etaSeconds > 0) RouteProjectionMath.formatEtaText(followedBus.etaSeconds) else stringResource(LineRes.string.line_no_prediction)
                         BusArrivalBadge(
                             text = etaText,
                             isHighlighted = followedBus.etaSeconds > 0
@@ -148,7 +165,7 @@ fun BusFollowContent(
             Spacer(modifier = Modifier.height(12.dp))
 
             Text(
-                text = "全线途经站行程流：",
+                text = stringResource(LineRes.string.line_follow_stops_flow),
                 fontSize = 13.sp,
                 fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -272,19 +289,19 @@ fun BusFollowContent(
                             when {
                                 isCurrent -> {
                                     BusArrivalBadge(
-                                        text = if (followedBus.isArrived) "已到站停靠" else "正在接近",
+                                        text = if (followedBus.isArrived) stringResource(LineRes.string.line_follow_at_stop) else stringResource(LineRes.string.line_follow_approaching),
                                         isHighlighted = true
                                     )
                                 }
                                 isNextStop -> {
                                     BusArrivalBadge(
-                                        text = "下一站",
+                                        text = stringResource(LineRes.string.line_follow_next),
                                         isHighlighted = false
                                     )
                                 }
                                 isPassed -> {
                                     Text(
-                                        text = "已过",
+                                        text = stringResource(LineRes.string.line_follow_passed),
                                         fontSize = 11.sp,
                                         color = busColors.busPassedGray.copy(alpha = 0.5f),
                                         modifier = Modifier.padding(end = 4.dp)

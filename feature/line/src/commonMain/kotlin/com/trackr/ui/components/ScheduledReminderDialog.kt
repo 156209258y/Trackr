@@ -42,8 +42,20 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.trackr.core.designsystem.resources.Res
+import com.trackr.core.designsystem.resources.action_cancel
 import com.trackr.core.designsystem.resources.ic_clock
 import com.trackr.core.model.ScheduledReminder
+import com.trackr.feature.line.resources.Res as LineRes
+import com.trackr.feature.line.resources.line_reminder_auto_track
+import com.trackr.feature.line.resources.line_reminder_auto_track_desc
+import com.trackr.feature.line.resources.line_reminder_everyday
+import com.trackr.feature.line.resources.line_reminder_once
+import com.trackr.feature.line.resources.line_reminder_repeat
+import com.trackr.feature.line.resources.line_reminder_save
+import com.trackr.feature.line.resources.line_reminder_subtitle
+import com.trackr.feature.line.resources.line_reminder_title
+import com.trackr.feature.line.resources.line_reminder_workdays
+import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.resources.vectorResource
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
@@ -94,13 +106,13 @@ fun ScheduledReminderDialog(
         title = {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(
-                    text = "设定定时通勤提醒",
+                    text = stringResource(LineRes.string.line_reminder_title),
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = "$lineName (开往 $endStopName) · $targetStopName",
+                    text = stringResource(LineRes.string.line_reminder_subtitle, lineName, endStopName, targetStopName),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -128,7 +140,7 @@ fun ScheduledReminderDialog(
 
                 // 重复周期预设 Chips
                 Text(
-                    text = "重复周期",
+                    text = stringResource(LineRes.string.line_reminder_repeat),
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.align(Alignment.Start)
@@ -148,17 +160,17 @@ fun ScheduledReminderDialog(
                     FilterChip(
                         selected = isWorkdays,
                         onClick = { selectedDays = setOf(1, 2, 3, 4, 5) },
-                        label = { Text("工作日") }
+                        label = { Text(stringResource(LineRes.string.line_reminder_workdays)) }
                     )
                     FilterChip(
                         selected = isEveryday,
                         onClick = { selectedDays = setOf(1, 2, 3, 4, 5, 6, 7) },
-                        label = { Text("每天") }
+                        label = { Text(stringResource(LineRes.string.line_reminder_everyday)) }
                     )
                     FilterChip(
                         selected = isOneTime,
                         onClick = { selectedDays = emptySet() },
-                        label = { Text("仅一次") }
+                        label = { Text(stringResource(LineRes.string.line_reminder_once)) }
                     )
                 }
 
@@ -217,12 +229,12 @@ fun ScheduledReminderDialog(
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = "到点自动开启持续跟车",
+                                text = stringResource(LineRes.string.line_reminder_auto_track),
                                 style = MaterialTheme.typography.bodyMedium,
                                 fontWeight = FontWeight.SemiBold
                             )
                             Text(
-                                text = "到点无需手动点击，自动拉起前台动态进度条",
+                                text = stringResource(LineRes.string.line_reminder_auto_track_desc),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -247,12 +259,12 @@ fun ScheduledReminderDialog(
                     )
                 }
             ) {
-                Text("保存提醒", fontWeight = FontWeight.Bold)
+                Text(stringResource(LineRes.string.line_reminder_save), fontWeight = FontWeight.Bold)
             }
         },
         dismissButton = {
             TextButton(onClick = onDismissRequest) {
-                Text("取消")
+                Text(stringResource(Res.string.action_cancel))
             }
         }
     )

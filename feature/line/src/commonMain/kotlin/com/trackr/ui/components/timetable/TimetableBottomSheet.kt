@@ -27,10 +27,22 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.trackr.core.designsystem.component.TrackrBottomSheet
 import com.trackr.core.designsystem.resources.Res
+import com.trackr.core.designsystem.resources.action_close
 import com.trackr.core.designsystem.resources.ic_clock
 import com.trackr.core.designsystem.resources.ic_close
 import com.trackr.core.model.BusLineDirection
 import com.trackr.core.model.LineTimetable
+import com.trackr.feature.line.resources.Res as LineRes
+import com.trackr.feature.line.resources.line_timetable_interval_minutes
+import com.trackr.feature.line.resources.line_timetable_intervals
+import com.trackr.feature.line.resources.line_timetable_next
+import com.trackr.feature.line.resources.line_timetable_planned
+import com.trackr.feature.line.resources.line_timetable_predicted
+import com.trackr.feature.line.resources.line_timetable_terminals
+import com.trackr.feature.line.resources.line_timetable_title
+import com.trackr.feature.line.resources.line_timetable_today_count
+import com.trackr.feature.line.resources.line_timetable_yesterday
+import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.resources.vectorResource
 
 /**
@@ -61,18 +73,18 @@ fun TimetableBottomSheet(
             ) {
                 Column {
                     Text(
-                        text = "${line?.name ?: timetable.lineName} 发车时刻表",
+                        text = stringResource(LineRes.string.line_timetable_title, line?.name ?: timetable.lineName),
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold
                     )
                     Text(
-                        text = "始发站：${line?.startStop ?: ""} → 终点：${line?.endStop ?: ""}",
+                        text = stringResource(LineRes.string.line_timetable_terminals, line?.startStop ?: "", line?.endStop ?: ""),
                         fontSize = 12.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
                 IconButton(onClick = onDismiss) {
-                    Icon(imageVector = vectorResource(Res.drawable.ic_close), contentDescription = "关闭")
+                    Icon(imageVector = vectorResource(Res.drawable.ic_close), contentDescription = stringResource(Res.string.action_close))
                 }
             }
 
@@ -96,7 +108,7 @@ fun TimetableBottomSheet(
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "预计下一班发车：${timetable.nextDeparture} （${timetable.nextDepartureSource ?: "预测班次"}）",
+                            text = stringResource(LineRes.string.line_timetable_next, timetable.nextDeparture.toString(), timetable.nextDepartureSource ?: stringResource(LineRes.string.line_timetable_predicted)),
                             fontSize = 14.sp,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onPrimaryContainer
@@ -109,7 +121,7 @@ fun TimetableBottomSheet(
             // 发车分块间隔（如高峰 8 分钟，平峰 15 分钟）
             if (timetable.segments.isNotEmpty()) {
                 Text(
-                    text = "运营时段发车间隔：",
+                    text = stringResource(LineRes.string.line_timetable_intervals),
                     fontSize = 14.sp,
                     fontWeight = FontWeight.SemiBold
                 )
@@ -123,7 +135,7 @@ fun TimetableBottomSheet(
                     ) {
                         Text("${seg.fromTime} – ${seg.toTime}", fontSize = 13.sp)
                         Text(
-                            text = if (seg.intervalTips.isNotEmpty()) seg.intervalTips else if (seg.intervalMinutes > 0) "${seg.intervalMinutes} 分钟/班" else "计划发车",
+                            text = if (seg.intervalTips.isNotEmpty()) seg.intervalTips else if (seg.intervalMinutes > 0) stringResource(LineRes.string.line_timetable_interval_minutes, seg.intervalMinutes) else stringResource(LineRes.string.line_timetable_planned),
                             fontSize = 13.sp,
                             fontWeight = FontWeight.Medium,
                             color = MaterialTheme.colorScheme.primary
@@ -136,7 +148,7 @@ fun TimetableBottomSheet(
             // 今日计划班次
             if (timetable.todayDepartures.isNotEmpty()) {
                 Text(
-                    text = "今日预估班次表（共 ${timetable.todayDepartures.size} 班）：",
+                    text = stringResource(LineRes.string.line_timetable_today_count, timetable.todayDepartures.size),
                     fontSize = 14.sp,
                     fontWeight = FontWeight.SemiBold
                 )
@@ -165,7 +177,7 @@ fun TimetableBottomSheet(
             // 昨日实际班次回落
             if (timetable.yesterdayDepartures.isNotEmpty() && timetable.todayDepartures.isEmpty()) {
                 Text(
-                    text = "昨日实际发车时刻（参考）：",
+                    text = stringResource(LineRes.string.line_timetable_yesterday),
                     fontSize = 14.sp,
                     fontWeight = FontWeight.SemiBold
                 )

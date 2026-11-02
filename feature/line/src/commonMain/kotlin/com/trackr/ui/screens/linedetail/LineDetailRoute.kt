@@ -9,7 +9,13 @@ import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.trackr.core.domain.platform.TransitCodeLauncher
 import com.trackr.core.model.TransitCodeProvider
+import com.trackr.feature.line.resources.Res as LineRes
+import com.trackr.feature.line.resources.line_focus_permission_xiaomi
+import com.trackr.feature.line.resources.line_focus_title
+import com.trackr.feature.line.resources.line_live_permission
+import com.trackr.feature.line.resources.line_live_title
 import com.trackr.ui.components.FocusPermissionGuideDialog
+import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 
 /**
@@ -96,9 +102,9 @@ fun LineDetailRoute(
                 liveUpdateGate.openSettings(guide)
                 viewModel.startTrackingSelectedStop()
             },
-            title = if (isXiaomi) "开启焦点通知（超级岛）" else "开启流体云 / 实时活动",
+            title = if (isXiaomi) stringResource(LineRes.string.line_focus_title) else stringResource(LineRes.string.line_live_title),
             deviceHint = liveUpdateGate.deviceHint(guide),
-            permissionName = if (isXiaomi) "允许焦点通知" else "实时活动 / 置顶通知"
+            permissionName = if (isXiaomi) stringResource(LineRes.string.line_focus_permission_xiaomi) else stringResource(LineRes.string.line_live_permission)
         )
     }
 }
