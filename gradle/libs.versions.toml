@@ -22,6 +22,11 @@ robolectric = "4.14.1"
 # 桌面小组件（第 26 步迁 Glance）；周期刷新用 WorkManager
 glance = "1.2.0"
 work = "2.12.0"
+# 第 27 步：Baseline Profile + Macrobenchmark（benchmark 1.5 起插件支持 AGP 9 新 DSL，Macrobenchmark 用 UiAutomator 2.4）
+benchmark = "1.5.0"
+profileinstaller = "1.4.1"
+uiautomator = "2.4.0"
+androidxTestExtJunit = "1.3.0"
 turbine = "1.2.0"
 jacoco = "0.8.12"
 # 高德 3dmap 一体化包：11.2.100 起其 .so 的 PT_LOAD 段才按 16 KB 对齐（0x4000），
@@ -77,6 +82,10 @@ robolectric = { group = "org.robolectric", name = "robolectric", version.ref = "
 androidx-glance-appwidget = { group = "androidx.glance", name = "glance-appwidget", version.ref = "glance" }
 androidx-glance-appwidget-testing = { group = "androidx.glance", name = "glance-appwidget-testing", version.ref = "glance" }
 androidx-work-runtime-ktx = { group = "androidx.work", name = "work-runtime-ktx", version.ref = "work" }
+androidx-profileinstaller = { group = "androidx.profileinstaller", name = "profileinstaller", version.ref = "profileinstaller" }
+androidx-benchmark-macro-junit4 = { group = "androidx.benchmark", name = "benchmark-macro-junit4", version.ref = "benchmark" }
+androidx-test-uiautomator = { group = "androidx.test.uiautomator", name = "uiautomator", version.ref = "uiautomator" }
+androidx-test-ext-junit = { group = "androidx.test.ext", name = "junit", version.ref = "androidxTestExtJunit" }
 turbine = { group = "app.cash.turbine", name = "turbine", version.ref = "turbine" }
 androidx-compose-ui-test-junit4 = { group = "androidx.compose.ui", name = "ui-test-junit4" }
 androidx-compose-ui-test-manifest = { group = "androidx.compose.ui", name = "ui-test-manifest" }
@@ -134,10 +143,13 @@ atomicfu = { group = "org.jetbrains.kotlinx", name = "atomicfu", version.ref = "
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
+android-test = { id = "com.android.test", version.ref = "agp" }
+androidx-baselineprofile = { id = "androidx.baselineprofile", version.ref = "benchmark" }
 kotlin-plugin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlinPlugin" }
 kotlin-plugin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlinPlugin" }
 # 约定插件（build-logic/convention），没有版本号
 trackr-android-application = { id = "trackr.android.application" }
+trackr-android-test = { id = "trackr.android.test" }
 trackr-kmp-library = { id = "trackr.kmp.library" }
 trackr-kmp-compose = { id = "trackr.kmp.compose" }
 trackr-kmp-feature = { id = "trackr.kmp.feature" }

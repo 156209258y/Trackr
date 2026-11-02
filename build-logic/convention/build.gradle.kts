@@ -24,6 +24,10 @@ gradlePlugin {
             id = "trackr.android.application"
             implementationClass = "AndroidApplicationConventionPlugin"
         }
+        register("androidTest") {
+            id = "trackr.android.test"
+            implementationClass = "AndroidTestConventionPlugin"
+        }
         register("kmpLibrary") {
             id = "trackr.kmp.library"
             implementationClass = "KmpLibraryConventionPlugin"
