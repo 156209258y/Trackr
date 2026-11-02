@@ -64,7 +64,7 @@ import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
 
 /**
- * 应用的根 Composable（重构计划 §2.2、§3.3）：主题、底栏、各页签的返回栈和 NavDisplay。
+ * 应用的根 Composable（重构计划 §2.2、§3.3）：主题（按 [AppShellViewModel] 的界面模式）、底栏、各页签的返回栈和 NavDisplay。
  * 第 17 步从 `MainActivity` 原样搬来；`MainActivity` 只剩 Intent 处理和 `setContent { TrackrRoot(…) }`。
  *
  * @param deepLink 待落栈的链接（`DeepLinkParser` 解析小组件 / 快捷方式 / 通知的 `trackr://` 得到，§3.6）。
@@ -76,7 +76,10 @@ fun TrackrRoot(
     onDeepLinkConsumed: () -> Unit = {},
     onAmapPrivacyAccepted: () -> Unit = {}
 ) {
-    TrackrTheme {
+    // 界面模式在 NavDisplay 之上读（§8.2）；第 30 步只换主题，导航结构第 31 步再按模式分
+    val shellViewModel = koinViewModel<AppShellViewModel>()
+    val shell by shellViewModel.shell.collectAsStateWithLifecycle()
+    TrackrTheme(uiMode = shell.uiMode) {
         Surface(modifier = Modifier.fillMaxSize()) {
             // 原来在 NavDisplay 外取、跨页共享的 ViewModel（首页、搜索、规划 / 收藏）仍挂在这一层
             val appViewModelStoreOwner = checkNotNull(LocalViewModelStoreOwner.current) {
@@ -94,6 +97,12 @@ fun TrackrRoot(
                     )
                 }
             }
+            // 系统字体 ≥ 1.3 倍时提示一次「试试长辈版」
+            FontScalePrompt(
+                dismissed = shell.fontScalePromptDismissed,
+                onEnableElder = shellViewModel::enableElderFromPrompt,
+                onDismiss = shellViewModel::dismissFontScalePrompt
+            )
         }
     }
 }

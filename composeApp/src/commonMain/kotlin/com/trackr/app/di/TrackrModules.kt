@@ -15,7 +15,9 @@ import com.trackr.feature.me.meModule
 import com.trackr.feature.route.routeModule
 import com.trackr.feature.search.searchModule
 import com.trackr.feature.stop.stopModule
+import com.trackr.app.AppShellViewModel
 import org.koin.core.module.Module
+import org.koin.core.module.dsl.viewModel
 import org.koin.dsl.module
 
 /**
@@ -33,6 +35,11 @@ val routeDataModule: Module = module {
     single { FavoritesGroupDataFix(groupRepository = get(), alignment = get(), migrationFlags = get()) }
 }
 
+/** 根级壳状态（界面模式、字号提示，§8.2）；TrackrRoot 在 Activity 级取 */
+val appShellModule: Module = module {
+    viewModel { AppShellViewModel(settings = get()) }
+}
+
 /** 各平台额外的 feature 模块（Android：高德 SDK 通道等） */
 internal expect val platformFeatureModules: List<Module>
 
@@ -40,6 +47,7 @@ internal expect val platformFeatureModules: List<Module>
 val trackrModules: List<Module>
     get() = listOf(
         routeDataModule,
+        appShellModule,
         busModule,
         searchModule,
         stopModule,

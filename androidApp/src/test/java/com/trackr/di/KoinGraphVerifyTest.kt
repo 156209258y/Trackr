@@ -4,6 +4,7 @@ import android.app.Application
 import android.content.Context
 import androidx.lifecycle.SavedStateHandle
 import com.trackr.core.model.DataSourceType
+import com.trackr.app.di.appShellModule
 import com.trackr.app.di.routeDataModule
 import com.trackr.core.navigation.ScreenKey
 import com.trackr.core.network.provider.ITransitProvider
@@ -90,6 +91,10 @@ class KoinGraphVerifyTest {
     @Test
     fun routeDataModule_verify() = verifyModule(routeDataModule)
 
+    // 第 30 步：根级壳状态（界面模式）
+    @Test
+    fun appShellModule_verify() = verifyModule(appShellModule)
+
     @Test
     fun busModule_verify() = verifyModule(busModule)
 
@@ -119,7 +124,7 @@ class KoinGraphVerifyTest {
         // 新加模块时要在上面补一条 verify 用例，这里提醒一下
         assertEquals(
             listOf(
-                appModule, platformBridgeModule, routeDataModule, busModule, searchModule, stopModule,
+                appModule, platformBridgeModule, routeDataModule, appShellModule, busModule, searchModule, stopModule,
                 lineModule, routeModule, favoritesModule, meModule, routeAndroidModule
             ),
             appModules
