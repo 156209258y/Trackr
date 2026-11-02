@@ -8,11 +8,13 @@ import com.trackr.core.data.local.LocalMigrationFlags
 import com.trackr.core.data.local.StoreMigrationFlags
 import com.trackr.core.data.repository.AmapKeyDefaults
 import com.trackr.core.data.repository.UserLocationStore
+import com.trackr.core.domain.platform.Announcer
 import com.trackr.core.domain.platform.AppSigningInfo
 import com.trackr.core.domain.platform.AppVersionInfo
 import com.trackr.core.domain.platform.TransitCodeLauncher
 import com.trackr.core.model.TransitCodeProvider
 import com.trackr.data.repository.ITransitRepository
+import com.trackr.platform.speech.AndroidTtsAnnouncer
 import com.trackr.service.vendor.LiveUpdatePromotion
 import com.trackr.service.vendor.OppoFluidCloudAdapter
 import com.trackr.service.vendor.XiaomiFocusAdapter
@@ -25,6 +27,7 @@ import kotlinx.coroutines.flow.StateFlow
 import org.koin.android.ext.koin.androidContext
 import org.koin.core.module.Module
 import org.koin.dsl.module
+import org.koin.dsl.onClose
 
 /**
  * 第 17 步：功能模块看不到 `:androidApp`，页面和 ViewModel 要用的 Android 能力经接口注入，
@@ -33,6 +36,10 @@ import org.koin.dsl.module
 val platformBridgeModule: Module = module {
     single<TransitCodeLauncher> { AndroidTransitCodeLauncher(androidContext()) }
     single<AppSigningInfo> { AndroidAppSigningInfo(androidContext()) }
+    // 「读给我听」（第 33 步）：进程级一个，第一次读才建引擎；Koin 关闭时释放
+    single<Announcer> { AndroidTtsAnnouncer(androidContext(), get(AppScopeQualifier)) } onClose {
+        (it as? AndroidTtsAnnouncer)?.shutdown()
+    }
     single<LiveUpdateSettings> { AndroidLiveUpdateSettings }
     // 「我的」页「状态栏胶囊」那一行（第 25 步）
     single<LiveUpdateAccess> { AndroidLiveUpdateAccess(androidContext(), get()) }
