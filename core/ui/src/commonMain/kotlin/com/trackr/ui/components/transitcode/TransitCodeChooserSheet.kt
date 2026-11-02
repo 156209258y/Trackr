@@ -29,6 +29,10 @@ import com.trackr.core.designsystem.resources.Res
 import com.trackr.core.designsystem.resources.ic_qr_code
 import com.trackr.core.designsystem.theme.TrackrTheme
 import com.trackr.core.model.TransitCodeProvider
+import com.trackr.core.ui.resources.Res as UiRes
+import com.trackr.core.ui.resources.ui_code_chooser_remember
+import com.trackr.core.ui.resources.ui_code_chooser_title
+import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.resources.vectorResource
 
 /**
@@ -54,7 +58,7 @@ fun TransitCodeChooserSheet(
                 .padding(bottom = dimens.spaceXl)
         ) {
             Text(
-                text = "打开哪个乘车码",
+                text = stringResource(UiRes.string.ui_code_chooser_title),
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onSurface
             )
@@ -79,7 +83,7 @@ fun TransitCodeChooserSheet(
             ) {
                 Checkbox(checked = rememberChoice, onCheckedChange = { rememberChoice = it })
                 Text(
-                    text = "以后都用这个（可在「我的」里改）",
+                    text = stringResource(UiRes.string.ui_code_chooser_remember),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

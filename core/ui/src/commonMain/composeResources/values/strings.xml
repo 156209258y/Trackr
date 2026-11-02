@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- core/ui 的页面文案（第 28 步从代码里搬出来）。 -->
+<resources>
+    <string name="ui_code_chooser_title">打开哪个乘车码</string>
+    <string name="ui_code_chooser_remember">以后都用这个（可在「我的」里改）</string>
+</resources>

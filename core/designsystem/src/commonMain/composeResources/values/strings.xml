@@ -7,4 +7,23 @@
     <string name="state_loading">加载中…</string>
     <string name="data_source_chelaile">车来了</string>
     <string name="data_source_mygolbs">掌上公交</string>
+    <string name="action_relocate">重新定位</string>
+    <string name="action_edit">编辑</string>
+    <string name="action_end">结束</string>
+    <string name="action_done">完成</string>
+    <string name="action_delete">删除</string>
+    <string name="action_cancel">取消</string>
+    <string name="group_none">不分组</string>
+    <string name="action_save">保存</string>
+    <string name="transit_code">乘车码</string>
+    <string name="action_unfavorite">取消收藏</string>
+    <string name="action_favorite">收藏</string>
+    <string name="action_end_tracking">结束追踪</string>
+    <string name="action_clear">清空</string>
+    <string name="action_copy">复制</string>
+    <string name="action_confirm">确定</string>
+    <string name="more_actions">更多操作</string>
+    <string name="action_start_tracking">开始追踪</string>
+    <string name="action_boarded">我上车了</string>
+    <string name="action_add">添加</string>
 </resources>
