@@ -47,11 +47,16 @@ import androidx.compose.ui.unit.dp
 import androidx.navigationevent.NavigationEventInfo
 import androidx.navigationevent.compose.NavigationBackHandler
 import androidx.navigationevent.compose.rememberNavigationEventState
+import com.trackr.feature.route.resources.Res as RouteRes
+import com.trackr.feature.route.resources.route_plan_empty
+import com.trackr.feature.route.resources.route_plan_loading
+import com.trackr.feature.route.resources.route_plan_retry
 import com.trackr.ui.screens.routeplan.dialog.SaveFavoriteDialog
 import com.trackr.ui.screens.routeplan.map.NoMapBackground
 import com.trackr.ui.screens.routeplan.map.RouteMap
 import com.trackr.ui.screens.routeplan.panel.SchemePanel
 import kotlinx.coroutines.launch
+import org.jetbrains.compose.resources.stringResource
 
 /** 底栏（悬浮，页面画在它下面）的高度；方案面板底部要让开它 */
 private val BOTTOM_BAR_HEIGHT = 80.dp
@@ -187,7 +192,7 @@ private fun BottomSheetCard(
                         )
                         Spacer(modifier = Modifier.width(12.dp))
                         Text(
-                            text = "正在规划最佳公交出行方案…",
+                            text = stringResource(RouteRes.string.route_plan_loading),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -209,7 +214,7 @@ private fun BottomSheetCard(
                         )
                         Spacer(modifier = Modifier.height(8.dp))
                         OutlinedButton(onClick = { onEvent(RoutePlanEvent.Retry) }) {
-                            Text("重新规划")
+                            Text(stringResource(RouteRes.string.route_plan_retry))
                         }
                     }
                 }
@@ -236,7 +241,7 @@ private fun BottomSheetCard(
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Text(
-                            text = "输入起点与终点，开启全城公交换乘与多线直达规划",
+                            text = stringResource(RouteRes.string.route_plan_empty),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )

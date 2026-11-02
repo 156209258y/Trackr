@@ -22,3 +22,7 @@ kotlin {
         }
     }
 }
+
+compose.resources {
+    packageOfResClass = "com.trackr.feature.route.resources"
+}

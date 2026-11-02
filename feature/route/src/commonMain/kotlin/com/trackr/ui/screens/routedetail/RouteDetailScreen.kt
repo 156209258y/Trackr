@@ -59,6 +59,17 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.compose.dropUnlessResumed
 import com.trackr.core.designsystem.resources.Res
+import com.trackr.core.designsystem.resources.action_add
+import com.trackr.core.designsystem.resources.action_back
+import com.trackr.core.designsystem.resources.action_boarded
+import com.trackr.core.designsystem.resources.action_cancel
+import com.trackr.core.designsystem.resources.action_delete
+import com.trackr.core.designsystem.resources.action_end
+import com.trackr.core.designsystem.resources.action_end_tracking
+import com.trackr.core.designsystem.resources.action_favorite
+import com.trackr.core.designsystem.resources.action_save
+import com.trackr.core.designsystem.resources.action_start_tracking
+import com.trackr.core.designsystem.resources.group_none
 import com.trackr.core.designsystem.resources.ic_back
 import com.trackr.core.designsystem.resources.ic_bus
 import com.trackr.core.designsystem.resources.ic_check
@@ -67,15 +78,49 @@ import com.trackr.core.designsystem.resources.ic_more
 import com.trackr.core.designsystem.resources.ic_plus
 import com.trackr.core.designsystem.resources.ic_walk
 import com.trackr.core.designsystem.resources.ic_warning
+import com.trackr.core.designsystem.resources.more_actions
 import com.trackr.core.model.CandidateLine
 import com.trackr.core.model.CandidateLineRealtimeInfo
 import com.trackr.core.model.FavoriteGroup
-import com.trackr.core.model.LegPhase
 import com.trackr.core.model.GroupTrackingSessionState
+import com.trackr.core.model.LegPhase
 import com.trackr.core.model.TransitGroup
 import com.trackr.core.model.TransitLeg
 import com.trackr.core.navigation.Navigator
 import com.trackr.core.navigation.ScreenKey
+import com.trackr.feature.route.resources.Res as RouteRes
+import com.trackr.feature.route.resources.route_detail_add_line_hint
+import com.trackr.feature.route.resources.route_detail_add_line_title
+import com.trackr.feature.route.resources.route_detail_board_at
+import com.trackr.feature.route.resources.route_detail_change_group
+import com.trackr.feature.route.resources.route_detail_connecting
+import com.trackr.feature.route.resources.route_detail_delete
+import com.trackr.feature.route.resources.route_detail_delete_body
+import com.trackr.feature.route.resources.route_detail_delete_title
+import com.trackr.feature.route.resources.route_detail_gone
+import com.trackr.feature.route.resources.route_detail_hint_riding
+import com.trackr.feature.route.resources.route_detail_hint_waiting
+import com.trackr.feature.route.resources.route_detail_leg_tracking
+import com.trackr.feature.route.resources.route_detail_line_detail
+import com.trackr.feature.route.resources.route_detail_line_name
+import com.trackr.feature.route.resources.route_detail_more_lines
+import com.trackr.feature.route.resources.route_detail_name
+import com.trackr.feature.route.resources.route_detail_next_leg
+import com.trackr.feature.route.resources.route_detail_no_candidates
+import com.trackr.feature.route.resources.route_detail_no_realtime
+import com.trackr.feature.route.resources.route_detail_pick_group
+import com.trackr.feature.route.resources.route_detail_rename
+import com.trackr.feature.route.resources.route_detail_reverse
+import com.trackr.feature.route.resources.route_detail_save_name
+import com.trackr.feature.route.resources.route_detail_save_title
+import com.trackr.feature.route.resources.route_detail_stops_to
+import com.trackr.feature.route.resources.route_detail_title
+import com.trackr.feature.route.resources.route_detail_waiting
+import com.trackr.feature.route.resources.route_detail_walk_to
+import com.trackr.feature.route.resources.route_minutes
+import com.trackr.feature.route.resources.route_selected
+import com.trackr.feature.route.resources.route_unselected
+import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.resources.vectorResource
 
 /** 路线详情页的动作（页面无状态，Route 翻译成 ViewModel 调用与导航） */
@@ -137,7 +182,7 @@ fun RouteDetailScreen(
             TopAppBar(
                 title = {
                     Text(
-                        text = group?.name ?: "路线详情",
+                        text = group?.name ?: stringResource(RouteRes.string.route_detail_title),
                         fontWeight = FontWeight.Bold,
                         maxLines = 1
                     )
@@ -146,7 +191,7 @@ fun RouteDetailScreen(
                     IconButton(onClick = { onEvent(RouteDetailEvent.Back) }) {
                         Icon(
                             imageVector = vectorResource(Res.drawable.ic_back),
-                            contentDescription = "返回"
+                            contentDescription = stringResource(Res.string.action_back)
                         )
                     }
                 },
@@ -156,24 +201,24 @@ fun RouteDetailScreen(
                             IconButton(onClick = { showMore = true }) {
                                 Icon(
                                     imageVector = vectorResource(Res.drawable.ic_more),
-                                    contentDescription = "更多操作"
+                                    contentDescription = stringResource(Res.string.more_actions)
                                 )
                             }
                             DropdownMenu(expanded = showMore, onDismissRequest = { showMore = false }) {
                                 DropdownMenuItem(
-                                    text = { Text("改名") },
+                                    text = { Text(stringResource(RouteRes.string.route_detail_rename)) },
                                     onClick = { showMore = false; showRename = true }
                                 )
                                 DropdownMenuItem(
-                                    text = { Text("改分组") },
+                                    text = { Text(stringResource(RouteRes.string.route_detail_change_group)) },
                                     onClick = { showMore = false; showMoveGroup = true }
                                 )
                                 DropdownMenuItem(
-                                    text = { Text("生成返程") },
+                                    text = { Text(stringResource(RouteRes.string.route_detail_reverse)) },
                                     onClick = { showMore = false; onEvent(RouteDetailEvent.CreateReverse) }
                                 )
                                 DropdownMenuItem(
-                                    text = { Text("删除这条路线", color = MaterialTheme.colorScheme.error) },
+                                    text = { Text(stringResource(RouteRes.string.route_detail_delete), color = MaterialTheme.colorScheme.error) },
                                     onClick = { showMore = false; showDelete = true }
                                 )
                             }
@@ -204,7 +249,7 @@ fun RouteDetailScreen(
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = "这条路线已经不在了",
+                    text = stringResource(RouteRes.string.route_detail_gone),
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -266,9 +311,9 @@ fun RouteDetailScreen(
             item(key = "hint") {
                 Text(
                     text = if (session == null) {
-                        "打勾的线都会一起等，点一下取消勾。点「坐 N 站」那行看线路详情。"
+                        stringResource(RouteRes.string.route_detail_hint_waiting)
                     } else {
-                        "上车后只追坐上的那辆；到换乘站自动切下一程，也可以在底部手动切。"
+                        stringResource(RouteRes.string.route_detail_hint_riding)
                     },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -293,18 +338,18 @@ fun RouteDetailScreen(
     if (showDelete && group != null) {
         AlertDialog(
             onDismissRequest = { showDelete = false },
-            title = { Text("删除这条路线？") },
-            text = { Text("「${group.name}」删掉后不影响线路和收藏的车。") },
+            title = { Text(stringResource(RouteRes.string.route_detail_delete_title)) },
+            text = { Text(stringResource(RouteRes.string.route_detail_delete_body, group.name)) },
             confirmButton = {
                 TextButton(onClick = {
                     showDelete = false
                     onEvent(RouteDetailEvent.Delete)
                 }) {
-                    Text("删除", color = MaterialTheme.colorScheme.error)
+                    Text(stringResource(Res.string.action_delete), color = MaterialTheme.colorScheme.error)
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showDelete = false }) { Text("取消") }
+                TextButton(onClick = { showDelete = false }) { Text(stringResource(Res.string.action_cancel)) }
             }
         )
     }
@@ -313,7 +358,7 @@ fun RouteDetailScreen(
         var name by remember(group.name) { mutableStateOf(group.name) }
         AlertDialog(
             onDismissRequest = { showRename = false },
-            title = { Text("路线名称") },
+            title = { Text(stringResource(RouteRes.string.route_detail_name)) },
             text = {
                 OutlinedTextField(
                     value = name,
@@ -329,17 +374,17 @@ fun RouteDetailScreen(
                         onEvent(RouteDetailEvent.Rename(name))
                     },
                     enabled = name.isNotBlank()
-                ) { Text("保存") }
+                ) { Text(stringResource(Res.string.action_save)) }
             },
             dismissButton = {
-                TextButton(onClick = { showRename = false }) { Text("取消") }
+                TextButton(onClick = { showRename = false }) { Text(stringResource(Res.string.action_cancel)) }
             }
         )
     }
 
     if (showMoveGroup && group != null) {
         GroupPickerDialog(
-            title = "放到哪个分组",
+            title = stringResource(RouteRes.string.route_detail_pick_group),
             groups = favoriteGroups,
             selectedId = group.customGroupId,
             onDismiss = { showMoveGroup = false },
@@ -382,7 +427,7 @@ private fun BottomBar(
             if (session == null) {
                 if (group.isTemporary) {
                     TextButton(onClick = onSave, modifier = Modifier.height(48.dp)) {
-                        Text("收藏")
+                        Text(stringResource(Res.string.action_favorite))
                     }
                 }
                 Button(
@@ -391,7 +436,7 @@ private fun BottomBar(
                         .weight(1f)
                         .height(48.dp)
                 ) {
-                    Text("开始追踪")
+                    Text(stringResource(Res.string.action_start_tracking))
                 }
             } else {
                 val waiting = session.trackingSessionState?.legPhase != LegPhase.ON_BOARD
@@ -402,7 +447,7 @@ private fun BottomBar(
                             .weight(1f)
                             .height(48.dp)
                     ) {
-                        Text("我上车了")
+                        Text(stringResource(Res.string.action_boarded))
                     }
                 } else if (session.activeLegIndex < session.totalLegs - 1) {
                     Button(
@@ -411,7 +456,7 @@ private fun BottomBar(
                             .weight(1f)
                             .height(48.dp)
                     ) {
-                        Text("下一程")
+                        Text(stringResource(RouteRes.string.route_detail_next_leg))
                     }
                 } else {
                     Button(
@@ -420,14 +465,14 @@ private fun BottomBar(
                             .weight(1f)
                             .height(48.dp)
                     ) {
-                        Text("结束追踪")
+                        Text(stringResource(Res.string.action_end_tracking))
                     }
                 }
                 TextButton(
                     onClick = { onEvent(RouteDetailEvent.StopTracking) },
                     modifier = Modifier.height(48.dp)
                 ) {
-                    Text("结束", color = MaterialTheme.colorScheme.error)
+                    Text(stringResource(Res.string.action_end), color = MaterialTheme.colorScheme.error)
                 }
             }
         }
@@ -451,7 +496,7 @@ private fun TrackingCard(session: GroupTrackingSessionState) {
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = "第 ${session.activeLegIndex + 1} 程 · 追踪中",
+                    text = stringResource(RouteRes.string.route_detail_leg_tracking, session.activeLegIndex + 1),
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.onPrimaryContainer
                 )
@@ -460,19 +505,19 @@ private fun TrackingCard(session: GroupTrackingSessionState) {
             val state = session.trackingSessionState
             val etaMinutes = state?.etaSeconds?.takeIf { it > 0 }?.let { (it + 59) / 60 }
             Text(
-                text = if (etaMinutes != null) "$etaMinutes 分钟" else "等车中",
+                text = if (etaMinutes != null) stringResource(RouteRes.string.route_minutes, etaMinutes) else stringResource(RouteRes.string.route_detail_waiting),
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onPrimaryContainer
             )
             Text(
-                text = state?.statusSummary ?: "正在连接实时公交数据…",
+                text = state?.statusSummary ?: stringResource(RouteRes.string.route_detail_connecting),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
             )
             if (state != null && state.stopsRemaining >= 0) {
                 Text(
-                    text = "还有 ${state.stopsRemaining} 站到 ${state.boardStopName.ifBlank { state.targetStopName }}",
+                    text = stringResource(RouteRes.string.route_detail_stops_to, state.stopsRemaining, state.boardStopName.ifBlank { state.targetStopName }),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onPrimaryContainer
                 )
@@ -504,7 +549,7 @@ private fun LegBlock(
             Spacer(modifier = Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = "${leg.fromStopName} 上车",
+                    text = stringResource(RouteRes.string.route_detail_board_at, leg.fromStopName),
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onSurface
@@ -513,7 +558,7 @@ private fun LegBlock(
 
                 if (leg.candidateLines.isEmpty()) {
                     Text(
-                        text = "这一程还没有候选线路",
+                        text = stringResource(RouteRes.string.route_detail_no_candidates),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -547,7 +592,7 @@ private fun LegBlock(
                     )
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
-                        text = "还可以坐别的线",
+                        text = stringResource(RouteRes.string.route_detail_more_lines),
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.primary
                     )
@@ -576,7 +621,7 @@ private fun CandidateRow(
     val eta = info?.shortChipEta?.takeIf { it.isNotBlank() }
         ?: info?.etaText?.takeIf { it.isNotBlank() }
         ?: fallbackEta
-        ?: "暂无实时"
+        ?: stringResource(RouteRes.string.route_detail_no_realtime)
     Surface(
         shape = RoundedCornerShape(10.dp),
         color = if (selected) {
@@ -594,7 +639,7 @@ private fun CandidateRow(
         ) {
             Icon(
                 imageVector = vectorResource(Res.drawable.ic_check),
-                contentDescription = if (selected) "已选" else "未选",
+                contentDescription = if (selected) stringResource(RouteRes.string.route_selected) else stringResource(RouteRes.string.route_unselected),
                 tint = if (selected) {
                     MaterialTheme.colorScheme.onPrimaryContainer
                 } else {
@@ -626,7 +671,7 @@ private fun CandidateRow(
             )
             Icon(
                 imageVector = vectorResource(Res.drawable.ic_chevron_right),
-                contentDescription = "看线路详情",
+                contentDescription = stringResource(RouteRes.string.route_detail_line_detail),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier
                     .size(18.dp)
@@ -685,7 +730,7 @@ private fun WalkBlock(legs: List<TransitLeg>) {
         )
         Spacer(modifier = Modifier.width(6.dp))
         Text(
-            text = "步行 $meters 米到 ${to.fromStopName}",
+            text = stringResource(RouteRes.string.route_detail_walk_to, meters, to.fromStopName),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -719,11 +764,11 @@ private fun AddLineDialog(
     var name by remember { mutableStateOf("") }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("第 ${legIndex + 1} 程还能坐哪条线") },
+        title = { Text(stringResource(RouteRes.string.route_detail_add_line_title, legIndex + 1)) },
         text = {
             Column {
                 Text(
-                    text = "填线路名，例如 325、M194。保存后会去查真实站序。",
+                    text = stringResource(RouteRes.string.route_detail_add_line_hint),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -732,7 +777,7 @@ private fun AddLineDialog(
                     value = name,
                     onValueChange = { name = it },
                     singleLine = true,
-                    placeholder = { Text("线路名") },
+                    placeholder = { Text(stringResource(RouteRes.string.route_detail_line_name)) },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
                     modifier = Modifier
                         .fillMaxWidth()
@@ -742,11 +787,11 @@ private fun AddLineDialog(
         },
         confirmButton = {
             TextButton(onClick = { onConfirm(name.trim()) }, enabled = name.isNotBlank()) {
-                Text("添加")
+                Text(stringResource(Res.string.action_add))
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("取消") }
+            TextButton(onClick = onDismiss) { Text(stringResource(Res.string.action_cancel)) }
         }
     )
 }
@@ -764,13 +809,13 @@ private fun GroupPickerDialog(
         title = { Text(title) },
         text = {
             Column {
-                PickerRow(label = "不分组", selected = selectedId == null) { onPick(null) }
+                PickerRow(label = stringResource(Res.string.group_none), selected = selectedId == null) { onPick(null) }
                 groups.forEach { group ->
                     PickerRow(label = group.name, selected = selectedId == group.id) { onPick(group.id) }
                 }
             }
         },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("取消") } }
+        confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(Res.string.action_cancel)) } }
     )
 }
 
@@ -792,7 +837,7 @@ private fun PickerRow(label: String, selected: Boolean, onClick: () -> Unit) {
         if (selected) {
             Icon(
                 imageVector = vectorResource(Res.drawable.ic_check),
-                contentDescription = "已选",
+                contentDescription = stringResource(RouteRes.string.route_selected),
                 tint = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.size(20.dp)
             )
@@ -812,25 +857,25 @@ private fun SaveRouteDialog(
     var favoriteGroupId by remember { mutableStateOf(group.customGroupId) }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("收藏路线") },
+        title = { Text(stringResource(RouteRes.string.route_detail_save_title)) },
         text = {
             Column {
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it },
-                    label = { Text("名字") },
+                    label = { Text(stringResource(RouteRes.string.route_detail_save_name)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
                 Spacer(modifier = Modifier.height(12.dp))
                 Text(
-                    text = "放到哪个分组",
+                    text = stringResource(RouteRes.string.route_detail_pick_group),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Column {
-                    PickerRow(label = "不分组", selected = favoriteGroupId == null) { favoriteGroupId = null }
+                    PickerRow(label = stringResource(Res.string.group_none), selected = favoriteGroupId == null) { favoriteGroupId = null }
                     favoriteGroups.forEach { group ->
                         PickerRow(label = group.name, selected = favoriteGroupId == group.id) {
                             favoriteGroupId = group.id
@@ -845,11 +890,11 @@ private fun SaveRouteDialog(
                 enabled = name.isNotBlank(),
                 modifier = Modifier.testTag("btn_confirm_save_route")
             ) {
-                Text("收藏")
+                Text(stringResource(Res.string.action_favorite))
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("取消") }
+            TextButton(onClick = onDismiss) { Text(stringResource(Res.string.action_cancel)) }
         }
     )
 }

@@ -35,19 +35,26 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.trackr.core.designsystem.resources.Res
+import com.trackr.core.designsystem.resources.action_favorite
+import com.trackr.core.designsystem.resources.action_start_tracking
 import com.trackr.core.designsystem.resources.ic_play
 import com.trackr.core.designsystem.resources.ic_star
 import com.trackr.core.model.AmapTransitSchemeResult
 import com.trackr.core.model.CandidateLine
 import com.trackr.core.model.GroupTrackingSessionState
+import com.trackr.feature.route.resources.Res as RouteRes
+import com.trackr.feature.route.resources.route_leg_n
+import com.trackr.feature.route.resources.route_minutes
+import com.trackr.feature.route.resources.route_scheme_or
 import com.trackr.ui.screens.favoritesgroup.components.legLineColor
 import com.trackr.ui.screens.routeplan.SchemeTabUi
 import com.trackr.ui.screens.routeplan.departArriveText
 import com.trackr.ui.screens.routeplan.planSegments
 import com.trackr.ui.screens.routeplan.schemeSummaryText
 import com.trackr.ui.screens.routeplan.schemeTransferText
-import org.jetbrains.compose.resources.vectorResource
 import kotlin.time.Clock
+import org.jetbrains.compose.resources.stringResource
+import org.jetbrains.compose.resources.vectorResource
 
 /**
  * 底部方案面板：最多 3 个方案标签（一直可见，点一下切换）+ 可左右滑动的详情 + 收藏 / 开始追踪。
@@ -153,7 +160,7 @@ internal fun SchemePanel(
                 ) {
                     Icon(vectorResource(Res.drawable.ic_star), contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text("收藏", fontWeight = FontWeight.Bold)
+                    Text(stringResource(Res.string.action_favorite), fontWeight = FontWeight.Bold)
                 }
                 // 只追踪这一次，不收藏（规划出来的多半是临时走一趟）
                 Button(
@@ -166,7 +173,7 @@ internal fun SchemePanel(
                 ) {
                     Icon(vectorResource(Res.drawable.ic_play), contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text("开始追踪", fontWeight = FontWeight.Bold)
+                    Text(stringResource(Res.string.action_start_tracking), fontWeight = FontWeight.Bold)
                 }
             }
         }
@@ -207,7 +214,7 @@ private fun SchemeTab(
                 modifier = Modifier.testTag("scheme_tab_label")
             )
             Text(
-                text = "${scheme.durationMinutes} 分钟",
+                text = stringResource(RouteRes.string.route_minutes, scheme.durationMinutes),
                 style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
                 color = if (selected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface,
                 maxLines = 1
@@ -236,7 +243,7 @@ private fun SchemeDetail(
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                text = "${scheme.durationMinutes} 分钟",
+                text = stringResource(RouteRes.string.route_minutes, scheme.durationMinutes),
                 style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Black),
                 color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.testTag("scheme_duration_$page")
@@ -265,7 +272,7 @@ private fun SchemeDetail(
                 itemVerticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "第 ${legIndex + 1} 程",
+                    text = stringResource(RouteRes.string.route_leg_n, legIndex + 1),
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -278,7 +285,7 @@ private fun SchemeDetail(
                         modifier = Modifier.testTag("scheme_line_chip_${line.lineName}")
                     ) {
                         Text(
-                            text = if (isMain) line.lineName else "或 ${line.lineName}",
+                            text = if (isMain) line.lineName else stringResource(RouteRes.string.route_scheme_or, line.lineName),
                             style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
                             color = when {
                                 !isMain -> MaterialTheme.colorScheme.onSurfaceVariant

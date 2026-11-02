@@ -16,8 +16,14 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
+import com.trackr.core.designsystem.resources.Res
+import com.trackr.core.designsystem.resources.action_close
+import com.trackr.core.designsystem.resources.action_copy
 import com.trackr.core.domain.platform.AppSigningInfo
 import com.trackr.data.remote.amap.AmapSdkManager
+import com.trackr.feature.route.resources.Res as RouteRes
+import com.trackr.feature.route.resources.route_map_diag_title
+import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 
 /**
@@ -61,7 +67,7 @@ internal fun MapDiagnosticsDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("地图诊断信息", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)) },
+        title = { Text(stringResource(RouteRes.string.route_map_diag_title), style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)) },
         text = {
             Text(
                 text = report,
@@ -69,7 +75,7 @@ internal fun MapDiagnosticsDialog(
             )
         },
         confirmButton = {
-            TextButton(onClick = onDismiss) { Text("关闭") }
+            TextButton(onClick = onDismiss) { Text(stringResource(Res.string.action_close)) }
         },
         dismissButton = {
             TextButton(
@@ -79,7 +85,7 @@ internal fun MapDiagnosticsDialog(
                 },
                 modifier = Modifier.testTag("btn_copy_diagnostics")
             ) {
-                Text("复制")
+                Text(stringResource(Res.string.action_copy))
             }
         }
     )

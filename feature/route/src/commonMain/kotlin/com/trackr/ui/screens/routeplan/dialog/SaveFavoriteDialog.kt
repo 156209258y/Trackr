@@ -28,9 +28,21 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.trackr.core.designsystem.resources.Res
+import com.trackr.core.designsystem.resources.action_add
+import com.trackr.core.designsystem.resources.action_cancel
 import com.trackr.core.designsystem.resources.ic_plus
 import com.trackr.core.model.AmapTransitSchemeResult
 import com.trackr.core.model.FavoriteGroup
+import com.trackr.feature.route.resources.Res as RouteRes
+import com.trackr.feature.route.resources.route_detail_name
+import com.trackr.feature.route.resources.route_save_all
+import com.trackr.feature.route.resources.route_save_confirm
+import com.trackr.feature.route.resources.route_save_new_group
+import com.trackr.feature.route.resources.route_save_new_group_hint
+import com.trackr.feature.route.resources.route_save_pick_group
+import com.trackr.feature.route.resources.route_save_scheme
+import com.trackr.feature.route.resources.route_save_title
+import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.resources.vectorResource
 
 /**
@@ -54,7 +66,7 @@ internal fun SaveFavoriteDialog(
         onDismissRequest = onDismiss,
         title = {
             Text(
-                text = "存入收藏",
+                text = stringResource(RouteRes.string.route_save_title),
                 style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
             )
         },
@@ -64,7 +76,7 @@ internal fun SaveFavoriteDialog(
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Text(
-                    text = "方案：${scheme.title} (约 ${scheme.durationMinutes} 分钟)",
+                    text = stringResource(RouteRes.string.route_save_scheme, scheme.title, scheme.durationMinutes),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -72,13 +84,13 @@ internal fun SaveFavoriteDialog(
                 OutlinedTextField(
                     value = groupName,
                     onValueChange = { groupName = it },
-                    label = { Text("路线名称") },
+                    label = { Text(stringResource(RouteRes.string.route_detail_name)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth().testTag("input_favorite_name")
                 )
 
                 Text(
-                    text = "选择所属收藏分组：",
+                    text = stringResource(RouteRes.string.route_save_pick_group),
                     style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold)
                 )
 
@@ -89,7 +101,7 @@ internal fun SaveFavoriteDialog(
                     FilterChip(
                         selected = selectedGroupId == null,
                         onClick = { selectedGroupId = null },
-                        label = { Text("全部") },
+                        label = { Text(stringResource(RouteRes.string.route_save_all)) },
                         colors = FilterChipDefaults.filterChipColors(
                             selectedContainerColor = MaterialTheme.colorScheme.primaryContainer
                         )
@@ -113,7 +125,7 @@ internal fun SaveFavoriteDialog(
                     ) {
                         Icon(imageVector = vectorResource(Res.drawable.ic_plus), contentDescription = null, modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.width(4.dp))
-                        Text("新建自定义分组")
+                        Text(stringResource(RouteRes.string.route_save_new_group))
                     }
                 } else {
                     Row(
@@ -124,7 +136,7 @@ internal fun SaveFavoriteDialog(
                         OutlinedTextField(
                             value = newGroupName,
                             onValueChange = { newGroupName = it },
-                            placeholder = { Text("输入新分组名 (如: 周末出行)") },
+                            placeholder = { Text(stringResource(RouteRes.string.route_save_new_group_hint)) },
                             singleLine = true,
                             modifier = Modifier.weight(1f)
                         )
@@ -137,7 +149,7 @@ internal fun SaveFavoriteDialog(
                                 }
                             }
                         ) {
-                            Text("添加")
+                            Text(stringResource(Res.string.action_add))
                         }
                     }
                 }
@@ -148,12 +160,12 @@ internal fun SaveFavoriteDialog(
                 onClick = { onConfirmSave(selectedGroupId, groupName.trim()) },
                 modifier = Modifier.testTag("btn_confirm_save_favorite")
             ) {
-                Text("确认存入")
+                Text(stringResource(RouteRes.string.route_save_confirm))
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("取消")
+                Text(stringResource(Res.string.action_cancel))
             }
         }
     )

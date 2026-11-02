@@ -51,6 +51,14 @@ import com.trackr.core.designsystem.resources.ic_search
 import com.trackr.core.designsystem.resources.ic_swap_vertical
 import com.trackr.core.designsystem.theme.extendedColors
 import com.trackr.core.model.AmapTipItem
+import com.trackr.feature.route.resources.Res as RouteRes
+import com.trackr.feature.route.resources.route_plan_clear_from
+import com.trackr.feature.route.resources.route_plan_clear_to
+import com.trackr.feature.route.resources.route_plan_from_hint
+import com.trackr.feature.route.resources.route_plan_go
+import com.trackr.feature.route.resources.route_plan_swap
+import com.trackr.feature.route.resources.route_plan_to_hint
+import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.resources.vectorResource
 
 /** 顶部悬浮搜索岛：起点 / 终点两行 + 互换 + 规划，下面是输入提示 */
@@ -86,10 +94,10 @@ internal fun SearchConsole(
                 ) {
                     PlaceInputRow(
                         value = originText,
-                        placeholder = "我的位置 / 输入起点站",
+                        placeholder = stringResource(RouteRes.string.route_plan_from_hint),
                         dotColor = MaterialTheme.extendedColors.success,
                         inputTag = "input_origin",
-                        clearDescription = "清空起点",
+                        clearDescription = stringResource(RouteRes.string.route_plan_clear_from),
                         imeAction = ImeAction.Default,
                         onValueChange = { onEvent(RoutePlanEvent.OriginChanged(it)) },
                         onClear = { onEvent(RoutePlanEvent.ClearOrigin) },
@@ -106,10 +114,10 @@ internal fun SearchConsole(
 
                     PlaceInputRow(
                         value = destText,
-                        placeholder = "输入目的地、商圈或公交地铁站",
+                        placeholder = stringResource(RouteRes.string.route_plan_to_hint),
                         dotColor = MaterialTheme.colorScheme.error,
                         inputTag = "input_dest",
-                        clearDescription = "清空终点",
+                        clearDescription = stringResource(RouteRes.string.route_plan_clear_to),
                         imeAction = ImeAction.Search,
                         onValueChange = { onEvent(RoutePlanEvent.DestChanged(it)) },
                         onClear = { onEvent(RoutePlanEvent.ClearDest) },
@@ -133,7 +141,7 @@ internal fun SearchConsole(
                     ) {
                         Icon(
                             imageVector = vectorResource(Res.drawable.ic_swap_vertical),
-                            contentDescription = "互换起终点",
+                            contentDescription = stringResource(RouteRes.string.route_plan_swap),
                             tint = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.size(20.dp)
                         )
@@ -149,7 +157,7 @@ internal fun SearchConsole(
                     ) {
                         Icon(
                             imageVector = vectorResource(Res.drawable.ic_search),
-                            contentDescription = "规划",
+                            contentDescription = stringResource(RouteRes.string.route_plan_go),
                             tint = MaterialTheme.colorScheme.onPrimary,
                             modifier = Modifier.size(20.dp)
                         )

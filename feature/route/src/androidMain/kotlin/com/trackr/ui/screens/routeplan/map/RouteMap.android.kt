@@ -23,7 +23,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import com.trackr.data.remote.amap.AmapSdkManager
+import com.trackr.feature.route.resources.Res as RouteRes
+import com.trackr.feature.route.resources.route_map_recenter
 import com.trackr.ui.screens.routeplan.LocalAmapMapSession
+import org.jetbrains.compose.resources.stringResource
 
 actual val isRouteMapSupported: Boolean = true
 
@@ -110,7 +113,7 @@ actual fun RouteMap(state: RouteMapState, modifier: Modifier) {
             ) {
                 Icon(
                     imageVector = Icons.Default.MyLocation,
-                    contentDescription = "居中重置",
+                    contentDescription = stringResource(RouteRes.string.route_map_recenter),
                     modifier = Modifier.size(20.dp)
                 )
             }

@@ -17,10 +17,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.trackr.core.designsystem.resources.Res
+import com.trackr.core.designsystem.resources.action_end
 import com.trackr.core.model.GroupTrackingSessionState
 import com.trackr.core.model.LegPhase
+import com.trackr.feature.route.resources.Res as RouteRes
+import com.trackr.feature.route.resources.route_status_boarded
 import com.trackr.ui.screens.routeplan.trackingPhaseOf
 import com.trackr.ui.screens.routeplan.trackingStatusText
+import org.jetbrains.compose.resources.stringResource
 
 /** 规划页追踪状态条："第 1/2 程 · 等车 · 4 分钟" + 我已上车 / 结束 */
 @Composable
@@ -55,7 +60,7 @@ internal fun TrackingStatusBar(
                     onClick = onConfirmBoarded,
                     modifier = Modifier.testTag("btn_plan_confirm_boarded")
                 ) {
-                    Text("我已上车")
+                    Text(stringResource(RouteRes.string.route_status_boarded))
                 }
             }
             Button(
@@ -66,7 +71,7 @@ internal fun TrackingStatusBar(
                 ),
                 modifier = Modifier.testTag("btn_plan_stop_tracking")
             ) {
-                Text("结束")
+                Text(stringResource(Res.string.action_end))
             }
         }
     }

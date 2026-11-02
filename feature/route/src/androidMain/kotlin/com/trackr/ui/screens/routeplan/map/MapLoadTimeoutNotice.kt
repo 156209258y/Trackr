@@ -25,6 +25,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.trackr.core.designsystem.resources.Res
+import com.trackr.core.designsystem.resources.action_retry
+import com.trackr.feature.route.resources.Res as RouteRes
+import com.trackr.feature.route.resources.route_map_diag
+import com.trackr.feature.route.resources.route_map_not_loaded
+import com.trackr.feature.route.resources.route_map_skip
+import org.jetbrains.compose.resources.stringResource
 
 /**
  * 底图加载失败 / 超时提示：不销毁地图，只做浮层说明 + 重试 / 诊断入口。
@@ -54,7 +61,7 @@ internal fun MapLoadTimeoutNotice(
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = "底图还没加载出来",
+                    text = stringResource(RouteRes.string.route_map_not_loaded),
                     style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold)
                 )
             }
@@ -70,16 +77,16 @@ internal fun MapLoadTimeoutNotice(
                     onClick = onRetry,
                     modifier = Modifier.testTag("btn_map_timeout_retry")
                 ) {
-                    Text("重试")
+                    Text(stringResource(Res.string.action_retry))
                 }
                 OutlinedButton(
                     onClick = onShowDiagnostics,
                     modifier = Modifier.testTag("btn_map_diagnostics")
                 ) {
-                    Text("诊断信息")
+                    Text(stringResource(RouteRes.string.route_map_diag))
                 }
                 TextButton(onClick = onDismiss) {
-                    Text("先不用")
+                    Text(stringResource(RouteRes.string.route_map_skip))
                 }
             }
         }
