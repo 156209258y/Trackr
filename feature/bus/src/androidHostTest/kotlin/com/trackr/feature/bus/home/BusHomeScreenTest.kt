@@ -100,26 +100,18 @@ class BusHomeScreenTest {
         return BusHomeMapper.derive(BusHomeUiState(), raw)
     }
 
-    private fun setContent(state: BusHomeUiState, showSettings: Boolean = false) {
+    private fun setContent(state: BusHomeUiState) {
         composeTestRule.setContent {
             TrackrTheme {
-                BusHomeScreen(state = state, onEvent = { events += it }, showSettings = showSettings)
+                BusHomeScreen(state = state, onEvent = { events += it })
             }
         }
     }
 
     @Test
-    fun settingsButton_onlyWhenAsked_opensSettings() {
-        // 标准版（默认）没有「设置」，长辈版（第 31 步）右上角有，点了进「我的」
-        setContent(stateOf(), showSettings = true)
-        composeTestRule.onNodeWithTag(BusHomeTags.SETTINGS).assertIsDisplayed().performClick()
-        assertEquals(BusHomeEvent.OpenSettings, events.last())
-    }
-
-    @Test
-    fun settingsButton_hiddenByDefault() {
+    fun standardHome_hasNoSettingsButton() {
+        // 「设置」只在长辈版首页（ElderBusHomeScreen）；标准版从底部「我的」页签进
         setContent(stateOf())
-        composeTestRule.onNodeWithTag(BusHomeTags.SETTINGS).assertDoesNotExist()
         composeTestRule.onNodeWithText("设置").assertDoesNotExist()
     }
 

@@ -13,10 +13,16 @@ import com.trackr.core.navigation.ScreenKey
 /**
  * 公交首页的 Route：接 ViewModel、轮询开关和导航，页面本身是无状态的 [BusHomeScreen]。
  *
- * @param showSettings 顶栏显示「设置」（长辈版：没有底部页签，从这里进「我的」）。标准版不显示
+ * @param screen 画哪个页面：标准版 [BusHomeScreen]，长辈版 `ElderBusHomeScreen`（§8.5：共用 ViewModel，只换页面）
  */
 @Composable
-fun BusHomeRoute(viewModel: BusHomeViewModel, navigator: TrackrNavigator, showSettings: Boolean = false) {
+fun BusHomeRoute(
+    viewModel: BusHomeViewModel,
+    navigator: TrackrNavigator,
+    screen: @Composable (state: BusHomeUiState, onEvent: (BusHomeEvent) -> Unit) -> Unit = { state, onEvent ->
+        BusHomeScreen(state = state, onEvent = onEvent)
+    }
+) {
     // 首页轮询只在 App 前台、首页显示着时进行（重构计划 §4.4）：首页 entry 在组合里就是「首页页签 + 在栈顶」，
     // 进详情 / 切页签时 entry 离开组合即停；STARTED 这一档沿用原来 shouldPollHome 的口径
     LifecycleStartEffect(viewModel) {
@@ -44,7 +50,7 @@ fun BusHomeRoute(viewModel: BusHomeViewModel, navigator: TrackrNavigator, showSe
         }
     }
 
-    BusHomeScreen(state = state, onEvent = onEvent, showSettings = showSettings)
+    screen(state, onEvent)
 }
 
 private fun LineTarget.toKey(): ScreenKey.LineDetail = ScreenKey.LineDetail(

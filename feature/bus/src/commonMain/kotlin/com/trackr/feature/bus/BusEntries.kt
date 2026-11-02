@@ -5,6 +5,7 @@ import androidx.navigation3.runtime.NavKey
 import com.trackr.core.domain.platform.MonotonicClock
 import com.trackr.core.navigation.TrackrNavigator
 import com.trackr.core.navigation.ScreenKey
+import com.trackr.feature.bus.elder.ElderBusHomeScreen
 import com.trackr.feature.bus.home.BusHomeRoute
 import com.trackr.feature.bus.home.BusHomeViewModel
 import com.trackr.ui.navigation.LocalAppViewModelStoreOwner
@@ -14,13 +15,25 @@ import org.koin.dsl.module
 
 /**
  * 公交首页（公交页签根页）的导航入口（`:composeApp` 组装）。第 19 步起页面在 commonMain，Android / iOS 共用。
- * [showSettings]：长辈版没有底部页签，首页顶栏放「设置」进「我的」（第 31 步；长辈版首页第 32 步再换）
  */
-fun EntryProviderScope<NavKey>.busEntries(navigator: TrackrNavigator, showSettings: Boolean = false) {
+fun EntryProviderScope<NavKey>.busEntries(navigator: TrackrNavigator) {
     entry<ScreenKey.Home> {
         // Activity 级的首页 ViewModel（权限回调、TrackrRoot 首帧关轮询也用它），和原来一样
         val viewModel: BusHomeViewModel = koinViewModel(viewModelStoreOwner = LocalAppViewModelStoreOwner.current)
-        BusHomeRoute(viewModel = viewModel, navigator = navigator, showSettings = showSettings)
+        BusHomeRoute(viewModel = viewModel, navigator = navigator)
+    }
+}
+
+/**
+ * 长辈版首页（§8.4、8.5，第 32 步）：同一个 Key、同一个 Activity 级 ViewModel，只换成 [ElderBusHomeScreen]。
+ * 右上角「设置」进「我的」（长辈版没有底部页签）。
+ */
+fun EntryProviderScope<NavKey>.elderBusEntries(navigator: TrackrNavigator) {
+    entry<ScreenKey.Home> {
+        val viewModel: BusHomeViewModel = koinViewModel(viewModelStoreOwner = LocalAppViewModelStoreOwner.current)
+        BusHomeRoute(viewModel = viewModel, navigator = navigator) { state, onEvent ->
+            ElderBusHomeScreen(state = state, onEvent = onEvent)
+        }
     }
 }
 

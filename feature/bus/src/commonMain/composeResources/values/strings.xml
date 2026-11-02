@@ -24,4 +24,13 @@
     <string name="bus_nearby_stop_detail">站点详情</string>
     <string name="bus_nearby_loading">正在查车…</string>
     <string name="bus_tracking_more_lines">还有 %1$s 条</string>
+    <!-- 长辈版首页（第 32 步） -->
+    <string name="bus_elder_search_hint">找线路、车站</string>
+    <string name="bus_elder_favorites_title">我常坐的车</string>
+    <string name="bus_elder_favorites_empty">点一辆车，再点「收藏」，它就会放到最上面。</string>
+    <string name="bus_elder_nearby_title">离你最近</string>
+    <string name="bus_elder_stop_tracking">不用叫了</string>
+    <string name="bus_elder_stop_tracking_confirm">不再提醒这班车了吗？</string>
+    <string name="bus_elder_keep_tracking">继续提醒</string>
+    <string name="bus_elder_open_stop">看这个站的车</string>
 </resources>

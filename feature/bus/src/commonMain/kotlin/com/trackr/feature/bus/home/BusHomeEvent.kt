@@ -17,7 +17,7 @@ sealed interface BusHomeEvent {
     /** 收藏右上角「编辑」 */
     data object EditFavorites : BusHomeEvent
 
-    /** 顶栏右上角「设置」（只有长辈版显示：没有底部页签，从这里进「我的」） */
+    /** 顶栏右上角「设置」（只有长辈版首页有：没有底部页签，从这里进「我的」） */
     data object OpenSettings : BusHomeEvent
 
     // ---- 交给 ViewModel ----
