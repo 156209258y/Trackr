@@ -3,6 +3,7 @@ package com.trackr.ui.screens.routeplan
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -79,13 +80,14 @@ internal fun SearchConsole(
                 .testTag("top_search_console"),
             shape = RoundedCornerShape(24.dp),
             colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f)
-            )
+                containerColor = MaterialTheme.colorScheme.surface
+            ),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
         ) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                    .padding(horizontal = 16.dp, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column(
@@ -127,14 +129,15 @@ internal fun SearchConsole(
 
                 Spacer(modifier = Modifier.width(8.dp))
 
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                // 紧凑排布：互换 + 规划并排，整体与两行输入的垂直中心对齐，不再各自占一行高度
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     IconButton(
                         onClick = { onEvent(RoutePlanEvent.SwapOriginDest) },
                         modifier = Modifier
-                            .size(36.dp)
+                            .size(34.dp)
                             .clip(CircleShape)
                             .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
                             .testTag("btn_swap_origin_dest")
@@ -143,14 +146,14 @@ internal fun SearchConsole(
                             imageVector = vectorResource(Res.drawable.ic_swap_vertical),
                             contentDescription = stringResource(RouteRes.string.route_plan_swap),
                             tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(20.dp)
+                            modifier = Modifier.size(18.dp)
                         )
                     }
 
                     IconButton(
                         onClick = { onEvent(RoutePlanEvent.Submit) },
                         modifier = Modifier
-                            .size(36.dp)
+                            .size(34.dp)
                             .clip(CircleShape)
                             .background(MaterialTheme.colorScheme.primary)
                             .testTag("btn_trigger_plan")
@@ -159,7 +162,7 @@ internal fun SearchConsole(
                             imageVector = vectorResource(Res.drawable.ic_search),
                             contentDescription = stringResource(RouteRes.string.route_plan_go),
                             tint = MaterialTheme.colorScheme.onPrimary,
-                            modifier = Modifier.size(20.dp)
+                            modifier = Modifier.size(18.dp)
                         )
                     }
                 }
@@ -221,7 +224,7 @@ private fun PlaceInputRow(
                     Text(
                         text = placeholder,
                         style = MaterialTheme.typography.bodyMedium.copy(
-                            color = MaterialTheme.colorScheme.outline
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     )
                 }
