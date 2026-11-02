@@ -96,13 +96,16 @@ fun TrackrRoot(
                         onAmapPrivacyAccepted = onAmapPrivacyAccepted
                     )
                 }
+                // 申请定位与通知权限（Android：首次打开时弹说明再申请；iOS 阶段 G 再做）。
+                // 说明对话框和系统权限弹窗都关掉后，系统字体 ≥ 1.3 倍时再提示一次「试试长辈版」，两个对话框不叠在一起
+                PermissionOnboarding {
+                    FontScalePrompt(
+                        dismissed = shell.fontScalePromptDismissed,
+                        onEnableElder = shellViewModel::enableElderFromPrompt,
+                        onDismiss = shellViewModel::dismissFontScalePrompt
+                    )
+                }
             }
-            // 系统字体 ≥ 1.3 倍时提示一次「试试长辈版」
-            FontScalePrompt(
-                dismissed = shell.fontScalePromptDismissed,
-                onEnableElder = shellViewModel::enableElderFromPrompt,
-                onDismiss = shellViewModel::dismissFontScalePrompt
-            )
         }
     }
 }
@@ -146,9 +149,6 @@ private fun TrackrNavApp(
 
     // 收藏变化后同步桌面快捷方式与小组件：第 4 步起在应用级作用域里做（见 FavoritesShortcutWidgetSync）
     // 首页轮询开关：第 17 步起由首页 Route 的 LifecycleStartEffect 控制（重构计划 §4.4）
-
-    // 申请定位与通知权限（Android：首次打开时弹说明再申请；iOS 阶段 G 再做）
-    PermissionOnboarding()
 
     // 来自桌面小组件、快捷方式或通知栏的跳转（§3.6）：合成返回栈，按返回回到页签根页。一次性消费，重放结果也不变
     // 首帧就带着的链接（冷启动）：只有它需要补关首页轮询，见下面

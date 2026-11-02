@@ -11,9 +11,12 @@ import com.trackr.core.navigation.ScreenKey
 @Composable
 internal expect fun PlatformHost(enabled: Boolean, content: @Composable () -> Unit)
 
-/** 首次打开时的定位 / 通知权限说明与申请。Android：原 MainActivity 里那段；iOS 阶段 G 再做 */
+/**
+ * 首次打开时的定位 / 通知权限说明与申请。Android：原 MainActivity 里那段；iOS 阶段 G 再做。
+ * 说明对话框和系统权限弹窗都关掉后才组合 [afterOnboarding]，后面的对话框（字号提示）不会叠在它们上面。
+ */
 @Composable
-internal expect fun PermissionOnboarding()
+internal expect fun PermissionOnboarding(afterOnboarding: @Composable () -> Unit)
 
 /** 底栏图标。Android 照旧用 Material 图标；iOS 用设计系统的 Compose 资源 */
 @Composable

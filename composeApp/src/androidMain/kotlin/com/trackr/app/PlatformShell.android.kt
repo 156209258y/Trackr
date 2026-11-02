@@ -18,6 +18,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -53,24 +54,48 @@ internal actual fun bottomTabIcon(key: ScreenKey): ImageVector = when (key) {
     else -> error("$key 不是顶层页签")
 }
 
-/** 申请定位与通知权限（原 MainActivity 里那段，原样搬来） */
+/**
+ * 申请定位与通知权限（原 MainActivity 里那段，原样搬来）。
+ * 说明对话框和系统权限弹窗都关掉后才组合 [afterOnboarding]（字号提示放这里，不和它们叠在一起）。
+ */
 @Composable
-internal actual fun PermissionOnboarding() {
-    val context = LocalContext.current
+internal actual fun PermissionOnboarding(afterOnboarding: @Composable () -> Unit) {
     // 首页 ViewModel 是 Activity 级的，和首页拿到的是同一个实例
     val homeViewModel: BusHomeViewModel = koinViewModel(viewModelStoreOwner = LocalAppViewModelStoreOwner.current)
+    LocationPermissionOnboarding(
+        onLocationGranted = homeViewModel::refreshLocationAndNearby,
+        afterOnboarding = afterOnboarding
+    )
+}
 
+/** [PermissionOnboarding] 去掉 ViewModel 的部分（测试直接用） */
+@Composable
+internal fun LocationPermissionOnboarding(
+    onLocationGranted: () -> Unit,
+    afterOnboarding: @Composable () -> Unit
+) {
+    val context = LocalContext.current
+
+    // 已经发出、还没回来的系统权限申请：系统弹窗盖在上面，后面的对话框先不弹
+    var awaitingPermissionResult by rememberSaveable { mutableStateOf(false) }
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions()
     ) { grants ->
+        awaitingPermissionResult = false
         val locationGranted = grants[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
             grants[Manifest.permission.ACCESS_COARSE_LOCATION] == true
         if (locationGranted) {
-            homeViewModel.refreshLocationAndNearby()
+            onLocationGranted()
         }
+    }
+    val requestPermissions: (Array<String>) -> Unit = { permissions ->
+        awaitingPermissionResult = true
+        permissionLauncher.launch(permissions)
     }
 
     var showLocationDisclosureDialog by rememberSaveable { mutableStateOf(false) }
+    // 下面的 LaunchedEffect 跑完前还不知道要不要弹说明：先别组合后面的对话框，免得闪一帧
+    var checked by remember { mutableStateOf(false) }
 
     val needsLocation = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED &&
         ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED
@@ -81,8 +106,9 @@ internal actual fun PermissionOnboarding() {
         if (needsLocation) {
             showLocationDisclosureDialog = true
         } else if (needsNotification) {
-            permissionLauncher.launch(arrayOf(Manifest.permission.POST_NOTIFICATIONS))
+            requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS))
         }
+        checked = true
     }
 
     if (showLocationDisclosureDialog) {
@@ -90,7 +116,7 @@ internal actual fun PermissionOnboarding() {
             onDismissRequest = {
                 showLocationDisclosureDialog = false
                 if (needsNotification) {
-                    permissionLauncher.launch(arrayOf(Manifest.permission.POST_NOTIFICATIONS))
+                    requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS))
                 }
             },
             icon = {
@@ -123,7 +149,7 @@ internal actual fun PermissionOnboarding() {
                         if (needsNotification) {
                             needed.add(Manifest.permission.POST_NOTIFICATIONS)
                         }
-                        permissionLauncher.launch(needed.toTypedArray())
+                        requestPermissions(needed.toTypedArray())
                     }
                 ) {
                     Text("同意并授权")
@@ -134,7 +160,7 @@ internal actual fun PermissionOnboarding() {
                     onClick = {
                         showLocationDisclosureDialog = false
                         if (needsNotification) {
-                            permissionLauncher.launch(arrayOf(Manifest.permission.POST_NOTIFICATIONS))
+                            requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS))
                         }
                     }
                 ) {
@@ -142,5 +168,9 @@ internal actual fun PermissionOnboarding() {
                 }
             }
         )
+    }
+
+    if (checked && !showLocationDisclosureDialog && !awaitingPermissionResult) {
+        afterOnboarding()
     }
 }

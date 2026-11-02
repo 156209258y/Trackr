@@ -16,7 +16,7 @@ import org.jetbrains.compose.resources.vectorResource
 internal actual fun PlatformHost(enabled: Boolean, content: @Composable () -> Unit) = content()
 
 @Composable
-internal actual fun PermissionOnboarding() = Unit
+internal actual fun PermissionOnboarding(afterOnboarding: @Composable () -> Unit) = afterOnboarding()
 
 @Composable
 internal actual fun bottomTabIcon(key: ScreenKey): ImageVector = when (key) {
