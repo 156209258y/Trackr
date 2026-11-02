@@ -30,6 +30,9 @@ sealed interface BusHomeEvent {
     data object TransitCodeSheetDismissed : BusHomeEvent
     data class MessageShown(val id: Long) : BusHomeEvent
 
+    /** 长辈版卡片上的「读给我听」：[text] 是卡片的朗读整句 */
+    data class ReadAloud(val text: String) : BusHomeEvent
+
     // 城市选择
     data object OpenCityPicker : BusHomeEvent
     data object CloseCityPicker : BusHomeEvent

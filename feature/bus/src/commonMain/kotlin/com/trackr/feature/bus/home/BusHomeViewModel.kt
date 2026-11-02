@@ -9,6 +9,8 @@ import com.trackr.core.data.repository.RealtimeRepository
 import com.trackr.core.data.repository.SettingsRepository
 import com.trackr.core.data.repository.TrackingRepository
 import com.trackr.core.data.repository.UserLocationStore
+import com.trackr.core.domain.platform.Announcer
+import com.trackr.core.domain.platform.NoAnnouncer
 import com.trackr.core.domain.platform.ProcessMonotonicClock
 import com.trackr.core.domain.platform.TrackingController
 import com.trackr.core.domain.platform.TransitCodeLauncher
@@ -16,6 +18,7 @@ import com.trackr.core.model.EngineMode
 import com.trackr.core.model.ProvinceCityCatalog
 import com.trackr.core.model.TransitCity
 import com.trackr.core.model.TransitCodeProvider
+import com.trackr.ui.components.elder.TTS_UNAVAILABLE_MESSAGE
 import com.trackr.ui.util.FixedDelayPollingStrategy
 import com.trackr.ui.util.PollingCoordinator
 import kotlinx.coroutines.Job
@@ -55,7 +58,9 @@ class BusHomeViewModel(
     /** 单调时钟（毫秒），用于判断恢复轮询时距上次刷新是否已超过一个周期；测试可替换 */
     private val elapsedRealtimeMillis: () -> Long = { ProcessMonotonicClock.elapsedMillis() },
     /** 把首页当前坐标发给搜索用（拆分前搜索直接读首页的 currentLat / currentLng）；为 null 时不发 */
-    private val homeCoordinates: HomeCoordinates? = null
+    private val homeCoordinates: HomeCoordinates? = null,
+    /** 长辈版卡片上的「读给我听」（§8.6） */
+    private val announcer: Announcer = NoAnnouncer
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(BusHomeUiState())
@@ -216,6 +221,7 @@ class BusHomeViewModel(
             is BusHomeEvent.TransitCodeChosen -> onTransitCodeChosen(event.provider, event.saveAsDefault)
             BusHomeEvent.TransitCodeSheetDismissed -> edit { it.copy(isTransitCodeSheetOpen = false) }
             is BusHomeEvent.MessageShown -> onMessageShown(event.id)
+            is BusHomeEvent.ReadAloud -> readAloud(event.text)
             BusHomeEvent.OpenCityPicker -> setCityPickerOpen(true)
             BusHomeEvent.CloseCityPicker -> setCityPickerOpen(false)
             is BusHomeEvent.CitySearchChanged -> updateCitySearchQuery(event.query)
@@ -548,6 +554,14 @@ class BusHomeViewModel(
     private fun addMessage(text: String) {
         val id = nextMessageId++
         edit { state -> state.copy(userMessages = state.userMessages + UserMessage(id, text)) }
+    }
+
+    /** 读一张卡片的到站；手机读不了时给一条提示 */
+    private fun readAloud(text: String) {
+        if (text.isBlank()) return
+        viewModelScope.launch {
+            if (!announcer.speak(text)) addMessage(TTS_UNAVAILABLE_MESSAGE)
+        }
     }
 
     override fun onCleared() {

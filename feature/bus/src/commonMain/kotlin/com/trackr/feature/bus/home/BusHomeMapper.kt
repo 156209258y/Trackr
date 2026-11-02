@@ -1,5 +1,6 @@
 package com.trackr.feature.bus.home
 
+import com.trackr.core.domain.arrival.ArrivalDisplay
 import com.trackr.core.domain.arrival.ArrivalState
 import com.trackr.core.domain.arrival.ArrivalText
 import com.trackr.core.domain.arrival.ArrivalTone
@@ -70,11 +71,18 @@ internal object BusHomeMapper {
                 detail = detail,
                 otherLines = others.take(WATCH_LINES_SHOWN),
                 foldedLines = others.drop(WATCH_LINES_SHOWN),
-                open = open
+                open = open,
+                spoken = ArrivalText.spoken(
+                    watchedLineState(first),
+                    lineName = first.line.lineName,
+                    stopName = watch.stopName,
+                    towards = first.line.endStopName
+                )
             )
         }
 
-        val display = ArrivalText.format(ArrivalText.stateForSession(state))
+        val sessionState = ArrivalText.stateForSession(state)
+        val display = ArrivalText.format(sessionState)
         val loadingDetail = if (state.stopsRemaining < 0) state.statusSummary.ifBlank { display.detail } else display.detail
         val group = session.group
         return when {
@@ -96,14 +104,31 @@ internal object BusHomeMapper {
                     title = joinDot("路线 $routeName", legText),
                     arrival = ArrivalUi.of(display),
                     detail = joinDot(phaseText, loadingDetail),
-                    open = open
+                    open = open,
+                    // 车上（等下车）不读「快去上车」那套
+                    spoken = if (state.legPhase == LegPhase.ON_BOARD) {
+                        ""
+                    } else {
+                        ArrivalText.spoken(
+                            sessionState,
+                            lineName = state.lineName,
+                            stopName = state.boardStopName.ifBlank { state.targetStopName },
+                            towards = state.endStopName
+                        )
+                    }
                 )
             }
             else -> TrackingCardUi(
                 title = joinDot("追踪 ${state.lineName}", state.targetStopName),
                 arrival = ArrivalUi.of(display),
                 detail = loadingDetail,
-                open = open
+                open = open,
+                spoken = ArrivalText.spoken(
+                    sessionState,
+                    lineName = state.lineName,
+                    stopName = state.targetStopName,
+                    towards = state.endStopName
+                )
             )
         }
     }
@@ -136,18 +161,25 @@ internal object BusHomeMapper {
     private fun stopRow(item: FavoriteItem.Stop, realtime: NearbyStop?): FavoriteRowUi.Stop {
         val fav = item.stop
         val status = realtime?.lines?.firstOrNull { it.line.lineId == fav.lineId } ?: realtime?.lines?.firstOrNull()
-        val arrival = if (status == null) {
-            ArrivalUi.of(ArrivalText.format(ArrivalState.Loading))
+        val display = if (status == null) {
+            ArrivalText.format(ArrivalState.Loading, lineName = fav.lineName, stopName = fav.targetStopName, towards = fav.endStop)
         } else {
-            arrivalFor(status, nextDepartureIsFromStart = true)
+            arrivalDisplayFor(
+                status,
+                nextDepartureIsFromStart = true,
+                lineName = fav.lineName,
+                stopName = fav.targetStopName,
+                towards = fav.endStop
+            )
         }
         return FavoriteRowUi.Stop(
             key = item.key,
             lineName = fav.lineName,
             boardText = "${fav.targetStopName}上车",
             direction = directionText(fav.startStop, fav.endStop),
-            arrival = arrival,
-            open = lineTargetOf(fav)
+            arrival = ArrivalUi.of(display),
+            open = lineTargetOf(fav),
+            spoken = display.spoken
         )
     }
 
@@ -238,25 +270,42 @@ internal object BusHomeMapper {
      * - 数据源给了状态字（「等待发车」「末班已过」「预计 07:31 到达」）就照写；
      * - 都没有写「暂无在途车辆」。
      */
-    fun arrivalFor(status: NearbyStopLineStatus, nextDepartureIsFromStart: Boolean): ArrivalUi {
+    fun arrivalFor(status: NearbyStopLineStatus, nextDepartureIsFromStart: Boolean): ArrivalUi =
+        ArrivalUi.of(arrivalDisplayFor(status, nextDepartureIsFromStart))
+
+    /** 同 [arrivalFor]，带朗读整句（长辈版「读给我听」）；[lineName]、[stopName]、[towards] 只用于朗读 */
+    fun arrivalDisplayFor(
+        status: NearbyStopLineStatus,
+        nextDepartureIsFromStart: Boolean,
+        lineName: String = "",
+        stopName: String = "",
+        towards: String = ""
+    ): ArrivalDisplay {
+        fun format(state: ArrivalState) = ArrivalText.format(state, lineName = lineName, stopName = stopName, towards = towards)
         val bus = status.approachingBuses.firstOrNull()
         if (bus != null) {
-            return ArrivalUi.of(ArrivalText.format(ArrivalText.stateForBus(status.targetOrder, bus)))
+            return format(ArrivalText.stateForBus(status.targetOrder, bus))
         }
         val next = status.preArrivalTime?.takeIf { nextDepartureIsFromStart && ArrivalText.parseClock(it) != null }
         if (next != null && !isEndedText(status.statusText)) {
-            return ArrivalUi.of(
-                ArrivalText.format(
-                    ArrivalState.AllPassed(nextDeparture = next, startStop = status.line.startStop, lastTime = status.line.lastTime)
-                )
+            return format(
+                ArrivalState.AllPassed(nextDeparture = next, startStop = status.line.startStop, lastTime = status.line.lastTime)
             )
         }
         val text = status.statusText.trim()
         if (text.isNotEmpty()) {
             val tone = if (isEndedText(text)) ArrivalTone.Warn else ArrivalTone.Mute
-            return ArrivalUi(big = text, small = "", tone = tone)
+            // 数据源的状态字照写照读
+            return ArrivalDisplay(
+                value = text,
+                unit = null,
+                detail = "",
+                short = text,
+                tone = tone,
+                spoken = format(ArrivalState.NoService(text)).spoken
+            )
         }
-        return ArrivalUi.of(ArrivalText.format(ArrivalState.NoService("暂无在途车辆")))
+        return format(ArrivalState.NoService("暂无在途车辆"))
     }
 
     private fun isEndedText(text: String): Boolean =

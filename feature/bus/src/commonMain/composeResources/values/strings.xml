@@ -30,6 +30,7 @@
     <string name="bus_elder_favorites_empty">点一辆车，再点「收藏」，它就会放到最上面。</string>
     <string name="bus_elder_nearby_title">离你最近</string>
     <string name="bus_elder_stop_tracking">不用叫了</string>
+    <string name="bus_elder_read_aloud">读给我听</string>
     <string name="bus_elder_stop_tracking_confirm">不再提醒这班车了吗？</string>
     <string name="bus_elder_keep_tracking">继续提醒</string>
     <string name="bus_elder_open_stop">看这个站的车</string>

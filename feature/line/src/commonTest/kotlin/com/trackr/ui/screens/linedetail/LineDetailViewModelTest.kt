@@ -23,6 +23,7 @@ import com.trackr.core.testing.FakeRealtimeRepository
 import com.trackr.core.testing.FakeSettingsRepository
 import com.trackr.core.testing.MainDispatcherHolder
 import com.trackr.data.repository.FakeScheduledReminderRepository
+import com.trackr.ui.components.elder.TTS_UNAVAILABLE_MESSAGE
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -224,7 +225,7 @@ class LineDetailViewModelTest {
 
         assertTrue(announcer.spoken.isEmpty())
         assertEquals(
-            listOf(LineDetailViewModel.TTS_UNAVAILABLE_MESSAGE),
+            listOf(TTS_UNAVAILABLE_MESSAGE),
             viewModel.uiState.value.userMessages.map { it.text }
         )
     }

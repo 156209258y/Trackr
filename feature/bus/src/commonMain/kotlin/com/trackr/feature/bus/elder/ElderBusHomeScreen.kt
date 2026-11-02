@@ -63,6 +63,7 @@ import com.trackr.feature.bus.resources.bus_elder_favorites_title
 import com.trackr.feature.bus.resources.bus_elder_keep_tracking
 import com.trackr.feature.bus.resources.bus_elder_nearby_title
 import com.trackr.feature.bus.resources.bus_elder_open_stop
+import com.trackr.feature.bus.resources.bus_elder_read_aloud
 import com.trackr.feature.bus.resources.bus_elder_search_hint
 import com.trackr.feature.bus.resources.bus_elder_stop_tracking
 import com.trackr.feature.bus.resources.bus_elder_stop_tracking_confirm
@@ -91,6 +92,8 @@ internal object ElderBusHomeTags {
     const val SEARCH = "elder_home_search"
     const val TRACKING = "elder_home_tracking"
     const val STOP_TRACKING = "elder_home_stop_tracking"
+    const val TRACKING_READ_ALOUD = "elder_home_tracking_read_aloud"
+    fun readAloud(key: String) = "elder_home_read_$key"
     fun favorite(key: String) = "elder_home_fav_$key"
     fun nearbyStop(key: String) = "elder_home_nearby_$key"
     fun nearbyLine(key: String) = "elder_home_line_$key"
@@ -103,7 +106,7 @@ internal const val ELDER_NEARBY_STOPS = 3
  * 长辈版首页（设计稿 redesign_v3_elder.html「首页」，§8.5）。和标准版共用 [BusHomeUiState] / `BusHomeViewModel`。
  *
  * 顶栏城市名 +「设置」；大搜索框；正在提醒的车（只有最先到的一辆，没有一起等的多线细节）；
- * 「我常坐的车」一张卡一辆车（全部收藏，没有分组 chips、没有「编辑」）；「离你最近」3 个站；
+ * 「我常坐的车」一张卡一辆车（全部收藏，没有分组 chips、没有「编辑」）；车卡和提醒卡上有「读给我听」（第 33 步）；「离你最近」3 个站；
  * 底部固定「出示乘车码」。没有下拉刷新（靠首页 15 秒自动刷新）、没有长按和滑动手势；提示要点「知道了」才关。
  */
 @Composable
@@ -153,6 +156,7 @@ fun ElderBusHomeScreen(
                     ElderTrackingCard(
                         card = card,
                         onOpen = { onEvent(BusHomeEvent.OpenLine(card.open)) },
+                        onReadAloud = { onEvent(BusHomeEvent.ReadAloud(card.spoken)) },
                         onStop = { confirmStop = true }
                     )
                 }
@@ -290,9 +294,9 @@ private fun ElderSearchEntry(onClick: () -> Unit) {
     }
 }
 
-/** 正在提醒的车：标题、最先到的大字、一句说明、「不用叫了」。点卡片去线路页 */
+/** 正在提醒的车：标题、最先到的大字、一句说明、「读给我听」（在车上时不给）+「不用叫了」。点卡片去线路页 */
 @Composable
-private fun ElderTrackingCard(card: TrackingCardUi, onOpen: () -> Unit, onStop: () -> Unit) {
+private fun ElderTrackingCard(card: TrackingCardUi, onOpen: () -> Unit, onReadAloud: () -> Unit, onStop: () -> Unit) {
     val dimens = TrackrTheme.dimens
     Surface(
         onClick = onOpen,
@@ -308,6 +312,15 @@ private fun ElderTrackingCard(card: TrackingCardUi, onOpen: () -> Unit, onStop: 
         ) {
             Text(text = card.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             ElderArrival(arrival = card.arrival, detail = card.detail)
+            if (card.spoken.isNotBlank()) {
+                ElderButton(
+                    text = stringResource(BusRes.string.bus_elder_read_aloud),
+                    onClick = onReadAloud,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag(ElderBusHomeTags.TRACKING_READ_ALOUD)
+                )
+            }
             ElderButton(
                 text = stringResource(BusRes.string.bus_elder_stop_tracking),
                 onClick = onStop,
@@ -364,15 +377,19 @@ private fun LazyListScope.elderFavorites(rows: List<FavoriteRowUi>, onEvent: (Bu
         }
     ) { row ->
         when (row) {
-            is FavoriteRowUi.Stop -> ElderFavoriteStopCard(row, onClick = { onEvent(BusHomeEvent.OpenLine(row.open)) })
+            is FavoriteRowUi.Stop -> ElderFavoriteStopCard(
+                row,
+                onClick = { onEvent(BusHomeEvent.OpenLine(row.open)) },
+                onReadAloud = { onEvent(BusHomeEvent.ReadAloud(row.spoken)) }
+            )
             is FavoriteRowUi.Route -> ElderFavoriteRouteCard(row, onClick = { onEvent(BusHomeEvent.OpenRoute(row.routeId)) })
         }
     }
 }
 
-/** 一辆车：「325」「科技园站上车」「白石洲 → 科技园」+ 大字到站 */
+/** 一辆车：「325」「科技园站上车」「白石洲 → 科技园」+ 大字到站 +「读给我听」 */
 @Composable
-private fun ElderFavoriteStopCard(row: FavoriteRowUi.Stop, onClick: () -> Unit) {
+private fun ElderFavoriteStopCard(row: FavoriteRowUi.Stop, onClick: () -> Unit, onReadAloud: () -> Unit) {
     val dimens = TrackrTheme.dimens
     Surface(
         onClick = onClick,
@@ -393,6 +410,14 @@ private fun ElderFavoriteStopCard(row: FavoriteRowUi.Stop, onClick: () -> Unit) 
             }
             Text(text = row.direction, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
             ElderArrival(arrival = row.arrival)
+            ElderButton(
+                text = stringResource(BusRes.string.bus_elder_read_aloud),
+                onClick = onReadAloud,
+                enabled = row.spoken.isNotBlank(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag(ElderBusHomeTags.readAloud(row.key))
+            )
         }
     }
 }

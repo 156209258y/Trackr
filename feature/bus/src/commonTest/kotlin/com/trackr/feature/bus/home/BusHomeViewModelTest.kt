@@ -8,6 +8,7 @@ import com.trackr.core.model.BusLineDirection
 import com.trackr.core.model.CandidateLine
 import com.trackr.core.model.FavoriteGroup
 import com.trackr.core.model.FavoriteItem
+import com.trackr.core.model.LiveBus
 import com.trackr.core.model.NearbyStopLineStatus
 import com.trackr.core.model.TransitCodeProvider
 import com.trackr.core.model.TransitGroup
@@ -19,6 +20,7 @@ import com.trackr.core.model.ProvinceCityCatalog
 import com.trackr.core.model.TrackingTarget
 import com.trackr.core.model.TransitCity
 import com.trackr.core.model.UserFix
+import com.trackr.core.testing.FakeAnnouncer
 import com.trackr.core.testing.FakeClock
 import com.trackr.core.testing.FakeFavoritesRepository
 import com.trackr.core.testing.FakeLocationRepository
@@ -28,6 +30,7 @@ import com.trackr.core.testing.FakeTrackingController
 import com.trackr.core.testing.FakeTransitCodeLauncher
 import com.trackr.core.testing.FakeUserLocationStore
 import com.trackr.core.testing.MainDispatcherHolder
+import com.trackr.ui.components.elder.TTS_UNAVAILABLE_MESSAGE
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -98,7 +101,8 @@ class BusHomeViewModelTest {
 
     private fun createViewModel(
         enableAutoPolling: Boolean = false,
-        elapsedRealtimeMillis: (() -> Long)? = null
+        elapsedRealtimeMillis: (() -> Long)? = null,
+        announcer: FakeAnnouncer = FakeAnnouncer()
     ): BusHomeViewModel {
         val f = fakeRepository
         return if (elapsedRealtimeMillis == null) {
@@ -111,7 +115,8 @@ class BusHomeViewModelTest {
                 trackingController = trackingController,
                 trackingRepository = trackingRepository,
                 transitCodeLauncher = transitCodeLauncher,
-                enableAutoPolling = enableAutoPolling
+                enableAutoPolling = enableAutoPolling,
+                announcer = announcer
             )
         } else {
             BusHomeViewModel(
@@ -124,7 +129,8 @@ class BusHomeViewModelTest {
                 trackingRepository = trackingRepository,
                 transitCodeLauncher = transitCodeLauncher,
                 enableAutoPolling = enableAutoPolling,
-                elapsedRealtimeMillis = elapsedRealtimeMillis
+                elapsedRealtimeMillis = elapsedRealtimeMillis,
+                announcer = announcer
             )
         }
     }
@@ -721,6 +727,8 @@ class BusHomeViewModelTest {
 
         val card = assertNotNull(viewModel.uiState.value.trackingCard)
         assertEquals("追踪 71路 · 人民广场", card.title)
+        // 长辈版「读给我听」：还没选到车时读「正在查车」
+        assertEquals("71路，正在查车", card.spoken)
         assertEquals("line_71", card.open.lineId)
         assertEquals(5, card.open.targetOrder)
         // 点卡片按会话里的数据源打开线路页（旧首页写死 CHELAILE）
@@ -731,5 +739,73 @@ class BusHomeViewModelTest {
         assertEquals(1, trackingController.stopCount)
         assertNull(viewModel.uiState.value.trackingCard)
         assertNull(trackingRepository.groupSession.value)
+    }
+
+    // ---- 第 33 步：读给我听 ----
+
+    @Test
+    fun testFavoriteRow_spokenSentence() = runTest(main.dispatcher) {
+        val onTheWay = fav("f1", "325", "科技园")
+        val passed = fav("f2", "M194", "深大北门")
+        fakeRepository = HomeFakes(shanghai, FakeFavoritesRepository(initialFavorites = listOf(onTheWay, passed)))
+        fun status(f: FavoriteStationLine, buses: List<LiveBus>, pre: String?) = NearbyStopLineStatus(
+            line = BusLineDirection(lineId = f.lineId, name = f.lineName, startStop = "白石洲", endStop = "科技园"),
+            targetOrder = 5,
+            targetStopId = f.targetStopId,
+            targetStopName = f.targetStopName,
+            approachingBuses = buses,
+            preArrivalTime = pre
+        )
+        fakeRepository.realtime.favoritesRealtimeResult = Result.success(
+            mapOf(
+                onTheWay.id to NearbyStop(
+                    stopId = onTheWay.targetStopId,
+                    name = onTheWay.targetStopName,
+                    lines = listOf(status(onTheWay, listOf(LiveBus(busId = "b", plateOrFleetNo = "", order = 3, etaSeconds = 240)), null))
+                ),
+                passed.id to NearbyStop(
+                    stopId = passed.targetStopId,
+                    name = passed.targetStopName,
+                    lines = listOf(status(passed, emptyList(), "07:20"))
+                )
+            )
+        )
+
+        val viewModel = createViewModel()
+        testScheduler.runCurrent()
+
+        val rows = viewModel.uiState.value.favoriteRows.map { it as FavoriteRowUi.Stop }
+        assertEquals("325路，开往科技园，还有 2 站，大约 4 分钟到科技园站", rows[0].spoken)
+        assertEquals("M194路，开往科技园，车都过了，下一班 7点20分 从 白石洲 发车", rows[1].spoken)
+        // 屏幕上的字不变
+        assertEquals("4 分钟", rows[0].arrival.big)
+        assertEquals("下一班 07:20", rows[1].arrival.big)
+    }
+
+    @Test
+    fun testReadAloud_speaksCardSentence() = runTest(main.dispatcher) {
+        val announcer = FakeAnnouncer()
+        val viewModel = createViewModel(announcer = announcer)
+        testScheduler.runCurrent()
+
+        viewModel.onEvent(BusHomeEvent.ReadAloud("325路，开往科技园，还有 2 站，大约 4 分钟到科技园站"))
+        viewModel.onEvent(BusHomeEvent.ReadAloud(" "))
+        testScheduler.runCurrent()
+
+        assertEquals(listOf("325路，开往科技园，还有 2 站，大约 4 分钟到科技园站"), announcer.spoken)
+        assertTrue(viewModel.uiState.value.userMessages.none { it.text == TTS_UNAVAILABLE_MESSAGE })
+    }
+
+    @Test
+    fun testReadAloud_ttsUnavailable_addsMessage() = runTest(main.dispatcher) {
+        val announcer = FakeAnnouncer(isAvailable = false)
+        val viewModel = createViewModel(announcer = announcer)
+        testScheduler.runCurrent()
+
+        viewModel.onEvent(BusHomeEvent.ReadAloud("325路，到站了"))
+        testScheduler.runCurrent()
+
+        assertTrue(announcer.spoken.isEmpty())
+        assertEquals(TTS_UNAVAILABLE_MESSAGE, viewModel.uiState.value.userMessages.last().text)
     }
 }

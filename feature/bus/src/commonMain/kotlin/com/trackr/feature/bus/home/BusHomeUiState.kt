@@ -119,6 +119,7 @@ data class StopTarget(
  * @param otherLines 一起等的其他线，直接显示的几条
  * @param foldedLines 一起等条数多时折叠起来的，显示成「还有 N 条」
  * @param open 点卡片去哪个线路页
+ * @param spoken「读给我听」读的整句（长辈版）；空串 = 不给读（已经在车上）
  */
 data class TrackingCardUi(
     val title: String,
@@ -126,7 +127,8 @@ data class TrackingCardUi(
     val detail: String,
     val otherLines: List<WatchLineUi> = emptyList(),
     val foldedLines: List<WatchLineUi> = emptyList(),
-    val open: LineTarget
+    val open: LineTarget,
+    val spoken: String = ""
 )
 
 /** 一起等里的一条线 */
@@ -140,6 +142,7 @@ sealed interface FavoriteRowUi {
     /**
      * 收藏的车：「325 · 科技园站上车 · 白石洲 → 科技园」+ 到站。
      * @param arrival 还没拿到实时数据时是「正在查车」
+     * @param spoken「读给我听」读的整句（长辈版），如「325路，开往科技园，还有 2 站，大约 4 分钟到科技园站」
      */
     data class Stop(
         override val key: String,
@@ -147,7 +150,8 @@ sealed interface FavoriteRowUi {
         val boardText: String,
         val direction: String,
         val arrival: ArrivalUi,
-        val open: LineTarget
+        val open: LineTarget,
+        val spoken: String = ""
     ) : FavoriteRowUi
 
     /** 收藏的路线：「家 → 公司」+「325 › 19 · 换乘 1 次」 */

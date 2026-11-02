@@ -29,6 +29,7 @@ import com.trackr.core.model.TrackingSessionState
 import com.trackr.core.model.TrackingTarget
 import com.trackr.core.model.TransitCodeProvider
 import com.trackr.data.repository.IScheduledReminderRepository
+import com.trackr.ui.components.elder.TTS_UNAVAILABLE_MESSAGE
 import com.trackr.ui.screens.linedetail.components.stationArrivalState
 import com.trackr.ui.util.FixedDelayPollingStrategy
 import com.trackr.ui.util.PollingCoordinator
@@ -829,9 +830,6 @@ class LineDetailViewModel(
 
         /** 追踪时提前几站提醒（原预警 chips 的默认值；全局设置见第 25 步） */
         const val DEFAULT_ALERT_THRESHOLD_STOPS = 2
-
-        /** 手机读不了（没有朗读引擎或不支持中文）时的提示 */
-        const val TTS_UNAVAILABLE_MESSAGE = "这台手机读不了：请在系统设置的「文字转语音」里装上中文语音"
     }
 }
 

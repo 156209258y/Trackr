@@ -255,6 +255,19 @@ class ElderBusHomeScreenTest {
     }
 
     @Test
+    fun readAloud_favoriteAndTrackingCards_sendCardSentence() {
+        setContent(stateOf(tracking = true))
+
+        composeTestRule.onNodeWithTag(ElderBusHomeTags.TRACKING_READ_ALOUD).performClick()
+        assertEquals(BusHomeEvent.ReadAloud("325路，还有 2 站，大约 4 分钟到科技园站"), events.last())
+
+        // 滚到下一节标题，车卡的按钮就不在底部「出示乘车码」后面了
+        composeTestRule.onNodeWithTag(ElderBusHomeTags.LIST).performScrollToNode(hasText("离你最近"))
+        composeTestRule.onNodeWithTag(ElderBusHomeTags.readAloud("stop_f1")).performClick()
+        assertEquals(BusHomeEvent.ReadAloud("325路，开往科技园，车都过了，下一班 7点20分 从 白石洲 发车"), events.last())
+    }
+
+    @Test
     fun stopTracking_asksFirst() {
         setContent(stateOf(tracking = true))
 
