@@ -33,6 +33,11 @@
             <action android:name="android.intent.action.VIEW" />
             <data android:scheme="upwallet" />
         </intent>
+
+        <!-- 系统语音输入（长辈版搜索的话筒）：查手机上有没有识别界面，没有就不显示话筒。不要录音权限 -->
+        <intent>
+            <action android:name="android.speech.action.RECOGNIZE_SPEECH" />
+        </intent>
     </queries>
 
     <application
