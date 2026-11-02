@@ -34,4 +34,8 @@
     <string name="bus_elder_stop_tracking_confirm">不再提醒这班车了吗？</string>
     <string name="bus_elder_keep_tracking">继续提醒</string>
     <string name="bus_elder_open_stop">看这个站的车</string>
+    <!-- 长辈版到站整屏提醒（第 34 步） -->
+    <string name="bus_elder_arrived_title">车到站了！</string>
+    <string name="bus_elder_arrived_go">快去%1$s上车</string>
+    <string name="bus_elder_arrived_transit_code">出示乘车码</string>
 </resources>

@@ -1,5 +1,6 @@
 package com.trackr.app
 
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -21,6 +22,7 @@ import com.trackr.core.navigation.TrackrTransitions
 import com.trackr.core.navigation.deeplink.DeepLink
 import com.trackr.core.navigation.rememberElderBackStack
 import com.trackr.core.navigation.scene.BottomSheetSceneStrategy
+import com.trackr.feature.bus.elder.ElderArrivalAlertHost
 import com.trackr.feature.bus.elderBusEntries
 import com.trackr.feature.bus.home.BusHomeViewModel
 import com.trackr.feature.line.elderLineEntries
@@ -85,16 +87,20 @@ internal fun ElderNavApp(
         ),
         entryProvider = entryProvider { elderEntries(navigator) },
     )
-    NavDisplay(
-        entries = entries,
-        // 单栈：首页按返回交给系统退出
-        onBack = { navigator.back() },
-        modifier = Modifier.fillMaxSize(),
-        sceneStrategies = remember { listOf(BottomSheetSceneStrategy<NavKey>()) },
-        transitionSpec = TrackrTransitions.push,
-        popTransitionSpec = TrackrTransitions.pop,
-        predictivePopTransitionSpec = TrackrTransitions.predictivePop
-    )
+    Box(modifier = Modifier.fillMaxSize()) {
+        NavDisplay(
+            entries = entries,
+            // 单栈：首页按返回交给系统退出
+            onBack = { navigator.back() },
+            modifier = Modifier.fillMaxSize(),
+            sceneStrategies = remember { listOf(BottomSheetSceneStrategy<NavKey>()) },
+            transitionSpec = TrackrTransitions.push,
+            popTransitionSpec = TrackrTransitions.pop,
+            predictivePopTransitionSpec = TrackrTransitions.predictivePop
+        )
+        // 车到站（单线路「车快到时叫我」）：App 在前台时整屏变绿，盖在哪一页上都行（第 34 步）
+        ElderArrivalAlertHost()
+    }
 
     // 打开了长辈版不支持的页面：常驻提示，点「知道了」才关（第 31 步留的对话框换成 UserMessageHost）
     UserMessageHost(

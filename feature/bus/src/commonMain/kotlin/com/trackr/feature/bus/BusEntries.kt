@@ -5,6 +5,7 @@ import androidx.navigation3.runtime.NavKey
 import com.trackr.core.domain.platform.MonotonicClock
 import com.trackr.core.navigation.TrackrNavigator
 import com.trackr.core.navigation.ScreenKey
+import com.trackr.feature.bus.elder.ArrivalAlertViewModel
 import com.trackr.feature.bus.elder.ElderBusHomeScreen
 import com.trackr.feature.bus.home.BusHomeRoute
 import com.trackr.feature.bus.home.BusHomeViewModel
@@ -54,6 +55,15 @@ val busModule = module {
             elapsedRealtimeMillis = { clock.elapsedMillis() },
             homeCoordinates = get(),
             announcer = get()
+        )
+    }
+    // 长辈版到站整屏提醒（第 34 步），长辈导航最上层取一个
+    viewModel {
+        ArrivalAlertViewModel(
+            trackingRepository = get(),
+            trackingController = get(),
+            settings = get(),
+            transitCodeLauncher = get()
         )
     }
 }
