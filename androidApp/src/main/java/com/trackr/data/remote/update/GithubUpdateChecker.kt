@@ -1,5 +1,6 @@
 package com.trackr.data.remote.update
 
+import android.os.Build
 import com.trackr.core.domain.platform.UpdateChecker
 import com.trackr.core.model.AppUpdateInfo
 import com.trackr.core.model.UpdateCheckResult
@@ -22,6 +23,8 @@ import java.io.IOException
 class GithubUpdateChecker(
     private val httpClient: HttpClient,
     private val endpointUrls: List<String> = DEFAULT_ENDPOINTS,
+    /** 当前设备支持的 ABI，按优先级排列；用在高德原生库按 ABI 分包后挑对应安装包 */
+    private val supportedAbis: List<String> = Build.SUPPORTED_ABIS.toList(),
     private val json: Json = Json {
         ignoreUnknownKeys = true
         coerceInputValues = true
@@ -81,17 +84,25 @@ class GithubUpdateChecker(
                 }
 
                 val updateInfo = json.decodeFromString<AppUpdateInfo>(bodyString)
-                if (!isAllowedDownloadUrl(updateInfo.downloadUrl)) {
+                // 按 ABI 选包；细分的地址不合规（非 https / 域名不在白名单）时回退到通用地址
+                val pickedUrl = updateInfo.pickDownloadUrl(supportedAbis)
+                val downloadUrl = when {
+                    isAllowedDownloadUrl(pickedUrl) -> pickedUrl
+                    isAllowedDownloadUrl(updateInfo.downloadUrl) -> updateInfo.downloadUrl
+                    else -> null
+                }
+                if (downloadUrl == null) {
                     // 下载地址不合规（非 https 或域名不在白名单）视为该源出错，继续尝试下一个源
-                    lastException = IOException("更新下载地址不合规：${updateInfo.downloadUrl}")
+                    lastException = IOException("更新下载地址不合规：$pickedUrl")
                     continue
                 }
-                val hasUpdate = updateInfo.versionCode > currentVersionCode
-                val isForce = updateInfo.forceUpdate || currentVersionCode < updateInfo.minSupportedVersionCode
+                val resolvedInfo = updateInfo.copy(downloadUrl = downloadUrl)
+                val hasUpdate = resolvedInfo.versionCode > currentVersionCode
+                val isForce = resolvedInfo.forceUpdate || currentVersionCode < resolvedInfo.minSupportedVersionCode
 
                 return@withContext if (hasUpdate) {
                     UpdateCheckResult.HasUpdate(
-                        updateInfo = updateInfo,
+                        updateInfo = resolvedInfo,
                         isForceUpdate = isForce
                     )
                 } else {

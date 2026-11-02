@@ -201,6 +201,98 @@ class GithubUpdateCheckerTest {
     }
 
     @Test
+    fun checkForUpdates_whenDeviceIsArm64_picksArm64Apk() = runTest {
+        val checker = GithubUpdateChecker(
+            httpClient = clientReturning(payloadWithAbiUrls()),
+            endpointUrls = listOf("https://example.com/update.json"),
+            supportedAbis = listOf("arm64-v8a", "armeabi-v7a")
+        )
+
+        val result = checker.checkForUpdates(currentVersionCode = 2, currentVersionName = "0.0.2")
+            as UpdateCheckResult.HasUpdate
+
+        assertEquals(
+            "https://github.com/5151561/Trackr/releases/download/v0.0.3/trackr-0.0.3-arm64-v8a.apk",
+            result.updateInfo.downloadUrl
+        )
+    }
+
+    @Test
+    fun checkForUpdates_whenDeviceIs32Bit_picksArmeabiV7Apk() = runTest {
+        val checker = GithubUpdateChecker(
+            httpClient = clientReturning(payloadWithAbiUrls()),
+            endpointUrls = listOf("https://example.com/update.json"),
+            supportedAbis = listOf("armeabi-v7a")
+        )
+
+        val result = checker.checkForUpdates(currentVersionCode = 2, currentVersionName = "0.0.2")
+            as UpdateCheckResult.HasUpdate
+
+        assertEquals(
+            "https://github.com/5151561/Trackr/releases/download/v0.0.3/trackr-0.0.3-armeabi-v7a.apk",
+            result.updateInfo.downloadUrl
+        )
+    }
+
+    @Test
+    fun checkForUpdates_whenNoAbiEntryMatches_fallsBackToCommonUrl() = runTest {
+        val checker = GithubUpdateChecker(
+            httpClient = clientReturning(payloadWithAbiUrls()),
+            endpointUrls = listOf("https://example.com/update.json"),
+            supportedAbis = listOf("x86_64")
+        )
+
+        val result = checker.checkForUpdates(currentVersionCode = 2, currentVersionName = "0.0.2")
+            as UpdateCheckResult.HasUpdate
+
+        assertEquals(
+            "https://github.com/5151561/Trackr/releases/tag/v0.0.3",
+            result.updateInfo.downloadUrl
+        )
+    }
+
+    @Test
+    fun checkForUpdates_whenAbiUrlHostInvalid_fallsBackToCommonUrl() = runTest {
+        val payload = """
+            {
+                "versionCode": 3,
+                "versionName": "0.0.3",
+                "changelog": "更新说明",
+                "downloadUrl": "https://github.com/5151561/Trackr/releases/tag/v0.0.3",
+                "downloadUrls": {
+                    "arm64-v8a": "https://evil.example.com/trackr.apk"
+                }
+            }
+        """.trimIndent()
+        val checker = GithubUpdateChecker(
+            httpClient = clientReturning(payload),
+            endpointUrls = listOf("https://example.com/update.json"),
+            supportedAbis = listOf("arm64-v8a")
+        )
+
+        val result = checker.checkForUpdates(currentVersionCode = 2, currentVersionName = "0.0.2")
+            as UpdateCheckResult.HasUpdate
+
+        assertEquals(
+            "https://github.com/5151561/Trackr/releases/tag/v0.0.3",
+            result.updateInfo.downloadUrl
+        )
+    }
+
+    private fun payloadWithAbiUrls() = """
+        {
+            "versionCode": 3,
+            "versionName": "0.0.3",
+            "changelog": "更新说明",
+            "downloadUrl": "https://github.com/5151561/Trackr/releases/tag/v0.0.3",
+            "downloadUrls": {
+                "arm64-v8a": "https://github.com/5151561/Trackr/releases/download/v0.0.3/trackr-0.0.3-arm64-v8a.apk",
+                "armeabi-v7a": "https://github.com/5151561/Trackr/releases/download/v0.0.3/trackr-0.0.3-armeabi-v7a.apk"
+            }
+        }
+    """.trimIndent()
+
+    @Test
     fun isAllowedDownloadUrl_validatesSchemeAndHost() {
         assertTrue(GithubUpdateChecker.isAllowedDownloadUrl("https://github.com/5151561/Trackr/releases"))
         assertTrue(GithubUpdateChecker.isAllowedDownloadUrl("https://objects.githubusercontent.com/a/b.apk"))

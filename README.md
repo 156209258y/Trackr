@@ -98,6 +98,15 @@ Trackr (BusOnRoad) 是一款专为通勤族打造的 Android 实时公交追踪�
    ./gradlew installDebug
    ```
 
+### 发布 Release
+
+`./gradlew :androidApp:assembleRelease` 按 ABI 出两个包（不合并成一个大包）：
+
+- `androidApp/build/outputs/apk/release/androidApp-arm64-v8a-release.apk`（约 47 MB）
+- `androidApp/build/outputs/apk/release/androidApp-armeabi-v7a-release.apk`（约 36 MB）
+
+传到 GitHub Release 时按 `trackr-<版本>-arm64-v8a.apk` / `trackr-<版本>-armeabi-v7a.apk` 命名。`update_metadata.py` 会据此写出 `downloadUrls`，App 按设备架构直接下对应包。
+
 ### 🔑 关于路线规划与高德 Key 最佳实践
 
 为保障开源项目安全合规，并规避商业地图平台对公共个人 Key 的严格 QPS 并发限流（高德个人开发者仅 3 QPS 并发），本项目全面采用**自备 Key 与配置解耦**规范：

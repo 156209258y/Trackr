@@ -102,6 +102,17 @@ android {
         }
     }
 
+    // 两个 ABI 各出一个包，不把 56 MB 原生库塞进同一个 APK：arm64 约 51 MB、armv7 约 40 MB。
+    // 产物在 build/outputs/apk/release/androidApp-<abi>-release.apk。
+    splits {
+        abi {
+            isEnable = true
+            reset()
+            include("arm64-v8a", "armeabi-v7a")
+            isUniversalApk = false
+        }
+    }
+
     buildFeatures {
         buildConfig = true
     }
