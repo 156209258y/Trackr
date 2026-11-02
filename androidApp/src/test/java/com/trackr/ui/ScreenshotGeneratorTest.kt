@@ -1,7 +1,12 @@
 package com.trackr.ui
 
+import android.Manifest
 import android.app.Application
+import android.content.Context
 import android.graphics.Bitmap
+import android.location.Location
+import android.location.LocationManager
+import android.os.SystemClock
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
@@ -63,6 +68,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 import java.io.File
@@ -257,11 +263,35 @@ class ScreenshotGeneratorTest {
     fun setup() {
         app = ApplicationProvider.getApplicationContext()
         outputDir.mkdirs()
+        fakeLocation()
         trackingRepository = DefaultTrackingRepository(
             InMemoryTrackingSessionStore(),
             CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
         )
         trackingController = FakeTrackingController(trackingRepository)
+    }
+
+    /**
+     * 截图里的首页要显示真实定位状态。Robolectric 默认既没授权、也没有缓存定位，
+     * 首页会顶出「定位不可用，已保留当前位置」——那是测试环境缺定位，不是产品状态。
+     * 这里授权并塞一个静安寺附近的缓存定位（WGS-84）。
+     */
+    private fun fakeLocation() {
+        shadowOf(app).grantPermissions(Manifest.permission.ACCESS_FINE_LOCATION)
+        val lm = app.getSystemService(Context.LOCATION_SERVICE) as LocationManager
+        shadowOf(lm).apply {
+            setProviderEnabled(LocationManager.GPS_PROVIDER, true)
+            setLastKnownLocation(
+                LocationManager.GPS_PROVIDER,
+                Location(LocationManager.GPS_PROVIDER).apply {
+                    latitude = 31.2230
+                    longitude = 121.4465
+                    accuracy = 12f
+                    time = System.currentTimeMillis()
+                    elapsedRealtimeNanos = SystemClock.elapsedRealtimeNanos()
+                }
+            )
+        }
     }
 
     private fun saveScreenshot(name: String) {
@@ -293,7 +323,7 @@ class ScreenshotGeneratorTest {
         )
         mainDispatcherRule.testDispatcher.scheduler.advanceUntilIdle()
 
-        // 1. 线路详情 (Light Theme)。第 20 步走向条只留竖向，文件名沿用（README 引用）
+        // 1. 线路详情 (Light Theme)。第 20 步起走向条只留竖向
         composeTestRule.setContent {
             TrackrTheme(darkTheme = false) {
                 Surface(modifier = Modifier.fillMaxSize()) {
@@ -308,13 +338,7 @@ class ScreenshotGeneratorTest {
         composeTestRule.mainClock.advanceTimeBy(1000)
         saveScreenshot("02_line_detail_horizontal.png")
 
-        // 2. 纵向时间轴走向 (Light Theme)：第 20 步起只有竖向，和上一张相同
-        mainDispatcherRule.testDispatcher.scheduler.advanceUntilIdle()
-        composeTestRule.waitForIdle()
-        composeTestRule.mainClock.advanceTimeBy(1000)
-        saveScreenshot("03_line_detail_vertical.png")
-
-        // 3. 在途车辆雷达列表 (Light Theme)
+        // 2. 在途车辆雷达列表 (Light Theme)
         vm.openBusList()
         mainDispatcherRule.testDispatcher.scheduler.advanceUntilIdle()
         composeTestRule.waitForIdle()
