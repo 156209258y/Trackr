@@ -39,10 +39,13 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.trackr.core.designsystem.resources.Res
@@ -57,6 +60,7 @@ import com.trackr.feature.route.resources.route_plan_clear_from
 import com.trackr.feature.route.resources.route_plan_clear_to
 import com.trackr.feature.route.resources.route_plan_from_hint
 import com.trackr.feature.route.resources.route_plan_go
+import com.trackr.feature.route.resources.route_plan_my_location
 import com.trackr.feature.route.resources.route_plan_swap
 import com.trackr.feature.route.resources.route_plan_to_hint
 import org.jetbrains.compose.resources.stringResource
@@ -103,7 +107,9 @@ internal fun SearchConsole(
                         imeAction = ImeAction.Default,
                         onValueChange = { onEvent(RoutePlanEvent.OriginChanged(it)) },
                         onClear = { onEvent(RoutePlanEvent.ClearOrigin) },
-                        onSearch = {}
+                        onSearch = {},
+                        // 起点默认就是「我的位置」：这四个字用主色高亮，让用户看见它真的在生效
+                        highlightPrefix = stringResource(RouteRes.string.route_plan_my_location)
                     )
 
                     Box(
@@ -192,8 +198,11 @@ private fun PlaceInputRow(
     imeAction: ImeAction,
     onValueChange: (String) -> Unit,
     onClear: () -> Unit,
-    onSearch: () -> Unit
+    onSearch: () -> Unit,
+    /** 要跟着主色高亮的那一段（如「我的位置」）；placeholder 里没有这段就整段普通色 */
+    highlightPrefix: String? = null
 ) {
+    val primary = MaterialTheme.colorScheme.primary
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier.fillMaxWidth()
@@ -215,14 +224,18 @@ private fun PlaceInputRow(
             textStyle = TextStyle(
                 fontSize = 14.sp,
                 fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onSurface
+                color = if (highlightPrefix != null && value == highlightPrefix) {
+                    primary
+                } else {
+                    MaterialTheme.colorScheme.onSurface
+                }
             ),
             singleLine = true,
             cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
             decorationBox = { innerTextField ->
                 if (value.isEmpty()) {
                     Text(
-                        text = placeholder,
+                        text = highlightedHint(placeholder, highlightPrefix, primary),
                         style = MaterialTheme.typography.bodyMedium.copy(
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -242,6 +255,24 @@ private fun PlaceInputRow(
             }
         }
     }
+}
+
+/** 占位文案里把 [highlightPrefix] 那段（「我的位置」）换成主色加粗，其余保持提示色 */
+private fun highlightedHint(
+    placeholder: String,
+    highlightPrefix: String?,
+    highlightColor: Color
+) = buildAnnotatedString {
+    val start = highlightPrefix?.let { placeholder.indexOf(it) } ?: -1
+    if (highlightPrefix == null || start < 0) {
+        append(placeholder)
+        return@buildAnnotatedString
+    }
+    append(placeholder.substring(0, start))
+    withStyle(SpanStyle(color = highlightColor, fontWeight = FontWeight.SemiBold)) {
+        append(highlightPrefix)
+    }
+    append(placeholder.substring(start + highlightPrefix.length))
 }
 
 /** 输入提示下拉卡片 */
