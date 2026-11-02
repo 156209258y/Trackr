@@ -9,14 +9,14 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
-import com.trackr.core.navigation.Navigator
+import com.trackr.core.navigation.TrackrNavigator
 import com.trackr.core.navigation.ScreenKey
 
 /**
  * 站点详情的有状态外壳：收集状态、轮询随 RESUMED 启停（§4.4）、一次性提示、导航。页面本身见 [StopDetailScreen]。
  */
 @Composable
-internal fun StopDetailRoute(viewModel: StopDetailViewModel, navigator: Navigator) {
+internal fun StopDetailRoute(viewModel: StopDetailViewModel, navigator: TrackrNavigator) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
 

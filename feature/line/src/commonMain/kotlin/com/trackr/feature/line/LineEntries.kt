@@ -3,7 +3,7 @@ package com.trackr.feature.line
 import androidx.lifecycle.compose.dropUnlessResumed
 import androidx.navigation3.runtime.EntryProviderScope
 import androidx.navigation3.runtime.NavKey
-import com.trackr.core.navigation.Navigator
+import com.trackr.core.navigation.TrackrNavigator
 import com.trackr.core.navigation.ScreenKey
 import com.trackr.ui.screens.linedetail.LineDetailRoute
 import com.trackr.ui.screens.linedetail.LineDetailViewModel
@@ -13,7 +13,7 @@ import org.koin.core.parameter.parametersOf
 import org.koin.dsl.module
 
 /** 线路详情页的导航入口（`:composeApp` 组装）。第 20 步页面重写进 commonMain，Android / iOS 共用 */
-fun EntryProviderScope<NavKey>.lineEntries(navigator: Navigator) {
+fun EntryProviderScope<NavKey>.lineEntries(navigator: TrackrNavigator) {
     entry<ScreenKey.LineDetail> { key ->
         val detailViewModel: LineDetailViewModel = koinViewModel(
             key = "detail_${key.cityId}_${key.lineId}_${key.targetOrder}"

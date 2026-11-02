@@ -8,7 +8,7 @@ import androidx.navigation3.runtime.NavKey
 import com.trackr.core.data.repository.AmapRouteGateway
 import com.trackr.core.domain.platform.AmapSdkKeyApplier
 import com.trackr.core.domain.platform.MapSdkInitializer
-import com.trackr.core.navigation.Navigator
+import com.trackr.core.navigation.TrackrNavigator
 import com.trackr.core.navigation.ScreenKey
 import com.trackr.data.remote.amap.AmapSdkTransitService
 import com.trackr.data.remote.amap.AndroidAmapRouteGateway
@@ -23,7 +23,7 @@ import org.koin.android.ext.koin.androidContext
 import org.koin.compose.viewmodel.koinViewModel
 import org.koin.dsl.module
 
-actual fun EntryProviderScope<NavKey>.routeEntries(navigator: Navigator) {
+actual fun EntryProviderScope<NavKey>.routeEntries(navigator: TrackrNavigator) {
     entry<ScreenKey.RoutePlan> {
         // 原来 MainActivity 在 NavDisplay 外取一个 FavoritesGroupViewModel 给规划页和收藏页共用；拆开后仍取 Activity 级
         val appOwner = LocalAppViewModelStoreOwner.current

@@ -71,7 +71,7 @@ import com.trackr.core.designsystem.resources.ic_plus
 import com.trackr.core.designsystem.resources.ic_route
 import com.trackr.core.model.FavoriteGroup
 import com.trackr.core.model.TransitGroup
-import com.trackr.core.navigation.Navigator
+import com.trackr.core.navigation.TrackrNavigator
 import com.trackr.core.navigation.ScreenKey
 import com.trackr.feature.favorites.resources.Res as FavoritesRes
 import com.trackr.feature.favorites.resources.fav_edit_create
@@ -590,7 +590,7 @@ private fun EditGroupDialog(
 @Composable
 fun FavoritesEditRoute(
     viewModel: FavoritesEditViewModel,
-    navigator: Navigator,
+    navigator: TrackrNavigator,
     modifier: Modifier = Modifier
 ) {
     val groups by viewModel.groups.collectAsStateWithLifecycle()

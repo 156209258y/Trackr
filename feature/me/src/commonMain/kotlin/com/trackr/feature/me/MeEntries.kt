@@ -10,7 +10,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.compose.dropUnlessResumed
 import androidx.navigation3.runtime.EntryProviderScope
 import androidx.navigation3.runtime.NavKey
-import com.trackr.core.navigation.Navigator
+import com.trackr.core.navigation.TrackrNavigator
 import com.trackr.core.navigation.ScreenKey
 import com.trackr.ui.screens.me.AboutEvent
 import com.trackr.ui.screens.me.AboutScreen
@@ -31,7 +31,7 @@ import org.koin.core.parameter.parametersOf
  * 「我的」页签的导航 entry（第 25 步：页面都在 commonMain，Android 和 iOS 同一份）：
  * 我的（根页）、定时提醒编辑、高德 Key、关于。
  */
-fun EntryProviderScope<NavKey>.meEntries(navigator: Navigator) {
+fun EntryProviderScope<NavKey>.meEntries(navigator: TrackrNavigator) {
     entry<ScreenKey.More> {
         MeRoute(viewModel = koinViewModel(), navigator = navigator)
     }
@@ -53,7 +53,7 @@ fun EntryProviderScope<NavKey>.meEntries(navigator: Navigator) {
 }
 
 @Composable
-private fun MeRoute(viewModel: MeViewModel, navigator: Navigator) {
+private fun MeRoute(viewModel: MeViewModel, navigator: TrackrNavigator) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
 
     // 从系统设置回来时重查状态栏胶囊权限（和原来的「更多」页一样）
@@ -82,7 +82,7 @@ private fun MeRoute(viewModel: MeViewModel, navigator: Navigator) {
 }
 
 @Composable
-private fun ReminderEditRoute(viewModel: ReminderEditViewModel, navigator: Navigator) {
+private fun ReminderEditRoute(viewModel: ReminderEditViewModel, navigator: TrackrNavigator) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
 
     // 从系统「闹钟和提醒」设置页回来时重查权限
@@ -126,7 +126,7 @@ private fun ReminderEditRoute(viewModel: ReminderEditViewModel, navigator: Navig
 }
 
 @Composable
-private fun AmapKeyRoute(viewModel: AmapKeyViewModel, navigator: Navigator) {
+private fun AmapKeyRoute(viewModel: AmapKeyViewModel, navigator: TrackrNavigator) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val back = dropUnlessResumed { navigator.popChildPage() }
 
@@ -143,7 +143,7 @@ private fun AmapKeyRoute(viewModel: AmapKeyViewModel, navigator: Navigator) {
 }
 
 @Composable
-private fun AboutRoute(viewModel: AboutViewModel, navigator: Navigator) {
+private fun AboutRoute(viewModel: AboutViewModel, navigator: TrackrNavigator) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val back = dropUnlessResumed { navigator.popChildPage() }
 

@@ -7,14 +7,14 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleStartEffect
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.trackr.core.navigation.Navigator
+import com.trackr.core.navigation.TrackrNavigator
 import com.trackr.core.navigation.ScreenKey
 
 /**
  * 公交首页的 Route：接 ViewModel、轮询开关和导航，页面本身是无状态的 [BusHomeScreen]。
  */
 @Composable
-fun BusHomeRoute(viewModel: BusHomeViewModel, navigator: Navigator) {
+fun BusHomeRoute(viewModel: BusHomeViewModel, navigator: TrackrNavigator) {
     // 首页轮询只在 App 前台、首页显示着时进行（重构计划 §4.4）：首页 entry 在组合里就是「首页页签 + 在栈顶」，
     // 进详情 / 切页签时 entry 离开组合即停；STARTED 这一档沿用原来 shouldPollHome 的口径
     LifecycleStartEffect(viewModel) {

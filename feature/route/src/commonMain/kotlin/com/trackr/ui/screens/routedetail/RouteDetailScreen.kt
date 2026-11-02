@@ -86,7 +86,7 @@ import com.trackr.core.model.GroupTrackingSessionState
 import com.trackr.core.model.LegPhase
 import com.trackr.core.model.TransitGroup
 import com.trackr.core.model.TransitLeg
-import com.trackr.core.navigation.Navigator
+import com.trackr.core.navigation.TrackrNavigator
 import com.trackr.core.navigation.ScreenKey
 import com.trackr.feature.route.resources.Res as RouteRes
 import com.trackr.feature.route.resources.route_detail_add_line_hint
@@ -906,7 +906,7 @@ private fun SaveRouteDialog(
 fun RouteDetailRoute(
     groupId: String,
     viewModel: RouteDetailViewModel,
-    navigator: Navigator,
+    navigator: TrackrNavigator,
     modifier: Modifier = Modifier
 ) {
     val groups by viewModel.groups.collectAsStateWithLifecycle()

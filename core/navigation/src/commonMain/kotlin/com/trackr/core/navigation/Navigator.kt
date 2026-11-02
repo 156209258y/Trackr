@@ -9,7 +9,7 @@ import kotlinx.coroutines.flow.asSharedFlow
 /**
  * 所有导航动作都走这里（§3.3）。纯 Kotlin，只改 [NavigationState]，`NavigatorTest` 直接测（修 N7）。
  */
-class Navigator(private val state: NavigationState) {
+class Navigator(private val state: NavigationState) : TrackrNavigator {
 
     private val _reselect = MutableSharedFlow<ScreenKey>(extraBufferCapacity = 1)
 
@@ -28,7 +28,7 @@ class Navigator(private val state: NavigationState) {
     }
 
     /** 在当前页签的栈上打开 [key]；栈顶已经是它就不重复压栈（保留旧行为，防连点）。 */
-    fun open(key: ScreenKey) {
+    override fun open(key: ScreenKey) {
         state.currentStack.pushIfNotOnTop(key)
     }
 
@@ -49,7 +49,7 @@ class Navigator(private val state: NavigationState) {
      * 切到 [tab]，并让 [key] 成为它的栈顶且在栈里只出现一次：栈里已有 [key] 就退到它，没有就先回根再压 [key]。
      * 规划页「去收藏」用（第 17 步「收藏」从页签变成首页的子页），不会叠出 [Home, LineDetail, FavoritesGroup] 或两个收藏页。
      */
-    fun showInTab(tab: ScreenKey, key: ScreenKey) {
+    override fun showInTab(tab: ScreenKey, key: ScreenKey) {
         require(tab in state.stacks) { "$tab 不是顶层页签" }
         state.topLevel = tab
         val stack = state.stacks.getValue(tab)
@@ -81,7 +81,7 @@ class Navigator(private val state: NavigationState) {
     }
 
     /** 子页左上角的返回：只在当前栈里退一页，已在根页就什么都不做（不切页签，和系统返回不同）。 */
-    fun popChildPage() {
+    override fun popChildPage() {
         val stack = state.currentStack
         if (stack.size > 1) stack.removeLastOrNull()
     }
@@ -90,7 +90,7 @@ class Navigator(private val state: NavigationState) {
      * 关掉当前栈里的弹层 [key]（弹层自己关：选完了、待选没了、会话换了）。
      * 不用 [back]：弹层关的时候用户可能已经按了返回，再退一页会把下面的页也退掉。不在栈里就什么都不做。
      */
-    fun dismiss(key: ScreenKey) {
+    override fun dismiss(key: ScreenKey) {
         val stack = state.currentStack
         val index = stack.lastIndexOf(key)
         if (index > 0) stack.removeAt(index)

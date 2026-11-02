@@ -7,7 +7,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation3.runtime.EntryProviderScope
 import androidx.navigation3.runtime.NavKey
-import com.trackr.core.navigation.Navigator
+import com.trackr.core.navigation.TrackrNavigator
 import com.trackr.core.navigation.ScreenKey
 import com.trackr.ui.screens.search.SearchEvent
 import com.trackr.ui.screens.search.SearchScreen
@@ -17,7 +17,7 @@ import org.koin.core.module.dsl.viewModel
 import org.koin.dsl.module
 
 /** 搜索页的导航入口（`:composeApp` 组装） */
-fun EntryProviderScope<NavKey>.searchEntries(navigator: Navigator) {
+fun EntryProviderScope<NavKey>.searchEntries(navigator: TrackrNavigator) {
     entry<ScreenKey.Search> { SearchRoute(navigator) }
 }
 
@@ -41,7 +41,7 @@ val searchModule = module {
  */
 @Composable
 fun SearchRoute(
-    navigator: Navigator,
+    navigator: TrackrNavigator,
     viewModel: SearchViewModel = koinViewModel()
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
