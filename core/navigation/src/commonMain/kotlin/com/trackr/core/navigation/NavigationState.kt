@@ -62,7 +62,7 @@ fun rememberNavigationState(
 }
 
 /** 一条返回栈和 [SavedState] 互转（和 `rememberNavBackStack` 用的序列化一样，只是存档 key 由调用方给） */
-private fun navBackStackSaver(configuration: SavedStateConfiguration): Saver<NavBackStack<NavKey>, SavedState> {
+internal fun navBackStackSaver(configuration: SavedStateConfiguration): Saver<NavBackStack<NavKey>, SavedState> {
     val serializer = NavBackStackSerializer(PolymorphicSerializer(NavKey::class))
     return Saver(
         save = { stack -> encodeToSavedState(serializer, stack, configuration) },
