@@ -41,10 +41,40 @@ import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.trackr.core.designsystem.resources.Res
+import com.trackr.core.designsystem.resources.action_back
+import com.trackr.core.designsystem.resources.action_close
+import com.trackr.core.designsystem.resources.action_retry
 import com.trackr.core.designsystem.resources.ic_back
 import com.trackr.core.designsystem.resources.ic_bus
 import com.trackr.core.designsystem.resources.ic_check
 import com.trackr.core.designsystem.resources.ic_warning
+import com.trackr.feature.me.resources.Res as MeRes
+import com.trackr.feature.me.resources.me_about_changelog
+import com.trackr.feature.me.resources.me_about_check_failed
+import com.trackr.feature.me.resources.me_about_check_failed_retry
+import com.trackr.feature.me.resources.me_about_check_update
+import com.trackr.feature.me.resources.me_about_checking
+import com.trackr.feature.me.resources.me_about_data_body
+import com.trackr.feature.me.resources.me_about_data_title
+import com.trackr.feature.me.resources.me_about_download
+import com.trackr.feature.me.resources.me_about_got_it
+import com.trackr.feature.me.resources.me_about_latest
+import com.trackr.feature.me.resources.me_about_latest_body
+import com.trackr.feature.me.resources.me_about_license
+import com.trackr.feature.me.resources.me_about_live_body_1
+import com.trackr.feature.me.resources.me_about_live_body_2
+import com.trackr.feature.me.resources.me_about_live_title
+import com.trackr.feature.me.resources.me_about_new_version
+import com.trackr.feature.me.resources.me_about_new_version_name
+import com.trackr.feature.me.resources.me_about_publish_time
+import com.trackr.feature.me.resources.me_about_remind_later
+import com.trackr.feature.me.resources.me_about_tap_to_check
+import com.trackr.feature.me.resources.me_about_title
+import com.trackr.feature.me.resources.me_about_up_to_date
+import com.trackr.feature.me.resources.me_about_version
+import com.trackr.feature.me.resources.me_about_version_unknown
+import com.trackr.feature.me.resources.me_app_name
+import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.resources.vectorResource
 
 /**
@@ -66,12 +96,12 @@ fun AboutScreen(
         contentWindowInsets = WindowInsets.safeDrawing,
         topBar = {
             TopAppBar(
-                title = { Text(text = "关于", fontWeight = FontWeight.Bold) },
+                title = { Text(text = stringResource(MeRes.string.me_about_title), fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = { onEvent(AboutEvent.Back) }) {
                         Icon(
                             imageVector = vectorResource(Res.drawable.ic_back),
-                            contentDescription = "返回"
+                            contentDescription = stringResource(Res.string.action_back)
                         )
                     }
                 },
@@ -107,7 +137,7 @@ fun AboutScreen(
                         Box(contentAlignment = Alignment.Center) {
                             Icon(
                                 imageVector = vectorResource(Res.drawable.ic_bus),
-                                contentDescription = "追客",
+                                contentDescription = stringResource(MeRes.string.me_app_name),
                                 tint = MaterialTheme.colorScheme.onPrimaryContainer,
                                 modifier = Modifier.size(40.dp)
                             )
@@ -118,7 +148,7 @@ fun AboutScreen(
                 Spacer(modifier = Modifier.height(12.dp))
 
                 Text(
-                    text = "追客",
+                    text = stringResource(MeRes.string.me_app_name),
                     style = MaterialTheme.typography.headlineMedium,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface
@@ -127,7 +157,7 @@ fun AboutScreen(
                 Spacer(modifier = Modifier.height(4.dp))
 
                 Text(
-                    text = if (state.versionName.isBlank()) "版本未知" else "版本 v${state.versionName}",
+                    text = if (state.versionName.isBlank()) stringResource(MeRes.string.me_about_version_unknown) else stringResource(MeRes.string.me_about_version, state.versionName),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -153,21 +183,21 @@ fun AboutScreen(
 
                     DottedDivider()
 
-                    TextRow(title = "开源协议", value = "MIT License")
+                    TextRow(title = stringResource(MeRes.string.me_about_license), value = "MIT License")
 
                     DottedDivider()
 
                     TextBlock(
-                        title = "数据声明",
-                        body = "公交实时数据来源于公开网络接口，仅供出行参考。"
+                        title = stringResource(MeRes.string.me_about_data_title),
+                        body = stringResource(MeRes.string.me_about_data_body)
                     )
 
                     if (state.showLiveUpdateNote) {
                         DottedDivider()
                         TextBlock(
-                            title = "实时通知与灵动胶囊支持",
-                            body = "支持 Android 16 原生实时活动 (Live Updates)、小米澎湃OS 焦点通知（超级岛）与 OPPO ColorOS 流体云。" +
-                                "若未在挖孔旁显示小胶囊，请前往系统设置为本应用开启「置顶通知 / 实时活动」或「允许焦点通知」。"
+                            title = stringResource(MeRes.string.me_about_live_title),
+                            body = stringResource(MeRes.string.me_about_live_body_1) +
+                                stringResource(MeRes.string.me_about_live_body_2)
                         )
                     }
                 }
@@ -208,7 +238,7 @@ private fun UpdateRow(state: AboutUiState, onClick: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
-            text = "检查新版本",
+            text = stringResource(MeRes.string.me_about_check_update),
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.weight(1f)
@@ -222,7 +252,7 @@ private fun UpdateRow(state: AboutUiState, onClick: () -> Unit) {
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = "正在检查...",
+                    text = stringResource(MeRes.string.me_about_checking),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -233,7 +263,7 @@ private fun UpdateRow(state: AboutUiState, onClick: () -> Unit) {
                     color = MaterialTheme.colorScheme.primaryContainer
                 ) {
                     Text(
-                        text = "发现新版本",
+                        text = stringResource(MeRes.string.me_about_new_version),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onPrimaryContainer,
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
@@ -241,17 +271,17 @@ private fun UpdateRow(state: AboutUiState, onClick: () -> Unit) {
                 }
             }
             is AboutUpdateUiState.UpToDate -> Text(
-                text = "已是最新",
+                text = stringResource(MeRes.string.me_about_up_to_date),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.primary
             )
             is AboutUpdateUiState.Error -> Text(
-                text = "检查失败，点这里重试",
+                text = stringResource(MeRes.string.me_about_check_failed_retry),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.error
             )
             AboutUpdateUiState.Idle -> Text(
-                text = "点击检测",
+                text = stringResource(MeRes.string.me_about_tap_to_check),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.primary
             )
@@ -343,14 +373,14 @@ private fun UpdateDialogs(
             icon = {
                 Icon(
                     imageVector = vectorResource(Res.drawable.ic_bus),
-                    contentDescription = "发现新版本",
+                    contentDescription = stringResource(MeRes.string.me_about_new_version),
                     tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(32.dp)
                 )
             },
             title = {
                 Text(
-                    text = "发现新版本 v${update.updateInfo.versionName}",
+                    text = stringResource(MeRes.string.me_about_new_version_name, update.updateInfo.versionName),
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold
                 )
@@ -364,13 +394,13 @@ private fun UpdateDialogs(
                 ) {
                     if (!update.updateInfo.publishTime.isNullOrBlank()) {
                         Text(
-                            text = "发布时间: ${update.updateInfo.publishTime}",
+                            text = stringResource(MeRes.string.me_about_publish_time, update.updateInfo.publishTime.toString()),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                     Text(
-                        text = "更新内容：",
+                        text = stringResource(MeRes.string.me_about_changelog),
                         style = MaterialTheme.typography.labelLarge,
                         fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.onSurface
@@ -396,12 +426,12 @@ private fun UpdateDialogs(
                         if (!update.isForce) onDismiss()
                     }
                 ) {
-                    Text("前往下载")
+                    Text(stringResource(MeRes.string.me_about_download))
                 }
             },
             dismissButton = if (!update.isForce) {
                 {
-                    TextButton(onClick = onDismiss) { Text("稍后提醒") }
+                    TextButton(onClick = onDismiss) { Text(stringResource(MeRes.string.me_about_remind_later)) }
                 }
             } else {
                 null
@@ -413,27 +443,27 @@ private fun UpdateDialogs(
             icon = {
                 Icon(
                     imageVector = vectorResource(Res.drawable.ic_check),
-                    contentDescription = "已是最新版本",
+                    contentDescription = stringResource(MeRes.string.me_about_latest),
                     tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(32.dp)
                 )
             },
             title = {
                 Text(
-                    text = "已是最新版本",
+                    text = stringResource(MeRes.string.me_about_latest),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold
                 )
             },
             text = {
                 Text(
-                    text = "当前安装的版本 v${update.currentVersionName} 已是最新，暂无更新发布。",
+                    text = stringResource(MeRes.string.me_about_latest_body, update.currentVersionName),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             },
             confirmButton = {
-                TextButton(onClick = onDismiss) { Text("知道了") }
+                TextButton(onClick = onDismiss) { Text(stringResource(MeRes.string.me_about_got_it)) }
             }
         )
 
@@ -442,14 +472,14 @@ private fun UpdateDialogs(
             icon = {
                 Icon(
                     imageVector = vectorResource(Res.drawable.ic_warning),
-                    contentDescription = "检查更新失败",
+                    contentDescription = stringResource(MeRes.string.me_about_check_failed),
                     tint = MaterialTheme.colorScheme.error,
                     modifier = Modifier.size(32.dp)
                 )
             },
             title = {
                 Text(
-                    text = "检查更新失败",
+                    text = stringResource(MeRes.string.me_about_check_failed),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold
                 )
@@ -462,10 +492,10 @@ private fun UpdateDialogs(
                 )
             },
             confirmButton = {
-                Button(onClick = onRetry) { Text("重试") }
+                Button(onClick = onRetry) { Text(stringResource(Res.string.action_retry)) }
             },
             dismissButton = {
-                TextButton(onClick = onDismiss) { Text("关闭") }
+                TextButton(onClick = onDismiss) { Text(stringResource(Res.string.action_close)) }
             }
         )
 

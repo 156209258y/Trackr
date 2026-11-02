@@ -5,10 +5,19 @@ plugins {
 }
 
 kotlin {
+    android {
+        // Compose 资源（页面文案）在 Android 上走 Android 资源 / assets 打进 APK。
+        androidResources.enable = true
+    }
+
     sourceSets {
         commonMain.dependencies {
             // 设计系统的图标（com.trackr.core.designsystem.resources.Res）要用 vectorResource
             implementation(libs.compose.mp.components.resources)
         }
     }
+}
+
+compose.resources {
+    packageOfResClass = "com.trackr.feature.me.resources"
 }

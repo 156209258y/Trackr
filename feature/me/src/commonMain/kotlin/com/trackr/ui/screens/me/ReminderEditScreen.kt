@@ -51,11 +51,39 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.trackr.core.designsystem.resources.Res
+import com.trackr.core.designsystem.resources.action_back
+import com.trackr.core.designsystem.resources.action_cancel
+import com.trackr.core.designsystem.resources.action_confirm
+import com.trackr.core.designsystem.resources.action_delete
+import com.trackr.core.designsystem.resources.action_save
 import com.trackr.core.designsystem.resources.ic_back
 import com.trackr.core.designsystem.resources.ic_chevron_right
 import com.trackr.core.designsystem.resources.ic_delete
 import com.trackr.core.designsystem.resources.ic_warning
 import com.trackr.core.model.ScheduledReminder
+import com.trackr.feature.me.resources.Res as MeRes
+import com.trackr.feature.me.resources.me_reminder_after
+import com.trackr.feature.me.resources.me_reminder_auto_start
+import com.trackr.feature.me.resources.me_reminder_auto_start_desc
+import com.trackr.feature.me.resources.me_reminder_board_at
+import com.trackr.feature.me.resources.me_reminder_change_time
+import com.trackr.feature.me.resources.me_reminder_delete
+import com.trackr.feature.me.resources.me_reminder_delete_body
+import com.trackr.feature.me.resources.me_reminder_delete_title
+import com.trackr.feature.me.resources.me_reminder_edit_title
+import com.trackr.feature.me.resources.me_reminder_go_settings
+import com.trackr.feature.me.resources.me_reminder_gone
+import com.trackr.feature.me.resources.me_reminder_gone_hint
+import com.trackr.feature.me.resources.me_reminder_hint
+import com.trackr.feature.me.resources.me_reminder_line
+import com.trackr.feature.me.resources.me_reminder_loading
+import com.trackr.feature.me.resources.me_reminder_no_alarm_permission
+import com.trackr.feature.me.resources.me_reminder_repeat
+import com.trackr.feature.me.resources.me_reminder_set_time
+import com.trackr.feature.me.resources.me_reminder_this
+import com.trackr.feature.me.resources.me_reminder_time_hint
+import com.trackr.feature.me.resources.me_reminder_towards
+import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.resources.vectorResource
 
 /**
@@ -82,12 +110,12 @@ fun ReminderEditScreen(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
-                title = { Text(text = "编辑提醒", fontWeight = FontWeight.Bold) },
+                title = { Text(text = stringResource(MeRes.string.me_reminder_edit_title), fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = { onEvent(ReminderEditEvent.Back) }) {
                         Icon(
                             imageVector = vectorResource(Res.drawable.ic_back),
-                            contentDescription = "返回"
+                            contentDescription = stringResource(Res.string.action_back)
                         )
                     }
                 },
@@ -99,7 +127,7 @@ fun ReminderEditScreen(
                         ) {
                             Icon(
                                 imageVector = vectorResource(Res.drawable.ic_delete),
-                                contentDescription = "删除提醒",
+                                contentDescription = stringResource(MeRes.string.me_reminder_delete),
                                 tint = MaterialTheme.colorScheme.error
                             )
                         }
@@ -122,7 +150,7 @@ fun ReminderEditScreen(
                             .height(48.dp)
                             .testTag("btn_save_reminder")
                     ) {
-                        Text("保存")
+                        Text(stringResource(Res.string.action_save))
                     }
                 }
             }
@@ -157,7 +185,7 @@ fun ReminderEditScreen(
             }
 
             item(key = "repeat") {
-                SettingsCard(title = "重复") {
+                SettingsCard(title = stringResource(MeRes.string.me_reminder_repeat)) {
                     RepeatPresetRow(
                         days = draft.daysOfWeek,
                         onSelect = { onEvent(ReminderEditEvent.SetDays(it)) },
@@ -167,7 +195,7 @@ fun ReminderEditScreen(
             }
 
             item(key = "auto_start") {
-                SettingsCard(title = "到点以后") {
+                SettingsCard(title = stringResource(MeRes.string.me_reminder_after)) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -177,12 +205,12 @@ fun ReminderEditScreen(
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = "自动开始追踪",
+                                text = stringResource(MeRes.string.me_reminder_auto_start),
                                 style = MaterialTheme.typography.bodyLarge,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                             Text(
-                                text = "到点直接打开实时跟车；关着就只发一条提醒",
+                                text = stringResource(MeRes.string.me_reminder_auto_start_desc),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -205,7 +233,7 @@ fun ReminderEditScreen(
             }
 
             item(key = "line") {
-                SettingsCard(title = "这条提醒") {
+                SettingsCard(title = stringResource(MeRes.string.me_reminder_this)) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -222,19 +250,19 @@ fun ReminderEditScreen(
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                             Text(
-                                text = "开往 ${draft.endStopName}",
+                                text = stringResource(MeRes.string.me_reminder_towards, draft.endStopName),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                             Text(
-                                text = "${draft.targetStopName}（第 ${draft.targetOrder} 站）上车",
+                                text = stringResource(MeRes.string.me_reminder_board_at, draft.targetStopName, draft.targetOrder),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "线路",
+                            text = stringResource(MeRes.string.me_reminder_line),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.primary
                         )
@@ -250,7 +278,7 @@ fun ReminderEditScreen(
 
             item(key = "hint") {
                 Text(
-                    text = "提醒到点会发通知。没车时不代表不用出门，出门前看一眼首页的实时到站。",
+                    text = stringResource(MeRes.string.me_reminder_hint),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(horizontal = 4.dp)
@@ -274,16 +302,16 @@ fun ReminderEditScreen(
     if (state.confirmingDelete) {
         AlertDialog(
             onDismissRequest = { onEvent(ReminderEditEvent.CancelDelete) },
-            title = { Text("删除这条提醒？") },
-            text = { Text(if (draft != null) "「${reminderSummary(draft)}」删掉就不会再提醒了。" else "") },
+            title = { Text(stringResource(MeRes.string.me_reminder_delete_title)) },
+            text = { Text(if (draft != null) stringResource(MeRes.string.me_reminder_delete_body, reminderSummary(draft)) else "") },
             confirmButton = {
                 TextButton(onClick = { onEvent(ReminderEditEvent.ConfirmDelete) }) {
-                    Text("删除", color = MaterialTheme.colorScheme.error)
+                    Text(stringResource(Res.string.action_delete), color = MaterialTheme.colorScheme.error)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { onEvent(ReminderEditEvent.CancelDelete) }) {
-                    Text("取消")
+                    Text(stringResource(Res.string.action_cancel))
                 }
             }
         )
@@ -303,18 +331,18 @@ private fun MissingReminder(
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(
-            text = if (loading) "正在读取提醒..." else "这条提醒已经不在了",
+            text = if (loading) stringResource(MeRes.string.me_reminder_loading) else stringResource(MeRes.string.me_reminder_gone),
             style = MaterialTheme.typography.titleMedium
         )
         Spacer(modifier = Modifier.height(8.dp))
         Text(
-            text = if (loading) "" else "可能已经在别处删掉了，回「我的」看看现在的提醒。",
+            text = if (loading) "" else stringResource(MeRes.string.me_reminder_gone_hint),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         if (!loading) {
             Spacer(modifier = Modifier.height(16.dp))
-            TextButton(onClick = onBack) { Text("返回") }
+            TextButton(onClick = onBack) { Text(stringResource(Res.string.action_back)) }
         }
     }
 }
@@ -348,14 +376,14 @@ private fun TimeCard(
                     color = MaterialTheme.colorScheme.onSurface
                 )
                 Text(
-                    text = "${shortRepeatText(reminder.daysOfWeek)} · 点一下改时间",
+                    text = stringResource(MeRes.string.me_reminder_time_hint, shortRepeatText(reminder.daysOfWeek)),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
             Icon(
                 imageVector = vectorResource(Res.drawable.ic_chevron_right),
-                contentDescription = "改时间",
+                contentDescription = stringResource(MeRes.string.me_reminder_change_time),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(24.dp)
             )
@@ -504,7 +532,7 @@ private fun ExactAlarmHint(onOpenSettings: () -> Unit) {
         Spacer(modifier = Modifier.width(8.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = "没开「闹钟和提醒」权限，到点只发通知，不会自动开始追踪。",
+                text = stringResource(MeRes.string.me_reminder_no_alarm_permission),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -513,7 +541,7 @@ private fun ExactAlarmHint(onOpenSettings: () -> Unit) {
                 contentPadding = PaddingValues(horizontal = 0.dp, vertical = 4.dp),
                 modifier = Modifier.testTag("btn_exact_alarm_settings")
             ) {
-                Text("去设置", style = MaterialTheme.typography.labelLarge)
+                Text(stringResource(MeRes.string.me_reminder_go_settings), style = MaterialTheme.typography.labelLarge)
             }
         }
     }
@@ -533,15 +561,15 @@ private fun TimePickerDialog(
     )
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("设定时间") },
+        title = { Text(stringResource(MeRes.string.me_reminder_set_time)) },
         text = { TimePicker(state = pickerState) },
         confirmButton = {
             TextButton(onClick = { onConfirm(pickerState.hour, pickerState.minute) }) {
-                Text("确定")
+                Text(stringResource(Res.string.action_confirm))
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("取消") }
+            TextButton(onClick = onDismiss) { Text(stringResource(Res.string.action_cancel)) }
         }
     )
 }

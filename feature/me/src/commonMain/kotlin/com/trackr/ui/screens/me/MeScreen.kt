@@ -64,12 +64,47 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.trackr.core.designsystem.resources.Res
+import com.trackr.core.designsystem.resources.action_cancel
+import com.trackr.core.designsystem.resources.data_source_chelaile
+import com.trackr.core.designsystem.resources.data_source_mygolbs
 import com.trackr.core.designsystem.resources.ic_chevron_right
 import com.trackr.core.designsystem.resources.ic_clock
+import com.trackr.core.designsystem.resources.transit_code
 import com.trackr.core.designsystem.theme.TrackrTheme
 import com.trackr.core.model.EngineMode
 import com.trackr.core.model.ScheduledReminder
 import com.trackr.core.model.TransitCodeProvider
+import com.trackr.feature.me.resources.Res as MeRes
+import com.trackr.feature.me.resources.me_about_app
+import com.trackr.feature.me.resources.me_about_title
+import com.trackr.feature.me.resources.me_amap_title
+import com.trackr.feature.me.resources.me_arrival_alert
+import com.trackr.feature.me.resources.me_arrival_alert_desc
+import com.trackr.feature.me.resources.me_data_source
+import com.trackr.feature.me.resources.me_elder_mode
+import com.trackr.feature.me.resources.me_elder_mode_desc
+import com.trackr.feature.me.resources.me_group_display
+import com.trackr.feature.me.resources.me_group_map
+import com.trackr.feature.me.resources.me_group_notify
+import com.trackr.feature.me.resources.me_group_travel
+import com.trackr.feature.me.resources.me_live_notify
+import com.trackr.feature.me.resources.me_live_notify_desc
+import com.trackr.feature.me.resources.me_lockscreen
+import com.trackr.feature.me.resources.me_lockscreen_full
+import com.trackr.feature.me.resources.me_lockscreen_hidden
+import com.trackr.feature.me.resources.me_reminders
+import com.trackr.feature.me.resources.me_reminders_count
+import com.trackr.feature.me.resources.me_reminders_empty
+import com.trackr.feature.me.resources.me_reminders_empty_hint
+import com.trackr.feature.me.resources.me_reminders_none
+import com.trackr.feature.me.resources.me_status_chip
+import com.trackr.feature.me.resources.me_status_chip_off
+import com.trackr.feature.me.resources.me_status_chip_on
+import com.trackr.feature.me.resources.me_status_chip_settings
+import com.trackr.feature.me.resources.me_status_chip_unsupported
+import com.trackr.feature.me.resources.me_title
+import com.trackr.feature.me.resources.me_version
+import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.resources.vectorResource
 
 /**
@@ -98,7 +133,7 @@ fun MeScreen(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             LargeTopAppBar(
-                title = { Text(text = "我的", fontWeight = FontWeight.Bold) },
+                title = { Text(text = stringResource(MeRes.string.me_title), fontWeight = FontWeight.Bold) },
                 scrollBehavior = scrollBehavior,
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surface,
@@ -122,10 +157,10 @@ fun MeScreen(
             // 长辈版：第 30 步接 SettingsRepository.uiMode，现在 elderMode 恒为 null，这组不显示
             state.elderMode?.let { elderMode ->
                 item(key = "group_display", contentType = "settings_group") {
-                    SettingsGroup(title = "显示") {
+                    SettingsGroup(title = stringResource(MeRes.string.me_group_display)) {
                         SwitchRow(
-                            title = "长辈版",
-                            subtitle = "字更大，按钮更大",
+                            title = stringResource(MeRes.string.me_elder_mode),
+                            subtitle = stringResource(MeRes.string.me_elder_mode_desc),
                             checked = elderMode,
                             onCheckedChange = { onEvent(MeEvent.SetElderMode(it)) }
                         )
@@ -134,49 +169,49 @@ fun MeScreen(
             }
 
             item(key = "group_trip", contentType = "settings_group") {
-                SettingsGroup(title = "出行") {
+                SettingsGroup(title = stringResource(MeRes.string.me_group_travel)) {
                     EngineModeRow(
                         selected = state.engineMode,
                         onSelect = { onEvent(MeEvent.SetEngineMode(it)) }
                     )
                     GroupDivider()
                     SettingRow(
-                        title = "乘车码",
+                        title = stringResource(Res.string.transit_code),
                         value = transitCodeLabel(state.preferredTransitCode),
                         onClick = { showTransitCodeDialog = true }
                     )
                     GroupDivider()
                     SettingRow(
-                        title = "到站前提醒",
-                        subtitle = "车离上车站还剩几站时震动提醒",
+                        title = stringResource(MeRes.string.me_arrival_alert),
+                        subtitle = stringResource(MeRes.string.me_arrival_alert_desc),
                         value = alertThresholdLabel(state.alertThresholdStops),
                         onClick = { showAlertThresholdDialog = true }
                     )
                     GroupDivider()
                     SettingRow(
-                        title = "定时提醒",
+                        title = stringResource(MeRes.string.me_reminders),
                         subtitle = state.remindersSubtitle,
-                        value = if (state.reminders.isEmpty()) "没有" else "${state.reminders.size} 个",
+                        value = if (state.reminders.isEmpty()) stringResource(MeRes.string.me_reminders_none) else stringResource(MeRes.string.me_reminders_count, state.reminders.size),
                         onClick = { showRemindersSheet = true }
                     )
                 }
             }
 
             item(key = "group_notification", contentType = "settings_group") {
-                SettingsGroup(title = "通知") {
+                SettingsGroup(title = stringResource(MeRes.string.me_group_notify)) {
                     SwitchRow(
-                        title = "实时通知",
-                        subtitle = "追踪时在通知栏显示车还有几站",
+                        title = stringResource(MeRes.string.me_live_notify),
+                        subtitle = stringResource(MeRes.string.me_live_notify_desc),
                         checked = state.isLiveNotificationEnabled,
                         onCheckedChange = { onEvent(MeEvent.SetLiveNotificationEnabled(it)) }
                     )
                     GroupDivider()
                     SwitchRow(
-                        title = "锁屏显示追踪",
+                        title = stringResource(MeRes.string.me_lockscreen),
                         subtitle = if (state.showOnLockScreen) {
-                            "锁屏能看到线路和还有几站"
+                            stringResource(MeRes.string.me_lockscreen_full)
                         } else {
-                            "锁屏只显示「追踪中」"
+                            stringResource(MeRes.string.me_lockscreen_hidden)
                         },
                         checked = state.showOnLockScreen,
                         onCheckedChange = { onEvent(MeEvent.SetShowOnLockScreen(it)) }
@@ -184,16 +219,16 @@ fun MeScreen(
                     state.liveUpdate?.let { liveUpdate ->
                         GroupDivider()
                         SettingRow(
-                            title = "状态栏胶囊",
+                            title = stringResource(MeRes.string.me_status_chip),
                             subtitle = if (liveUpdate.supported) {
                                 liveUpdate.systemName
                             } else {
-                                "这台手机不支持，只在通知栏显示"
+                                stringResource(MeRes.string.me_status_chip_unsupported)
                             },
                             value = when {
-                                !liveUpdate.supported -> "通知设置"
-                                liveUpdate.allowed -> "已开启"
-                                else -> "去开启"
+                                !liveUpdate.supported -> stringResource(MeRes.string.me_status_chip_settings)
+                                liveUpdate.allowed -> stringResource(MeRes.string.me_status_chip_on)
+                                else -> stringResource(MeRes.string.me_status_chip_off)
                             },
                             valueColor = if (liveUpdate.supported && !liveUpdate.allowed) {
                                 TrackrTheme.colors.warn
@@ -207,9 +242,9 @@ fun MeScreen(
             }
 
             item(key = "group_map", contentType = "settings_group") {
-                SettingsGroup(title = "地图") {
+                SettingsGroup(title = stringResource(MeRes.string.me_group_map)) {
                     SettingRow(
-                        title = "高德 Key",
+                        title = stringResource(MeRes.string.me_amap_title),
                         subtitle = state.amapKeyStatus,
                         onClick = { onEvent(MeEvent.OpenAmapKey) },
                         modifier = Modifier.testTag("row_amap_key"),
@@ -219,10 +254,10 @@ fun MeScreen(
             }
 
             item(key = "group_about", contentType = "settings_group") {
-                SettingsGroup(title = "关于") {
+                SettingsGroup(title = stringResource(MeRes.string.me_about_title)) {
                     SettingRow(
-                        title = "关于追客",
-                        value = state.versionName?.let { "版本 $it" },
+                        title = stringResource(MeRes.string.me_about_app),
+                        value = state.versionName?.let { stringResource(MeRes.string.me_version, it) },
                         onClick = { onEvent(MeEvent.OpenAbout) }
                     )
                 }
@@ -232,7 +267,7 @@ fun MeScreen(
 
     if (showTransitCodeDialog) {
         ChoiceDialog(
-            title = "乘车码",
+            title = stringResource(Res.string.transit_code),
             options = TransitCodeProvider.entries,
             selected = state.preferredTransitCode,
             label = ::transitCodeLabel,
@@ -246,7 +281,7 @@ fun MeScreen(
 
     if (showAlertThresholdDialog) {
         ChoiceDialog(
-            title = "到站前提醒",
+            title = stringResource(MeRes.string.me_arrival_alert),
             options = ALERT_THRESHOLD_CHOICES,
             selected = state.alertThresholdStops,
             label = ::alertThresholdLabel,
@@ -408,7 +443,7 @@ private fun EngineModeRow(
     selected: EngineMode,
     onSelect: (EngineMode) -> Unit
 ) {
-    val options = listOf(EngineMode.CHELAILE to "车来了", EngineMode.MYGOLBS to "掌上公交")
+    val options = listOf(EngineMode.CHELAILE to stringResource(Res.string.data_source_chelaile), EngineMode.MYGOLBS to stringResource(Res.string.data_source_mygolbs))
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -416,7 +451,7 @@ private fun EngineModeRow(
             .padding(horizontal = 16.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        RowTexts(title = "数据来源", subtitle = null, modifier = Modifier.weight(1f))
+        RowTexts(title = stringResource(MeRes.string.me_data_source), subtitle = null, modifier = Modifier.weight(1f))
         Spacer(Modifier.width(12.dp))
         SingleChoiceSegmentedButtonRow {
             options.forEachIndexed { index, (mode, label) ->
@@ -467,7 +502,7 @@ private fun <T> ChoiceDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = onDismiss) { Text("取消") }
+            TextButton(onClick = onDismiss) { Text(stringResource(Res.string.action_cancel)) }
         }
     )
 }
@@ -489,12 +524,12 @@ private fun RemindersSheet(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = "定时提醒",
+                text = stringResource(MeRes.string.me_reminders),
                 style = MaterialTheme.typography.titleLarge,
                 modifier = Modifier.weight(1f)
             )
             Text(
-                text = "${reminders.size} 个",
+                text = stringResource(MeRes.string.me_reminders_count, reminders.size),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -514,12 +549,12 @@ private fun RemindersSheet(
                     modifier = Modifier.size(40.dp)
                 )
                 Text(
-                    text = "还没有定时提醒",
+                    text = stringResource(MeRes.string.me_reminders_empty),
                     style = MaterialTheme.typography.bodyLarge,
                     modifier = Modifier.padding(top = 12.dp)
                 )
                 Text(
-                    text = "在线路页选好上车站，点时钟图标新建",
+                    text = stringResource(MeRes.string.me_reminders_empty_hint),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 4.dp)

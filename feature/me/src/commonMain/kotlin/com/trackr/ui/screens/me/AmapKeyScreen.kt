@@ -45,8 +45,29 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.trackr.core.designsystem.resources.Res
+import com.trackr.core.designsystem.resources.action_back
+import com.trackr.core.designsystem.resources.action_clear
+import com.trackr.core.designsystem.resources.action_copy
 import com.trackr.core.designsystem.resources.ic_back
 import com.trackr.core.designsystem.resources.ic_chevron_right
+import com.trackr.feature.me.resources.Res as MeRes
+import com.trackr.feature.me.resources.me_amap_android_key
+import com.trackr.feature.me.resources.me_amap_android_key_hint
+import com.trackr.feature.me.resources.me_amap_bind_title
+import com.trackr.feature.me.resources.me_amap_copy_both
+import com.trackr.feature.me.resources.me_amap_intro_1
+import com.trackr.feature.me.resources.me_amap_intro_2
+import com.trackr.feature.me.resources.me_amap_intro_3
+import com.trackr.feature.me.resources.me_amap_open_console
+import com.trackr.feature.me.resources.me_amap_package
+import com.trackr.feature.me.resources.me_amap_save
+import com.trackr.feature.me.resources.me_amap_sha1
+import com.trackr.feature.me.resources.me_amap_title
+import com.trackr.feature.me.resources.me_amap_unreadable
+import com.trackr.feature.me.resources.me_amap_web_key
+import com.trackr.feature.me.resources.me_amap_web_key_hint
+import com.trackr.feature.me.resources.me_amap_web_key_optional
+import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.resources.vectorResource
 
 /**
@@ -77,12 +98,12 @@ fun AmapKeyScreen(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
-                title = { Text(text = "高德 Key", fontWeight = FontWeight.Bold) },
+                title = { Text(text = stringResource(MeRes.string.me_amap_title), fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = { onEvent(AmapKeyEvent.Back) }) {
                         Icon(
                             imageVector = vectorResource(Res.drawable.ic_back),
-                            contentDescription = "返回"
+                            contentDescription = stringResource(Res.string.action_back)
                         )
                     }
                 },
@@ -102,7 +123,7 @@ fun AmapKeyScreen(
                         .height(48.dp)
                         .testTag("btn_amap_key_save")
                 ) {
-                    Text("保存生效")
+                    Text(stringResource(MeRes.string.me_amap_save))
                 }
             }
         }
@@ -119,9 +140,9 @@ fun AmapKeyScreen(
         ) {
             item(key = "intro") {
                 Text(
-                    text = "本应用开源分发、不内置任何 Key，用自己的高德账号申请即可（个人开发者免费额度够日常使用）。" +
-                        "地图底图由「Android 平台 Key」鉴权，必须和下面的包名 + SHA-1 完全一致；" +
-                        "「Web 服务 Key」只用于云端公交算路，两者不能混填。",
+                    text = stringResource(MeRes.string.me_amap_intro_1) +
+                        stringResource(MeRes.string.me_amap_intro_2) +
+                        stringResource(MeRes.string.me_amap_intro_3),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -135,20 +156,20 @@ fun AmapKeyScreen(
                 ) {
                     Column(modifier = Modifier.padding(12.dp)) {
                         Text(
-                            text = "高德控制台需要绑定的信息",
+                            text = stringResource(MeRes.string.me_amap_bind_title),
                             style = MaterialTheme.typography.labelLarge,
                             color = MaterialTheme.colorScheme.onSurface
                         )
                         Spacer(modifier = Modifier.height(8.dp))
                         IdentityRow(
-                            label = "包名",
+                            label = stringResource(MeRes.string.me_amap_package),
                             value = state.appId,
                             onCopy = { copy(state.appId, "包名") }
                         )
                         Spacer(modifier = Modifier.height(8.dp))
                         IdentityRow(
-                            label = "SHA-1 签名指纹",
-                            value = state.sha1?.takeIf { it.isNotBlank() } ?: "读不到",
+                            label = stringResource(MeRes.string.me_amap_sha1),
+                            value = state.sha1?.takeIf { it.isNotBlank() } ?: stringResource(MeRes.string.me_amap_unreadable),
                             onCopy = state.sha1?.takeIf { it.isNotBlank() }?.let { sha1 ->
                                 { copy(sha1, "SHA-1") }
                             }
@@ -169,7 +190,7 @@ fun AmapKeyScreen(
                                 contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp),
                                 modifier = Modifier.testTag("btn_copy_pkg_sha1")
                             ) {
-                                Text("复制包名 + SHA-1", style = MaterialTheme.typography.labelSmall)
+                                Text(stringResource(MeRes.string.me_amap_copy_both), style = MaterialTheme.typography.labelSmall)
                             }
                             TextButton(
                                 onClick = {
@@ -179,7 +200,7 @@ fun AmapKeyScreen(
                                 contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp),
                                 modifier = Modifier.testTag("btn_open_amap_console")
                             ) {
-                                Text("打开高德控制台", style = MaterialTheme.typography.labelSmall)
+                                Text(stringResource(MeRes.string.me_amap_open_console), style = MaterialTheme.typography.labelSmall)
                             }
                         }
                     }
@@ -194,8 +215,8 @@ fun AmapKeyScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .testTag("input_amap_android_key"),
-                        label = { Text("高德 Android Key（地图）") },
-                        placeholder = { Text("粘贴 32 位 Android 平台 Key") },
+                        label = { Text(stringResource(MeRes.string.me_amap_android_key)) },
+                        placeholder = { Text(stringResource(MeRes.string.me_amap_android_key_hint)) },
                         isError = !state.androidKeyValid,
                         supportingText = {
                             Text(text = state.androidHint, style = MaterialTheme.typography.labelSmall)
@@ -203,7 +224,7 @@ fun AmapKeyScreen(
                         trailingIcon = {
                             if (state.androidInput.isNotEmpty()) {
                                 TextButton(onClick = { onEvent(AmapKeyEvent.EditAndroidKey("")) }) {
-                                    Text("清空", style = MaterialTheme.typography.labelSmall)
+                                    Text(stringResource(Res.string.action_clear), style = MaterialTheme.typography.labelSmall)
                                 }
                             }
                         },
@@ -219,8 +240,8 @@ fun AmapKeyScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .testTag("input_amap_web_key"),
-                    label = { Text(if (state.showAndroidSlot) "高德 Web 服务 Key（可选）" else "高德 Web 服务 Key") },
-                    placeholder = { Text("用于云端公交算路，不绑定包名") },
+                    label = { Text(if (state.showAndroidSlot) stringResource(MeRes.string.me_amap_web_key_optional) else stringResource(MeRes.string.me_amap_web_key)) },
+                    placeholder = { Text(stringResource(MeRes.string.me_amap_web_key_hint)) },
                     isError = !state.webKeyValid,
                     supportingText = {
                         Text(text = state.webHint, style = MaterialTheme.typography.labelSmall)
@@ -228,7 +249,7 @@ fun AmapKeyScreen(
                     trailingIcon = {
                         if (state.webInput.isNotEmpty()) {
                             TextButton(onClick = { onEvent(AmapKeyEvent.EditWebKey("")) }) {
-                                Text("清空", style = MaterialTheme.typography.labelSmall)
+                                Text(stringResource(Res.string.action_clear), style = MaterialTheme.typography.labelSmall)
                             }
                         }
                     },
@@ -287,7 +308,7 @@ private fun IdentityRow(
         }
         if (onCopy != null) {
             TextButton(onClick = onCopy) {
-                Text("复制", style = MaterialTheme.typography.labelSmall)
+                Text(stringResource(Res.string.action_copy), style = MaterialTheme.typography.labelSmall)
             }
         }
     }
