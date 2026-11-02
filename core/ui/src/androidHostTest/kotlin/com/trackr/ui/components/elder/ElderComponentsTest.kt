@@ -27,10 +27,15 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import org.robolectric.annotation.GraphicsMode
 
-/** 长辈版共用组件：按钮高度、「出示乘车码」、大字在 1.0 / 1.5 / 2.0 倍字体下不被裁 */
+/**
+ * 长辈版共用组件：按钮高度、「出示乘车码」、大字在 1.0 / 1.5 / 2.0 倍字体下不被裁。
+ * 用 Robolectric 原生图形模式：默认模式下不真量字宽（中文整句只量出几 px），判不出裁切。
+ */
 @RunWith(RobolectricTestRunner::class)
 @Config(qualifiers = "w360dp-h800dp")
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
 class ElderComponentsTest {
 
     @get:Rule
@@ -94,6 +99,9 @@ class ElderComponentsTest {
         val results = mutableListOf<TextLayoutResult>()
         composeTestRule.onNodeWithText("下一班 07:20").fetchSemanticsNode()
             .config.getOrNull(SemanticsActions.GetTextLayoutResult)?.action?.invoke(results)
-        assertFalse("大字在 $scale 倍字体下被裁", results.single().hasVisualOverflow)
+        // 原生图形模式下字宽是真量出来的：放不下时自动缩小，宽度不超出
+        val result = results.single()
+        assertFalse("大字在 $scale 倍字体下被裁", result.hasVisualOverflow)
+        assertTrue(result.multiParagraph.intrinsics.maxIntrinsicWidth <= result.size.width)
     }
 }
