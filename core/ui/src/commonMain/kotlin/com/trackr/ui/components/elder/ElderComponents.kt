@@ -35,6 +35,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.DialogProperties
 import com.trackr.core.designsystem.resources.Res
 import com.trackr.core.designsystem.resources.action_back
 import com.trackr.core.designsystem.resources.ic_back
@@ -237,13 +238,14 @@ fun ElderArrival(arrival: ArrivalUi, modifier: Modifier = Modifier, detail: Stri
 }
 
 /**
- * 长辈版提示：要点「知道了」才关，不会自己消失（设计稿「不用会自己消失的提示条」）。
- * 第 34 步的 `UserMessageHost` 做好后可以换掉。
+ * 长辈版提示：要点「知道了」才关，不会自己消失，点框外也不关（设计稿「不用会自己消失的提示条」）。
+ * 系统返回键照样能关，免得卡住。页面一般不直接用它，用 `UserMessageHost`（长辈版下就是它）。
  */
 @Composable
 fun ElderNoticeDialog(text: String, onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
+        properties = DialogProperties(dismissOnClickOutside = false),
         text = { Text(text = text, style = MaterialTheme.typography.bodyLarge) },
         confirmButton = {
             TextButton(onClick = onDismiss, modifier = Modifier.heightIn(min = ElderButtonHeight).widthIn(min = ElderButtonHeight)) {
