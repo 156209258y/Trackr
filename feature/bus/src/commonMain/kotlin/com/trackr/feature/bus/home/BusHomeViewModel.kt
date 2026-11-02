@@ -226,7 +226,8 @@ class BusHomeViewModel(
             is BusHomeEvent.OpenLine,
             is BusHomeEvent.OpenStop,
             is BusHomeEvent.OpenRoute,
-            BusHomeEvent.EditFavorites -> Unit
+            BusHomeEvent.EditFavorites,
+            BusHomeEvent.OpenSettings -> Unit
         }
     }
 

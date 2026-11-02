@@ -43,11 +43,13 @@ import com.trackr.core.designsystem.resources.Res
 import com.trackr.core.designsystem.resources.action_relocate
 import com.trackr.core.designsystem.resources.ic_arrow_drop_down
 import com.trackr.core.designsystem.resources.ic_my_location
+import com.trackr.core.designsystem.resources.ic_person
 import com.trackr.core.designsystem.resources.ic_search
 import com.trackr.core.designsystem.theme.TrackrTheme
 import com.trackr.feature.bus.citypicker.CityPickerBottomSheet
 import com.trackr.feature.bus.resources.Res as BusRes
 import com.trackr.feature.bus.resources.bus_home_search_hint
+import com.trackr.feature.bus.resources.bus_home_settings
 import com.trackr.feature.bus.resources.bus_home_switch_city
 import com.trackr.ui.components.transitcode.TransitCodeChooserSheet
 import com.trackr.ui.components.transitcode.TransitCodeFab
@@ -65,6 +67,7 @@ internal object BusHomeTags {
     const val WATCH_MORE = "bus_home_watch_more"
     const val EDIT_FAVORITES = "bus_home_edit_favorites"
     const val NEARBY_HEADER = "bus_home_nearby_header"
+    const val SETTINGS = "bus_home_settings"
     fun favoriteRow(key: String) = "bus_home_fav_$key"
     fun groupChip(id: String?) = "bus_home_group_${id ?: "all"}"
     fun nearbyStop(key: String) = "bus_home_nearby_$key"
@@ -79,7 +82,8 @@ internal object BusHomeTags {
 fun BusHomeScreen(
     state: BusHomeUiState,
     onEvent: (BusHomeEvent) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    showSettings: Boolean = false
 ) {
     val fabState = rememberTransitCodeFabState()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -99,7 +103,8 @@ fun BusHomeScreen(
         topBar = {
             BusHomeTopBar(
                 cityName = state.currentCity.cityName,
-                onCityClick = { onEvent(BusHomeEvent.OpenCityPicker) }
+                onCityClick = { onEvent(BusHomeEvent.OpenCityPicker) },
+                onSettingsClick = if (showSettings) ({ onEvent(BusHomeEvent.OpenSettings) }) else null
             )
         },
         floatingActionButton = {
@@ -192,11 +197,19 @@ fun BusHomeScreen(
     }
 }
 
-/** 顶栏：标题就是城市名（v3），点它换城市 */
+/** 顶栏：标题就是城市名（v3），点它换城市；[onSettingsClick] 不为 null 时右上角放「设置」（长辈版） */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun BusHomeTopBar(cityName: String, onCityClick: () -> Unit) {
+private fun BusHomeTopBar(cityName: String, onCityClick: () -> Unit, onSettingsClick: (() -> Unit)?) {
     TopAppBar(
+        actions = {
+            if (onSettingsClick != null) {
+                TextButton(onClick = onSettingsClick, modifier = Modifier.testTag(BusHomeTags.SETTINGS)) {
+                    Icon(imageVector = vectorResource(Res.drawable.ic_person), contentDescription = null)
+                    Text(text = stringResource(BusRes.string.bus_home_settings))
+                }
+            }
+        },
         title = {
             Surface(
                 onClick = onCityClick,
