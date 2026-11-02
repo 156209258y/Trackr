@@ -226,7 +226,9 @@ class RoutePlanScreenTest {
         composeTestRule.onNodeWithText("最快").assertExists()
         composeTestRule.onNodeWithText("少换乘").assertExists()
         composeTestRule.onNodeWithText("少走路").assertExists()
-        composeTestRule.onNodeWithTag("scheme_duration_0").assertTextEquals("32 分钟")
+        // 分钟只在页签写一次；详情里只剩「出发 · 到」（不再重复一个大号分钟）
+        composeTestRule.onNodeWithTag("scheme_duration_0").assertDoesNotExist()
+        composeTestRule.onNodeWithTag("scheme_depart_arrive_0").assertExists()
         composeTestRule.onNodeWithText("收藏").assertExists()
 
         // 点第 3 个标签（少走路 = s2）切到对应详情

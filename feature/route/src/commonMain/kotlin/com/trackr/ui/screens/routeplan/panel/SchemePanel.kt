@@ -1,9 +1,7 @@
 package com.trackr.ui.screens.routeplan.panel
 
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -16,7 +14,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
@@ -113,29 +110,8 @@ internal fun SchemePanel(
             }
         }
 
-        if (tabs.size > 1) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(5.dp, Alignment.CenterHorizontally)
-            ) {
-                tabs.indices.forEach { index ->
-                    val selected = pagerState.currentPage == index
-                    Box(
-                        modifier = Modifier
-                            .height(6.dp)
-                            .width(if (selected) 16.dp else 6.dp)
-                            .clip(CircleShape)
-                            .background(
-                                if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant
-                            )
-                    )
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(12.dp))
+        // 分页点已删：上面那排页签本身就是选中指示器，同一件事不再放两个入口
+        Spacer(modifier = Modifier.height(14.dp))
 
         val current = tabs.getOrNull(pagerState.currentPage)?.scheme
         val isTrackingCurrent = trackingSession != null && !trackingSession.isCompleted &&
@@ -241,20 +217,15 @@ private fun SchemeDetail(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                text = stringResource(RouteRes.string.route_minutes, scheme.durationMinutes),
-                style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Black),
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.testTag("scheme_duration_$page")
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(
-                text = departArriveText(nowMillis, scheme.durationMinutes),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
+        // 分钟只在上面那排页签写一次，这里只写页签里没有的「出发 · 到」
+        Text(
+            text = departArriveText(nowMillis, scheme.durationMinutes),
+            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.testTag("scheme_depart_arrive_$page")
+        )
 
         SegmentBar(segments = remember(scheme) { planSegments(scheme) })
 
