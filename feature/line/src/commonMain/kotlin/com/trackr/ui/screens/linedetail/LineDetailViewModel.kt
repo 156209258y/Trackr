@@ -485,6 +485,8 @@ class LineDetailViewModel(
     /**
      * 计算默认选中的候车站：
      * 取「首辆车前面一站」（若车辆已在第 N 站，则看第 N+1 站）；无在途车退回首站。
+     * 首车已到终点站时后面没有站，退回起点站走「等下一班」，不能退回首车所在站，
+     * 否则每次打开线路页都会选中终点站、走向条滚到最右（issue #9）。
      */
     private fun calculateDefaultStop(detail: BusLineDetail): BusStop? {
         val stops = detail.stops
@@ -493,6 +495,7 @@ class LineDetailViewModel(
         if (buses.isEmpty()) return stops.first()
 
         val leadOrder = buses.maxOfOrNull { it.order } ?: return stops.first()
+        if (leadOrder >= stops.maxOf { it.order }) return stops.first()
         return stops.find { it.order == leadOrder + 1 }
             ?: stops.find { it.order == leadOrder }
             ?: stops.first()

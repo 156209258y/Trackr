@@ -577,6 +577,40 @@ class LineDetailViewModelTest {
     }
 
     @Test
+    fun testInitialLoad_leadBusAtTerminal_fallsBackToFirstStop() = runTest(main.dispatcher) {
+        // issue #9：首车已到终点站时，后面没有站，默认候车站回到起点，不能选终点站
+        fakeRepository.lineDetailResult = Result.success(
+            BusLineDetail(
+                line = forwardDirection,
+                reverseDirection = reverseDirection,
+                stops = stops,
+                buses = listOf(
+                    LiveBus(busId = "b3", plateOrFleetNo = "沪A9999", order = 3, etaSeconds = 60, isArrived = true)
+                ),
+                targetOrder = 3
+            )
+        )
+        val repo = CountingLineRepository(fakeRepository.realtime)
+        val viewModel = createViewModel(realtime = repo)
+        testScheduler.runCurrent()
+
+        assertEquals(1, viewModel.uiState.value.selectedStop?.order)
+        // 默认站回到起点后，按起点站补一次精确请求
+        assertEquals(listOf<Int?>(null, 1), repo.lineDetailTargetOrders)
+    }
+
+    @Test
+    fun testInitialLoad_explicitTerminalTarget_keepsTerminalStop() = runTest(main.dispatcher) {
+        // 用户明确打开终点站的线路详情时，仍保留终点站
+        val repo = CountingLineRepository(fakeRepository.realtime)
+        val viewModel = createViewModel(targetOrder = 3, realtime = repo)
+        testScheduler.runCurrent()
+
+        assertEquals(3, viewModel.uiState.value.selectedStop?.order)
+        assertEquals(listOf<Int?>(3), repo.lineDetailTargetOrders)
+    }
+
+    @Test
     fun testPolling_skipsWhenPreviousLoadStillInFlight() = runTest(main.dispatcher) {
         val repo = CountingLineRepository(fakeRepository.realtime)
         val gate = CompletableDeferred<Unit>()
