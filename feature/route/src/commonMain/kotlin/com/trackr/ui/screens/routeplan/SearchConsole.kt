@@ -87,7 +87,7 @@ internal fun SearchConsole(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 10.dp),
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column(
@@ -129,15 +129,15 @@ internal fun SearchConsole(
 
                 Spacer(modifier = Modifier.width(8.dp))
 
-                // 紧凑排布：互换 + 规划并排，整体与两行输入的垂直中心对齐，不再各自占一行高度
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                // 互换 / 规划上下叠放，和两行输入对齐（7d1cc92 压成横排后用户要求恢复原高度）
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     IconButton(
                         onClick = { onEvent(RoutePlanEvent.SwapOriginDest) },
                         modifier = Modifier
-                            .size(34.dp)
+                            .size(36.dp)
                             .clip(CircleShape)
                             .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
                             .testTag("btn_swap_origin_dest")
@@ -146,14 +146,14 @@ internal fun SearchConsole(
                             imageVector = vectorResource(Res.drawable.ic_swap_vertical),
                             contentDescription = stringResource(RouteRes.string.route_plan_swap),
                             tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(18.dp)
+                            modifier = Modifier.size(20.dp)
                         )
                     }
 
                     IconButton(
                         onClick = { onEvent(RoutePlanEvent.Submit) },
                         modifier = Modifier
-                            .size(34.dp)
+                            .size(36.dp)
                             .clip(CircleShape)
                             .background(MaterialTheme.colorScheme.primary)
                             .testTag("btn_trigger_plan")
@@ -162,7 +162,7 @@ internal fun SearchConsole(
                             imageVector = vectorResource(Res.drawable.ic_search),
                             contentDescription = stringResource(RouteRes.string.route_plan_go),
                             tint = MaterialTheme.colorScheme.onPrimary,
-                            modifier = Modifier.size(18.dp)
+                            modifier = Modifier.size(20.dp)
                         )
                     }
                 }
