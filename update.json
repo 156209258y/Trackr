@@ -2,7 +2,7 @@
   "versionCode": 4,
   "versionName": "0.1.0",
   "minSupportedVersionCode": 1,
-  "changelog": "chore: 将发布版本调整为 0.1.0",
+  "changelog": "## 新增\n\n- 全新 v3 界面：公交首页、线路详情、站点详情、搜索、路线规划、路线详情统一改版\n- 长辈版：大字号、单列大按钮、朗读「读给我听」、到站整屏提醒\n- 站点可同时等多条线路，一起追踪\n- 路线规划支持地图算路、方案切换、只在这次追踪不保存\n- 桌面小组件重做，刷新更省电\n- 通知可直接选「上了哪辆」，锁屏也能看到追踪进度\n- 首页乘车码悬浮按钮，一点就开\n\n## 修复与优化\n\n- 代码重构为多模块（Kotlin Multiplatform），Android 与 iOS 共用逻辑\n- 收藏和路线换到新存储，旧数据自动导入\n- 轮询随页面暂停，请求可取消，减少耗电与流量\n- 修复线路详情底部按钮与系统导航栏重叠、单车跟随返回跳级、地图取景过远、搜索卡透出地图等问题\n- 开启 R8 混淆与资源压缩，加入 Baseline Profile",
   "downloadUrl": "https://github.com/5151561/Trackr/releases/tag/v0.1.0",
   "publishTime": "2026-11-02",
   "forceUpdate": false
