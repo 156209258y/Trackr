@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- feature/bus 的页面文案（第 28 步从代码里搬出来）。 -->
+<resources>
+    <string name="bus_city_current">当前</string>
+    <string name="bus_city_located">定位</string>
+    <string name="bus_city_title">切换城市</string>
+    <string name="bus_city_subtitle">按 省 / 直辖市 分级快速查找全国 480+ 城市</string>
+    <string name="bus_city_search_hint">搜索城市中文名或拼音（如：玉林 / yulin）</string>
+    <string name="bus_city_search">搜索</string>
+    <string name="bus_city_clear">清除</string>
+    <string name="bus_city_match_count">找到 %1$s 个相关城市</string>
+    <string name="bus_city_located_name">定位: %1$s</string>
+    <string name="bus_city_selected_name">已选: %1$s</string>
+    <string name="bus_city_province_count">%1$s · 共 %2$s 城</string>
+    <string name="bus_home_switch_city">换城市</string>
+    <string name="bus_home_search_hint">搜线路、车站</string>
+    <string name="bus_favorites_title">收藏</string>
+    <string name="bus_favorites_empty">在线路页点 ☆，常坐的车会出现在这里</string>
+    <string name="bus_favorites_group_empty">这个分组还没有收藏</string>
+    <string name="bus_favorites_all">全部</string>
+    <string name="bus_nearby_title">附近</string>
+    <string name="bus_nearby_empty">附近 1 公里内没找到公交站</string>
+    <string name="bus_nearby_stop_detail">站点详情</string>
+    <string name="bus_nearby_loading">正在查车…</string>
+    <string name="bus_tracking_more_lines">还有 %1$s 条</string>
+</resources>

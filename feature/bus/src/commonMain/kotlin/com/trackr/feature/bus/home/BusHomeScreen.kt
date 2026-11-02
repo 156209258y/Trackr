@@ -40,14 +40,19 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.trackr.core.designsystem.resources.Res
+import com.trackr.core.designsystem.resources.action_relocate
 import com.trackr.core.designsystem.resources.ic_arrow_drop_down
 import com.trackr.core.designsystem.resources.ic_my_location
 import com.trackr.core.designsystem.resources.ic_search
 import com.trackr.core.designsystem.theme.TrackrTheme
 import com.trackr.feature.bus.citypicker.CityPickerBottomSheet
+import com.trackr.feature.bus.resources.Res as BusRes
+import com.trackr.feature.bus.resources.bus_home_search_hint
+import com.trackr.feature.bus.resources.bus_home_switch_city
 import com.trackr.ui.components.transitcode.TransitCodeChooserSheet
 import com.trackr.ui.components.transitcode.TransitCodeFab
 import com.trackr.ui.components.transitcode.rememberTransitCodeFabState
+import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.resources.vectorResource
 
 /** 测试用的 tag */
@@ -206,7 +211,7 @@ private fun BusHomeTopBar(cityName: String, onCityClick: () -> Unit) {
                     Text(text = cityName, style = MaterialTheme.typography.titleLarge)
                     Icon(
                         imageVector = vectorResource(Res.drawable.ic_arrow_drop_down),
-                        contentDescription = "换城市"
+                        contentDescription = stringResource(BusRes.string.bus_home_switch_city)
                     )
                 }
             }
@@ -238,7 +243,7 @@ private fun SearchEntry(onClick: () -> Unit) {
             )
             Spacer(modifier = Modifier.width(dimens.spaceS))
             Text(
-                text = "搜线路、车站",
+                text = stringResource(BusRes.string.bus_home_search_hint),
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -271,7 +276,7 @@ private fun LocationHint(message: String, onRetry: () -> Unit) {
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f)
         )
-        TextButton(onClick = onRetry) { Text("重新定位") }
+        TextButton(onClick = onRetry) { Text(stringResource(Res.string.action_relocate)) }
     }
 }
 

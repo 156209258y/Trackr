@@ -23,11 +23,18 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.trackr.core.designsystem.resources.Res
+import com.trackr.core.designsystem.resources.action_relocate
 import com.trackr.core.designsystem.resources.ic_chevron_right
 import com.trackr.core.designsystem.theme.TrackrTheme
 import com.trackr.core.designsystem.theme.item
+import com.trackr.feature.bus.resources.Res as BusRes
+import com.trackr.feature.bus.resources.bus_nearby_empty
+import com.trackr.feature.bus.resources.bus_nearby_loading
+import com.trackr.feature.bus.resources.bus_nearby_stop_detail
+import com.trackr.feature.bus.resources.bus_nearby_title
 import com.trackr.ui.components.arrival.ArrivalTrailing
 import com.trackr.ui.components.arrival.LineBadge
+import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.resources.vectorResource
 
 /**
@@ -36,7 +43,7 @@ import org.jetbrains.compose.resources.vectorResource
  */
 internal fun LazyListScope.nearbySection(state: BusHomeUiState, onEvent: (BusHomeEvent) -> Unit) {
     item(key = "nearby_header", contentType = "section_header") {
-        SectionHeader(title = "附近", modifier = Modifier.testTag(BusHomeTags.NEARBY_HEADER))
+        SectionHeader(title = stringResource(BusRes.string.bus_nearby_title), modifier = Modifier.testTag(BusHomeTags.NEARBY_HEADER))
     }
 
     when {
@@ -46,8 +53,8 @@ internal fun LazyListScope.nearbySection(state: BusHomeUiState, onEvent: (BusHom
             }
         }
         state.nearbyCards.isEmpty() -> item(key = "nearby_empty", contentType = "empty_hint") {
-            EmptyHint(text = "附近 1 公里内没找到公交站") {
-                TextButton(onClick = { onEvent(BusHomeEvent.RetryLocation) }) { Text("重新定位") }
+            EmptyHint(text = stringResource(BusRes.string.bus_nearby_empty)) {
+                TextButton(onClick = { onEvent(BusHomeEvent.RetryLocation) }) { Text(stringResource(Res.string.action_relocate)) }
             }
         }
         else -> items(
@@ -102,13 +109,13 @@ private fun NearbyStopCard(
                 }
                 Icon(
                     imageVector = vectorResource(Res.drawable.ic_chevron_right),
-                    contentDescription = "站点详情",
+                    contentDescription = stringResource(BusRes.string.bus_nearby_stop_detail),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
             if (stop.lines.isEmpty()) {
                 Text(
-                    text = "正在查车…",
+                    text = stringResource(BusRes.string.bus_nearby_loading),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(start = dimens.cardPadding, bottom = dimens.spaceM)

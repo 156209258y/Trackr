@@ -20,11 +20,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.trackr.core.designsystem.resources.Res
+import com.trackr.core.designsystem.resources.action_end
 import com.trackr.core.designsystem.theme.TrackrTheme
 import com.trackr.core.designsystem.theme.eta
+import com.trackr.feature.bus.resources.Res as BusRes
+import com.trackr.feature.bus.resources.bus_tracking_more_lines
 import com.trackr.ui.components.arrival.ArrivalTrailing
 import com.trackr.ui.components.arrival.LineBadge
 import com.trackr.ui.components.arrival.arrivalToneColor
+import org.jetbrains.compose.resources.stringResource
 
 /**
  * 追踪卡（v3）：最先到的车放大；一起等的其他线排在下面，多了折叠成「还有 N 条」。
@@ -59,7 +64,7 @@ internal fun TrackingCard(
                     modifier = Modifier.weight(1f)
                 )
                 TextButton(onClick = onStop, modifier = Modifier.testTag(BusHomeTags.STOP_TRACKING)) {
-                    Text("结束", color = MaterialTheme.colorScheme.error)
+                    Text(stringResource(Res.string.action_end), color = MaterialTheme.colorScheme.error)
                 }
             }
             Column(modifier = Modifier.padding(end = dimens.spaceM)) {
@@ -82,7 +87,7 @@ internal fun TrackingCard(
                             onClick = { showFolded = true },
                             modifier = Modifier.testTag(BusHomeTags.WATCH_MORE)
                         ) {
-                            Text("还有 ${card.foldedLines.size} 条")
+                            Text(stringResource(BusRes.string.bus_tracking_more_lines, card.foldedLines.size))
                         }
                     }
                 }

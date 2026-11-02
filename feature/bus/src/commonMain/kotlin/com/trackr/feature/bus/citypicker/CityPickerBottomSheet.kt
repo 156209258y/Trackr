@@ -42,12 +42,27 @@ import com.trackr.core.designsystem.component.DataSourceBadge
 import com.trackr.core.designsystem.component.DataSourceBadgeStyle
 import com.trackr.core.designsystem.component.TrackrBottomSheet
 import com.trackr.core.designsystem.resources.Res
+import com.trackr.core.designsystem.resources.action_close
+import com.trackr.core.designsystem.resources.action_relocate
 import com.trackr.core.designsystem.resources.ic_close
 import com.trackr.core.designsystem.resources.ic_my_location
 import com.trackr.core.designsystem.resources.ic_search
 import com.trackr.core.model.DataSourceType
 import com.trackr.core.model.ProvinceCityCatalog
 import com.trackr.core.model.TransitCity
+import com.trackr.feature.bus.resources.Res as BusRes
+import com.trackr.feature.bus.resources.bus_city_clear
+import com.trackr.feature.bus.resources.bus_city_current
+import com.trackr.feature.bus.resources.bus_city_located
+import com.trackr.feature.bus.resources.bus_city_located_name
+import com.trackr.feature.bus.resources.bus_city_match_count
+import com.trackr.feature.bus.resources.bus_city_province_count
+import com.trackr.feature.bus.resources.bus_city_search
+import com.trackr.feature.bus.resources.bus_city_search_hint
+import com.trackr.feature.bus.resources.bus_city_selected_name
+import com.trackr.feature.bus.resources.bus_city_subtitle
+import com.trackr.feature.bus.resources.bus_city_title
+import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.resources.vectorResource
 
 /**
@@ -132,7 +147,7 @@ fun CityPickerItemRow(
                         color = MaterialTheme.colorScheme.primary
                     ) {
                         Text(
-                            text = "当前",
+                            text = stringResource(BusRes.string.bus_city_current),
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onPrimary,
@@ -146,7 +161,7 @@ fun CityPickerItemRow(
                         color = MaterialTheme.colorScheme.tertiaryContainer
                     ) {
                         Text(
-                            text = "定位",
+                            text = stringResource(BusRes.string.bus_city_located),
                             fontSize = 10.sp,
                             color = MaterialTheme.colorScheme.onTertiaryContainer,
                             modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
@@ -213,19 +228,19 @@ fun CityPickerBottomSheet(
             ) {
                 Column {
                     Text(
-                        text = "切换城市",
+                        text = stringResource(BusRes.string.bus_city_title),
                         style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
                         color = MaterialTheme.colorScheme.onSurface
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = "按 省 / 直辖市 分级快速查找全国 480+ 城市",
+                        text = stringResource(BusRes.string.bus_city_subtitle),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
                 IconButton(onClick = onDismiss) {
-                    Icon(imageVector = vectorResource(Res.drawable.ic_close), contentDescription = "关闭")
+                    Icon(imageVector = vectorResource(Res.drawable.ic_close), contentDescription = stringResource(Res.string.action_close))
                 }
             }
 
@@ -236,16 +251,16 @@ fun CityPickerBottomSheet(
                 value = searchQuery,
                 onValueChange = onSearchQueryChange,
                 modifier = Modifier.fillMaxWidth(),
-                placeholder = { Text("搜索城市中文名或拼音（如：玉林 / yulin）") },
+                placeholder = { Text(stringResource(BusRes.string.bus_city_search_hint)) },
                 singleLine = true,
                 shape = RoundedCornerShape(16.dp),
                 leadingIcon = {
-                    Icon(imageVector = vectorResource(Res.drawable.ic_search), contentDescription = "搜索")
+                    Icon(imageVector = vectorResource(Res.drawable.ic_search), contentDescription = stringResource(BusRes.string.bus_city_search))
                 },
                 trailingIcon = {
                     if (searchQuery.isNotEmpty()) {
                         IconButton(onClick = { onSearchQueryChange("") }) {
-                            Icon(imageVector = vectorResource(Res.drawable.ic_close), contentDescription = "清除")
+                            Icon(imageVector = vectorResource(Res.drawable.ic_close), contentDescription = stringResource(BusRes.string.bus_city_clear))
                         }
                     }
                 }
@@ -272,7 +287,7 @@ fun CityPickerBottomSheet(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "找到 ${matchingCities.size} 个相关城市",
+                        text = stringResource(BusRes.string.bus_city_match_count, matchingCities.size),
                         style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -333,7 +348,7 @@ fun CityPickerBottomSheet(
                             )
                             Spacer(modifier = Modifier.width(4.dp))
                             Text(
-                                text = if (locatedCity != null) "定位: ${locatedCity.cityName}" else "已选: ${currentCity.cityName}",
+                                text = if (locatedCity != null) stringResource(BusRes.string.bus_city_located_name, locatedCity.cityName) else stringResource(BusRes.string.bus_city_selected_name, currentCity.cityName),
                                 style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
                                 color = MaterialTheme.colorScheme.primary
                             )
@@ -359,7 +374,7 @@ fun CityPickerBottomSheet(
                             )
                             Spacer(modifier = Modifier.width(4.dp))
                             Text(
-                                text = "重新定位",
+                                text = stringResource(Res.string.action_relocate),
                                 style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium),
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -504,7 +519,7 @@ fun CityPickerBottomSheet(
                             .padding(start = 10.dp)
                     ) {
                         Text(
-                            text = "$activeProvince · 共 ${provinceCities.size} 城",
+                            text = stringResource(BusRes.string.bus_city_province_count, activeProvince, provinceCities.size),
                             style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(vertical = 6.dp, horizontal = 4.dp)

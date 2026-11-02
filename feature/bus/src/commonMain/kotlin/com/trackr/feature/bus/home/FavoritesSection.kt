@@ -25,11 +25,18 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.trackr.core.designsystem.resources.Res
+import com.trackr.core.designsystem.resources.action_edit
 import com.trackr.core.designsystem.resources.ic_chevron_right
 import com.trackr.core.designsystem.theme.TrackrTheme
 import com.trackr.core.designsystem.theme.item
+import com.trackr.feature.bus.resources.Res as BusRes
+import com.trackr.feature.bus.resources.bus_favorites_all
+import com.trackr.feature.bus.resources.bus_favorites_empty
+import com.trackr.feature.bus.resources.bus_favorites_group_empty
+import com.trackr.feature.bus.resources.bus_favorites_title
 import com.trackr.ui.components.arrival.ArrivalTrailing
 import com.trackr.ui.components.arrival.LineBadge
+import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.resources.vectorResource
 
 /**
@@ -41,13 +48,13 @@ internal fun LazyListScope.favoritesSection(state: BusHomeUiState, onEvent: (Bus
 
     item(key = "fav_header", contentType = "section_header") {
         SectionHeader(
-            title = "收藏",
+            title = stringResource(BusRes.string.bus_favorites_title),
             trailing = if (hasAny) {
                 {
                     TextButton(
                         onClick = { onEvent(BusHomeEvent.EditFavorites) },
                         modifier = Modifier.testTag(BusHomeTags.EDIT_FAVORITES)
-                    ) { Text("编辑") }
+                    ) { Text(stringResource(Res.string.action_edit)) }
                 }
             } else null
         )
@@ -63,9 +70,9 @@ internal fun LazyListScope.favoritesSection(state: BusHomeUiState, onEvent: (Bus
         item(key = "fav_empty", contentType = "empty_hint") {
             EmptyHint(
                 text = if (state.favoriteItems.isEmpty()) {
-                    "在线路页点 ☆，常坐的车会出现在这里"
+                    stringResource(BusRes.string.bus_favorites_empty)
                 } else {
-                    "这个分组还没有收藏"
+                    stringResource(BusRes.string.bus_favorites_group_empty)
                 }
             )
         }
@@ -101,7 +108,7 @@ private fun GroupChips(state: BusHomeUiState, onSelect: (String?) -> Unit) {
         FilterChip(
             selected = state.selectedGroupId == null,
             onClick = { onSelect(null) },
-            label = { Text("全部") },
+            label = { Text(stringResource(BusRes.string.bus_favorites_all)) },
             modifier = Modifier.testTag(BusHomeTags.groupChip(null))
         )
         state.favoriteGroups.forEach { group ->
