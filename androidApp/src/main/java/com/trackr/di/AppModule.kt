@@ -44,6 +44,7 @@ import com.trackr.service.ArrivalAlertNotifier
 import com.trackr.service.LiveProgressNotifier
 import com.trackr.util.ReminderAlarmScheduler
 import com.trackr.util.ReminderScheduleState
+import com.trackr.widget.BusStopWidgetUpdater
 import com.trackr.widget.FavoritesShortcutWidgetSync
 import io.ktor.client.HttpClient
 import kotlinx.coroutines.CoroutineScope
@@ -119,6 +120,8 @@ val appModule: Module = module {
 
     // 收藏真变了才同步桌面快捷方式和小组件（原来挂在 MainActivity 的组合里）
     single { FavoritesShortcutWidgetSync(androidContext(), get(), get(AppScopeQualifier)) }
+    // 桌面小组件取数（第 26 步）：所有实例共用一次请求，走 RealtimeRepository 的合并缓存
+    single { BusStopWidgetUpdater(favoritesRepository = get(), realtime = get()) }
 
     // 原来是 object 的有状态组件，改成类后由 Koin 提供唯一实例
     single {

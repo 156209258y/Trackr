@@ -103,8 +103,8 @@
             android:name=".widget.BusStopWidgetProvider"
             android:exported="true"
             android:label="@string/widget_name">
-            <!-- 只放系统小组件广播。刷新按钮发的是显式 PendingIntent（BusStopWidgetProvider.ACTION_WIDGET_REFRESH），
-                 不放进导出的 filter，别的 App 不能隐式触发网络刷新（S2，第 18 步） -->
+            <!-- 只放系统小组件广播。第 26 步迁 Glance 后类名不变（旧小组件升级后继续由它接管）；
+                 刷新按钮走 Glance 不导出的动作 receiver，别的 App 不能触发网络刷新（S2） -->
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
             </intent-filter>

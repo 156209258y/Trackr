@@ -24,8 +24,8 @@ class FavoritesShortcutWidgetSync(
     private val appScope: CoroutineScope,
     /** 刷新快捷方式和小组件用的线程；测试可替换 */
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
-    /** 收藏变了以后做什么；默认刷新快捷方式和小组件，测试可替换 */
-    private val onFavoritesChanged: (Context, List<FavoriteStationLine>) -> Unit = { ctx, favorites ->
+    /** 收藏变了以后做什么；默认刷新快捷方式和小组件（小组件按新收藏重画再取数），测试可替换 */
+    private val onFavoritesChanged: suspend (Context, List<FavoriteStationLine>) -> Unit = { ctx, favorites ->
         BusStopWidgetProvider.updateDynamicShortcuts(ctx, favorites)
         BusStopWidgetProvider.triggerRefresh(ctx)
     }

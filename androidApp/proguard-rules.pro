@@ -59,3 +59,7 @@
 # 该模块未打进一体化包，属于「可选依赖缺失」，忽略即可
 -dontwarn com.amap.ams.**
 
+
+# --- Glance 小组件（第 26 步）---
+# RunCallbackAction 用无参构造反射创建 ActionCallback
+-keep class * implements androidx.glance.appwidget.action.ActionCallback { public <init>(); }

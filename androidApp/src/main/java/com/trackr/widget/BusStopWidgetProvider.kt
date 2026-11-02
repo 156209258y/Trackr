@@ -1,245 +1,63 @@
 package com.trackr.widget
 
-import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
-import android.appwidget.AppWidgetProvider
-import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.os.Build
-import android.view.View
-import android.widget.RemoteViews
 import androidx.core.content.pm.ShortcutInfoCompat
 import androidx.core.content.pm.ShortcutManagerCompat
 import androidx.core.graphics.drawable.IconCompat
-import com.trackr.MainActivity
-import com.trackr.R
-import com.trackr.core.domain.arrival.ArrivalState
-import com.trackr.core.domain.arrival.ArrivalText
-import com.trackr.core.model.BusLineDetail
+import androidx.glance.appwidget.GlanceAppWidget
+import androidx.glance.appwidget.GlanceAppWidgetReceiver
+import androidx.glance.appwidget.updateAll
 import com.trackr.core.model.FavoriteStationLine
-import com.trackr.core.model.TransitCity
 import com.trackr.core.navigation.deeplink.DeepLinkUris
-import com.trackr.data.repository.ITransitRepository
 import com.trackr.deeplink.DeepLinkIntents
-import com.trackr.di.AppScopeQualifier
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withTimeoutOrNull
-import org.koin.core.component.KoinComponent
-import org.koin.core.component.inject
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 
-class BusStopWidgetProvider : AppWidgetProvider(), KoinComponent {
+/**
+ * 桌面小组件的 receiver。第 26 步迁 Glance：类名、Manifest 里的声明和 `bus_stop_widget_info.xml` 都不变，
+ * 升级前已经加到桌面上的小组件继续由它接管（R9）。界面见 [BusStopWidget]，取数见 [BusStopWidgetUpdater]。
+ */
+class BusStopWidgetProvider : GlanceAppWidgetReceiver() {
 
-    private val transitRepository: ITransitRepository by inject()
+    override val glanceAppWidget: GlanceAppWidget = BusStopWidget()
 
-    /** 应用级作用域：BroadcastReceiver 实例每次广播都会重建，不能把作用域放在实例字段里 */
-    private val appScope: CoroutineScope by inject(AppScopeQualifier)
-
-    override fun onUpdate(
-        context: Context,
-        appWidgetManager: AppWidgetManager,
-        appWidgetIds: IntArray
-    ) {
+    /** 添加 / 系统更新：Glance 先按已存状态画出基础布局，再排一次刷新取数；周期刷新已排上就不动 */
+    override fun onUpdate(context: Context, appWidgetManager: AppWidgetManager, appWidgetIds: IntArray) {
         super.onUpdate(context, appWidgetManager, appWidgetIds)
-        updateAppWidgets(context, appWidgetManager, appWidgetIds)
+        BusStopWidgetWorker.schedulePeriodic(context)
+        BusStopWidgetWorker.refreshNow(context)
     }
 
+    /**
+     * 升级前桌面上的旧 RemoteViews 刷新按钮发的是 [ACTION_WIDGET_REFRESH] 显式广播；
+     * 第一次 onUpdate 重画成 Glance 之前点它也要能刷新。
+     */
     override fun onReceive(context: Context, intent: Intent) {
         super.onReceive(context, intent)
-        if (intent.action == ACTION_WIDGET_REFRESH) {
-            val appWidgetManager = AppWidgetManager.getInstance(context)
-            val componentName = ComponentName(context, BusStopWidgetProvider::class.java)
-            val appWidgetIds = appWidgetManager.getAppWidgetIds(componentName)
-            updateAppWidgets(context, appWidgetManager, appWidgetIds)
-        }
+        if (intent.action == ACTION_WIDGET_REFRESH) BusStopWidgetWorker.refreshNow(context)
     }
 
-    /**
-     * 刷新全部小组件实例：所有实例展示同一条收藏，只请求一次实时数据再分发给各实例。
-     * 使用 goAsync() 让广播在后台请求完成前保持存活，并以 [FETCH_TIMEOUT_MS] 兜底，确保在系统 10 秒限制内结束。
-     */
-    private fun updateAppWidgets(
-        context: Context,
-        appWidgetManager: AppWidgetManager,
-        appWidgetIds: IntArray?
-    ) {
-        if (appWidgetIds == null || appWidgetIds.isEmpty()) return
-        try {
-            val repository = try { transitRepository } catch (e: Exception) { null }
-            val favorites = repository?.favorites?.value.orEmpty()
-            val favorite = favorites.firstOrNull()
-
-            // 1. 同步构建并立即推送初始视图，确保启动器在添加微件瞬间获得有效布局，避免出现超时或空白
-            for (appWidgetId in appWidgetIds) {
-                appWidgetManager.updateAppWidget(appWidgetId, buildBaseRemoteViews(context, appWidgetId, favorite))
-            }
-
-            // 2. 如果存在收藏，后台拉取一次实时到站并更新所有实例
-            if (favorite == null || repository == null) return
-            val pendingResult = goAsync()
-            appScope.launch(Dispatchers.IO) {
-                try {
-                    val (etaText, progressPercent) = try {
-                        val city = TransitCity(
-                            cityId = favorite.cityId,
-                            cityName = favorite.cityName,
-                            mygolbsCityCode = favorite.mygolbsCityCode.takeIf { it.isNotBlank() }
-                        )
-                        val detail = withTimeoutOrNull(FETCH_TIMEOUT_MS) {
-                            repository.getLineDetail(
-                                city = city,
-                                lineId = favorite.lineId,
-                                targetOrder = favorite.targetOrder,
-                                stationId = favorite.targetStopId,
-                                source = favorite.source,
-                                lineNameHint = favorite.lineName,
-                                directionHint = favorite.direction
-                            ).getOrNull()
-                        }
-                        buildEta(favorite, detail)
-                    } catch (e: CancellationException) {
-                        throw e
-                    } catch (e: Exception) {
-                        "网络连接异常，点击刷新" to null
-                    }
-
-                    for (appWidgetId in appWidgetIds) {
-                        val updatedViews = buildBaseRemoteViews(context, appWidgetId, favorite)
-                        updatedViews.setTextViewText(R.id.widget_eta_large, etaText)
-                        if (progressPercent != null) {
-                            updatedViews.setProgressBar(R.id.widget_progress_bar, 100, progressPercent, false)
-                        }
-                        appWidgetManager.updateAppWidget(appWidgetId, updatedViews)
-                    }
-                } catch (e: Exception) {
-                    e.printStackTrace()
-                } finally {
-                    pendingResult.finish()
-                }
-            }
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
-    }
-
-    /**
-     * 根据线路详情计算小组件主文案与进度（进度为 null 表示保持默认）。
-     * 最近车按 order + segmentProgress 选取，与其他页面口径一致。
-     */
-    private fun buildEta(favorite: FavoriteStationLine, detail: BusLineDetail?): Pair<String, Int?> {
-        if (detail == null) return "点击刷新同步数据" to 0
-
-        // 到站文字走 ArrivalText（「到站了」按 ArrivalRules 判；车都过了只给下一班始发时间）
-        val line = detail.line
-        val state = ArrivalText.stateFor(
-            targetOrder = favorite.targetOrder,
-            buses = detail.buses,
-            operatingState = detail.operatingState,
-            startStop = line.startStop,
-            firstTime = line.firstTime,
-            lastTime = line.lastTime,
-            nextDeparture = detail.nextDepartureFromStart,
-            statusDescription = detail.statusDescription,
-            now = ArrivalText.localTimeOf(detail.updatedAtMillis)
-        )
-        val text = ArrivalText.format(state).short
-        val nearestBus = ArrivalText.nearestBus(favorite.targetOrder, detail.buses)
-        val progress = when {
-            state is ArrivalState.Arriving -> 100
-            nearestBus == null -> 0
-            favorite.targetOrder - nearestBus.order <= 0 -> 92
-            else -> {
-                val totalToTarget = favorite.targetOrder.coerceAtLeast(1)
-                val currentSegment = (nearestBus.order - 1).coerceAtLeast(0) + nearestBus.segmentProgress
-                ((currentSegment / totalToTarget) * 100).toInt().coerceIn(5, 95)
-            }
-        }
-        return text to progress
-    }
-
-    private fun buildBaseRemoteViews(
-        context: Context,
-        appWidgetId: Int,
-        favorite: FavoriteStationLine?
-    ): RemoteViews {
-        val views = RemoteViews(context.packageName, R.layout.widget_bus_stop)
-
-        // 点击小组件主视图：有收藏就打开它的线路详情（trackr://line），没有就只打开应用
-        val mainIntent = if (favorite != null) {
-            DeepLinkIntents.activityIntent(context, favorite.lineDetailLink())
-        } else {
-            Intent(context, MainActivity::class.java)
-        }.apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-        }
-        val mainPendingIntent = PendingIntent.getActivity(
-            context,
-            appWidgetId,
-            mainIntent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-        views.setOnClickPendingIntent(R.id.widget_root, mainPendingIntent)
-
-        // 绑定右上角刷新按钮：显式指向本 receiver（这个 action 不在 Manifest 的导出 filter 里，S2）
-        val refreshIntent = Intent(context, BusStopWidgetProvider::class.java).apply {
-            action = ACTION_WIDGET_REFRESH
-        }
-        val refreshPendingIntent = PendingIntent.getBroadcast(
-            context,
-            appWidgetId,
-            refreshIntent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-        views.setOnClickPendingIntent(R.id.widget_btn_refresh, refreshPendingIntent)
-
-        val timeFormat = SimpleDateFormat("HH:mm", Locale.getDefault())
-        views.setTextViewText(R.id.widget_updated_time, timeFormat.format(Date()))
-
-        if (favorite == null) {
-            views.setViewVisibility(R.id.widget_empty_view, View.VISIBLE)
-            views.setViewVisibility(R.id.widget_content_view, View.GONE)
-        } else {
-            views.setViewVisibility(R.id.widget_empty_view, View.GONE)
-            views.setViewVisibility(R.id.widget_content_view, View.VISIBLE)
-
-            views.setTextViewText(R.id.widget_line_name, favorite.lineName)
-            views.setTextViewText(R.id.widget_city_tag, "${favorite.cityName} · ${favorite.source.displayName}")
-            views.setTextViewText(R.id.widget_direction, "开往 ${favorite.endStop}")
-            views.setTextViewText(R.id.widget_stop_name, "候车站: ${favorite.targetStopName}")
-            views.setTextViewText(R.id.widget_eta_large, "查询中…")
-            views.setProgressBar(R.id.widget_progress_bar, 100, 0, false)
-        }
-
-        return views
+    override fun onDisabled(context: Context) {
+        super.onDisabled(context)
+        BusStopWidgetWorker.cancel(context)
     }
 
     companion object {
-        /** 刷新按钮 / [triggerRefresh] 用的显式广播 action。不放进 Manifest 的导出 filter（S2），别的 App 不能隐式触发 */
+        /** 旧 RemoteViews 刷新按钮的显式广播 action（不在 Manifest 的导出 filter 里，S2）；只为升级过渡保留 */
         const val ACTION_WIDGET_REFRESH = "com.trackr.action.WIDGET_REFRESH"
 
-        /** 实时请求超时：goAsync 的广播需在 10 秒内 finish，留出更新视图的余量 */
-        private const val FETCH_TIMEOUT_MS = 7_000L
-
         /**
-         * 触发所有桌面小组件刷新
+         * 收藏变了：马上按新收藏重画（updateAll），再排一次刷新取数。桌面上没有小组件时什么都不做。
          */
-        fun triggerRefresh(context: Context) {
+        suspend fun triggerRefresh(context: Context) {
             try {
-                val appWidgetManager = AppWidgetManager.getInstance(context)
-                val componentName = ComponentName(context, BusStopWidgetProvider::class.java)
-                val appWidgetIds = appWidgetManager.getAppWidgetIds(componentName)
-                if (appWidgetIds != null && appWidgetIds.isNotEmpty()) {
-                    val intent = Intent(context, BusStopWidgetProvider::class.java).apply {
-                        action = ACTION_WIDGET_REFRESH
-                    }
-                    context.sendBroadcast(intent)
-                }
+                if (BusStopWidget.glanceIds(context).isEmpty()) return
+                BusStopWidget().updateAll(context)
+                BusStopWidgetWorker.refreshNow(context)
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 e.printStackTrace()
             }
