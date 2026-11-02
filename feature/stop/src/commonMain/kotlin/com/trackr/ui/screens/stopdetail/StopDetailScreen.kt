@@ -53,11 +53,33 @@ import androidx.compose.ui.unit.dp
 import androidx.navigationevent.NavigationEventInfo
 import androidx.navigationevent.compose.NavigationBackHandler
 import androidx.navigationevent.compose.rememberNavigationEventState
+import com.trackr.core.designsystem.resources.Res
+import com.trackr.core.designsystem.resources.action_back
+import com.trackr.core.designsystem.resources.action_boarded
+import com.trackr.core.designsystem.resources.action_end
+import com.trackr.core.designsystem.resources.action_favorite
+import com.trackr.core.designsystem.resources.action_retry
+import com.trackr.core.designsystem.resources.action_unfavorite
+import com.trackr.core.designsystem.resources.transit_code
 import com.trackr.core.designsystem.theme.TrackrTheme
 import com.trackr.core.domain.arrival.ArrivalDisplay
 import com.trackr.core.domain.arrival.ArrivalTone
+import com.trackr.feature.stop.resources.Res as StopRes
+import com.trackr.feature.stop.resources.stop_add_line
+import com.trackr.feature.stop.resources.stop_boarded_kicker
+import com.trackr.feature.stop.resources.stop_exit_select
+import com.trackr.feature.stop.resources.stop_first_arrives
+import com.trackr.feature.stop.resources.stop_loading
+import com.trackr.feature.stop.resources.stop_no_lines
+import com.trackr.feature.stop.resources.stop_pick_lines
+import com.trackr.feature.stop.resources.stop_select_hint
+import com.trackr.feature.stop.resources.stop_selected_count
+import com.trackr.feature.stop.resources.stop_watch_count
+import com.trackr.feature.stop.resources.stop_watch_hint
+import com.trackr.feature.stop.resources.stop_watch_these
 import com.trackr.ui.components.transitcode.TransitCodeChooserSheet
 import com.trackr.ui.icons.TrackrIcons
+import org.jetbrains.compose.resources.stringResource
 
 /**
  * 站点详情（第 21 步，v3）：无状态，只读 [state]、只发 [StopDetailEvent]。三种样子：
@@ -98,7 +120,7 @@ fun StopDetailScreen(
                 CircularProgressIndicator()
                 Spacer(Modifier.height(16.dp))
                 Text(
-                    "正在查站点的线路和来车…",
+                    stringResource(StopRes.string.stop_loading),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -107,7 +129,7 @@ fun StopDetailScreen(
             state.errorMessage != null && state.stops.isEmpty() -> CenterMessage(contentPadding) {
                 Text(state.errorMessage, style = MaterialTheme.typography.bodyLarge)
                 Spacer(Modifier.height(16.dp))
-                Button(onClick = { onEvent(StopDetailEvent.Retry) }) { Text("重试") }
+                Button(onClick = { onEvent(StopDetailEvent.Retry) }) { Text(stringResource(Res.string.action_retry)) }
             }
 
             else -> PullToRefreshBox(
@@ -145,9 +167,9 @@ fun StopDetailScreen(
 @Composable
 private fun StopDetailTopBar(state: StopDetailUiState, watch: WatchTogetherUi?, onEvent: (StopDetailEvent) -> Unit) {
     val (title, subtitle) = when {
-        state.selecting -> "已选 ${state.selectedLineKeys.size} 条" to
+        state.selecting -> stringResource(StopRes.string.stop_selected_count, state.selectedLineKeys.size) to
             listOf(state.stopName, state.selectedPlatformLabel).filter { it.isNotBlank() }.joinToString(" · ")
-        watch != null -> state.stopName to "一起等 ${watch.lineCount} 条"
+        watch != null -> state.stopName to stringResource(StopRes.string.stop_watch_count, watch.lineCount)
         else -> state.stopName to state.subtitle
     }
     TopAppBar(
@@ -173,11 +195,11 @@ private fun StopDetailTopBar(state: StopDetailUiState, watch: WatchTogetherUi?, 
         navigationIcon = {
             if (state.selecting) {
                 IconButton(onClick = { onEvent(StopDetailEvent.CancelSelecting) }) {
-                    Icon(TrackrIcons.Close, contentDescription = "退出选线")
+                    Icon(TrackrIcons.Close, contentDescription = stringResource(StopRes.string.stop_exit_select))
                 }
             } else {
                 IconButton(onClick = { onEvent(StopDetailEvent.Back) }) {
-                    Icon(TrackrIcons.Back, contentDescription = "返回")
+                    Icon(TrackrIcons.Back, contentDescription = stringResource(Res.string.action_back))
                 }
             }
         }
@@ -207,7 +229,7 @@ private fun StopDetailBottomBar(state: StopDetailUiState, watch: WatchTogetherUi
                     ) {
                         Icon(TrackrIcons.Star, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(6.dp))
-                        Text("收藏")
+                        Text(stringResource(Res.string.action_favorite))
                     }
                     Button(
                         onClick = { onEvent(StopDetailEvent.StartWatching) },
@@ -216,7 +238,7 @@ private fun StopDetailBottomBar(state: StopDetailUiState, watch: WatchTogetherUi
                     ) {
                         Icon(TrackrIcons.Play, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(6.dp))
-                        Text("一起等这 $count 条")
+                        Text(stringResource(StopRes.string.stop_watch_these, count))
                     }
                 }
 
@@ -228,7 +250,7 @@ private fun StopDetailBottomBar(state: StopDetailUiState, watch: WatchTogetherUi
                         ) {
                             Icon(TrackrIcons.Check, contentDescription = null, modifier = Modifier.size(18.dp))
                             Spacer(Modifier.width(6.dp))
-                            Text("我上车了")
+                            Text(stringResource(Res.string.action_boarded))
                         }
                     }
                     TextButton(
@@ -237,7 +259,7 @@ private fun StopDetailBottomBar(state: StopDetailUiState, watch: WatchTogetherUi
                             .then(if (watch.isOnBoard) Modifier.weight(1f) else Modifier)
                             .heightIn(min = 48.dp)
                     ) {
-                        Text("结束", color = MaterialTheme.colorScheme.error)
+                        Text(stringResource(Res.string.action_end), color = MaterialTheme.colorScheme.error)
                     }
                     TransitCodeButton(onEvent)
                 }
@@ -249,7 +271,7 @@ private fun StopDetailBottomBar(state: StopDetailUiState, watch: WatchTogetherUi
                     ) {
                         Icon(TrackrIcons.Check, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(6.dp))
-                        Text("选几条一起等")
+                        Text(stringResource(StopRes.string.stop_pick_lines))
                     }
                     TransitCodeButton(onEvent)
                 }
@@ -265,7 +287,7 @@ private fun TransitCodeButton(onEvent: (StopDetailEvent) -> Unit) {
         onClick = { onEvent(StopDetailEvent.OpenTransitCode) },
         modifier = Modifier.size(48.dp)
     ) {
-        Icon(TrackrIcons.Qr, contentDescription = "乘车码")
+        Icon(TrackrIcons.Qr, contentDescription = stringResource(Res.string.transit_code))
     }
 }
 
@@ -280,7 +302,7 @@ private fun LazyListScope.lineItems(state: StopDetailUiState, onEvent: (StopDeta
     if (state.rows.isEmpty()) {
         item(key = "empty", contentType = "empty") {
             Text(
-                "这个站台暂时没有实时线路",
+                stringResource(StopRes.string.stop_no_lines),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.fillMaxWidth().padding(vertical = 40.dp)
@@ -298,7 +320,7 @@ private fun LazyListScope.lineItems(state: StopDetailUiState, onEvent: (StopDeta
     }
     if (state.selecting) {
         item(key = "select_hint", contentType = "hint") {
-            Hint("勾上的线会一起追踪，谁先到就提醒谁。想等几条就勾几条。")
+            Hint(stringResource(StopRes.string.stop_select_hint))
         }
     } else {
         state.transferText?.let { text ->
@@ -382,7 +404,7 @@ private fun StopLineRow(
                 ) {
                     Icon(
                         imageVector = if (row.isFavorite) TrackrIcons.StarFilled else TrackrIcons.Star,
-                        contentDescription = if (row.isFavorite) "取消收藏" else "收藏",
+                        contentDescription = if (row.isFavorite) stringResource(Res.string.action_unfavorite) else stringResource(Res.string.action_favorite),
                         tint = if (row.isFavorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
@@ -396,7 +418,7 @@ private fun StopLineRow(
 private fun LazyListScope.watchItems(watch: WatchTogetherUi, onEvent: (StopDetailEvent) -> Unit) {
     if (watch.isOnBoard) {
         item(key = "watch_boarded", contentType = "watch_hero") {
-            HeroCard(kicker = "只追坐上的这辆", big = watch.boardedTitle, unit = null, detail = watch.boardedDetail)
+            HeroCard(kicker = stringResource(StopRes.string.stop_boarded_kicker), big = watch.boardedTitle, unit = null, detail = watch.boardedDetail)
         }
         return
     }
@@ -404,7 +426,7 @@ private fun LazyListScope.watchItems(watch: WatchTogetherUi, onEvent: (StopDetai
     if (first != null) {
         item(key = "watch_hero", contentType = "watch_hero") {
             HeroCard(
-                kicker = "${first.lineName} 先到",
+                kicker = stringResource(StopRes.string.stop_first_arrives, first.lineName),
                 big = first.arrival.value,
                 unit = first.arrival.unit,
                 detail = first.detail.ifBlank { first.arrival.detail }
@@ -425,11 +447,11 @@ private fun LazyListScope.watchItems(watch: WatchTogetherUi, onEvent: (StopDetai
         ) {
             Icon(TrackrIcons.Plus, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
             Spacer(Modifier.width(12.dp))
-            Text("再加一条", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodyLarge)
+            Text(stringResource(StopRes.string.stop_add_line), color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodyLarge)
         }
     }
     item(key = "watch_hint", contentType = "hint") {
-        Hint("谁先到，谁排第一、放大显示。点「我上车了」就认定是此刻在站的那辆，其他线停止追踪，开始提醒下车。")
+        Hint(stringResource(StopRes.string.stop_watch_hint))
     }
 }
 

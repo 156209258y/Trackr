@@ -19,13 +19,17 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.trackr.feature.stop.resources.Res as StopRes
+import com.trackr.feature.stop.resources.stop_choose_title
+import com.trackr.feature.stop.resources.stop_not_yet
 import com.trackr.ui.icons.TrackrIcons
+import org.jetbrains.compose.resources.stringResource
 
 /**
  * 「上了哪辆？」（§2.6 第 ④ 条）：点「我上车了」时不同线的车同时在站、定位又分不清才有。
@@ -60,7 +64,7 @@ fun ChooseBoardedBusContent(
 ) {
     Column(modifier = modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 16.dp)) {
         Text(
-            text = "上了哪辆？",
+            text = stringResource(StopRes.string.stop_choose_title),
             style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.SemiBold),
             color = MaterialTheme.colorScheme.onSurface
         )
@@ -118,7 +122,7 @@ fun ChooseBoardedBusContent(
             onClick = { onChoose(null) },
             modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
         ) {
-            Text("还没上", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(stringResource(StopRes.string.stop_not_yet), color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
