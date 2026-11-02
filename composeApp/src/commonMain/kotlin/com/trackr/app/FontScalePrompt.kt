@@ -25,7 +25,7 @@ internal fun FontScalePrompt(
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("字太小看不清？") },
-        text = { Text("试试长辈版：字更大，按钮更大。之后在「我的」里随时开关。") },
+        text = { Text("试试长辈版：字更大，按钮更大，还能读给你听。之后在「我的」里随时开关。") },
         confirmButton = {
             TextButton(onClick = onEnableElder) { Text("打开长辈版") }
         },

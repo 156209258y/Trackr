@@ -60,6 +60,8 @@ class FontScalePromptTest {
         composeTestRule.setContent { Shell(viewModel, fontScale = 1.5f) }
 
         composeTestRule.onNodeWithText(title).assertExists()
+        // 第 33 步有了朗读，文案加回「还能读给你听」（设计稿「开启入口」）
+        composeTestRule.onNodeWithText("还能读给你听", substring = true).assertExists()
         composeTestRule.onNodeWithText("先不用").performClick()
         composeTestRule.waitForIdle()
 
