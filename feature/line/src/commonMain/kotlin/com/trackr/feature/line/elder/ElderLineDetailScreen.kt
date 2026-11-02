@@ -30,6 +30,8 @@ import androidx.navigationevent.compose.NavigationBackHandler
 import androidx.navigationevent.compose.rememberNavigationEventState
 import com.trackr.core.designsystem.component.FullscreenErrorView
 import com.trackr.core.designsystem.component.FullscreenLoadingView
+import com.trackr.core.designsystem.resources.Res
+import com.trackr.core.designsystem.resources.action_retry
 import com.trackr.core.designsystem.theme.TrackrTheme
 import com.trackr.core.domain.arrival.ArrivalState
 import com.trackr.core.domain.arrival.ArrivalText
@@ -208,6 +210,16 @@ private fun ElderLineContent(
                 ),
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+
+        // 刷新出错（已有旧数据）：一句话 +「重试」，不用标准版那条小字错误条
+        state.errorMessage?.let { error ->
+            Text(text = error, style = MaterialTheme.typography.bodyLarge, color = TrackrTheme.colors.warn)
+            ElderButton(
+                text = stringResource(Res.string.action_retry),
+                onClick = { onEvent(LineDetailEvent.Refresh(fromPull = false)) },
+                modifier = Modifier.fillMaxWidth()
             )
         }
 

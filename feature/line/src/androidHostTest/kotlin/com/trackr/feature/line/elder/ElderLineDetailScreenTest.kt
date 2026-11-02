@@ -174,6 +174,14 @@ class ElderLineDetailScreenTest {
     }
 
     @Test
+    fun refreshError_showsRetry() {
+        setContent(stateOf().copy(errorMessage = "网络不太好，没刷出来"))
+        composeTestRule.onNodeWithText("网络不太好，没刷出来").assertIsDisplayed()
+        composeTestRule.onNodeWithText("重试").performClick()
+        assertEquals(LineDetailEvent.Refresh(fromPull = false), events.last())
+    }
+
+    @Test
     fun alertDisabled_untilLiveDataArrives() {
         setContent(stateOf().copy(live = null))
         composeTestRule.onNodeWithText("正在查车…").assertIsDisplayed()
