@@ -3,9 +3,7 @@ package com.trackr.ui
 import android.app.Application
 import android.graphics.Bitmap
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.test.captureToImage
@@ -714,8 +712,7 @@ class ScreenshotGeneratorTest {
                 Surface(modifier = Modifier.fillMaxSize()) {
                     StopDetailScreen(
                         state = vm.uiState.value,
-                        onEvent = {},
-                        snackbarHostState = remember { SnackbarHostState() }
+                        onEvent = {}
                     )
                 }
             }
