@@ -150,8 +150,12 @@ dependencies {
     implementation(platform(libs.koin.bom))
     implementation(libs.koin.android)
     implementation(libs.koin.compose.viewmodel)
+    // 第 26 步：桌面小组件迁 Glance，周期刷新走 WorkManager
+    implementation(libs.androidx.glance.appwidget)
+    implementation(libs.androidx.work.runtime.ktx)
 
     testImplementation(libs.junit)
+    testImplementation(libs.androidx.glance.appwidget.testing)
     testImplementation(project(":core:testing"))
     // 第 17 步：页面和 ViewModel 搬进了功能模块；截图测试、Koin 图校验要直接用它们（只在测试里，正式代码只依赖 :composeApp）
     testImplementation(project(":feature:bus"))
