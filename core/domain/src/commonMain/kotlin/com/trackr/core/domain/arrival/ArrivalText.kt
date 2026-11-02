@@ -209,7 +209,7 @@ object ArrivalText {
 
     /**
      * 「读给我听」的整句（长辈版设计稿「朗读的句子」）：和屏幕大字同一套状态，时刻读成「7点20分」，
-     * 站名补「站」字，如「325路，开往科技园，还有 2 站，大约 4 分钟到科技园站」。
+     * 线路号补「路」、站名补「站」，如「325路，开往科技园，还有 2 站，大约 4 分钟到科技园站」。
      *
      * @param lineName 线路名
      * @param stopName 候车站名
@@ -226,7 +226,7 @@ object ArrivalText {
      */
     fun format(state: ArrivalState, lineName: String = "", stopName: String = "", towards: String = ""): ArrivalDisplay {
         val who = listOfNotNull(
-            lineName.trim().takeIf { it.isNotEmpty() },
+            lineName.trim().takeIf { it.isNotEmpty() }?.let(::spokenLine),
             towards.trim().takeIf { it.isNotEmpty() }?.let { "开往$it" }
         ).joinToString("") { "$it，" }
         val toStop = stopName.trim().takeIf { it.isNotEmpty() }?.let { "到${spokenStop(it)}" }.orEmpty()
@@ -401,6 +401,9 @@ object ArrivalText {
             )
         }
     }
+
+    /** 朗读用的线路名：数字结尾的补「路」（「325」读成「325路」，「M194」读成「M194路」，「地铁1号线」不动） */
+    private fun spokenLine(name: String): String = if (name.last().isDigit()) "${name}路" else name
 
     /** 朗读用的站名：不以「站」结尾就补上（「科技园」读成「科技园站」） */
     private fun spokenStop(name: String): String = if (name.endsWith("站")) name else "${name}站"

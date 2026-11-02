@@ -345,6 +345,10 @@ class ArrivalTextTest {
         assertEquals("还有 2 站，大约 4 分钟到站", ArrivalText.spoken(ArrivalState.OnTheWay(2, 4)))
         assertEquals("车到深大地铁站了，快去上车", ArrivalText.spoken(ArrivalState.Arriving(), stopName = "深大地铁站"))
         assertEquals("325路，车到站了，快去上车", ArrivalText.spoken(ArrivalState.Arriving(), lineName = "325路"))
+        // 数字结尾的线路号补「路」
+        assertEquals("325路，车到站了，快去上车", ArrivalText.spoken(ArrivalState.Arriving(), lineName = "325"))
+        assertEquals("M194路，车到站了，快去上车", ArrivalText.spoken(ArrivalState.Arriving(), lineName = "M194"))
+        assertEquals("地铁1号线，车到站了，快去上车", ArrivalText.spoken(ArrivalState.Arriving(), lineName = "地铁1号线"))
         // 屏幕上的字不受 towards 影响
         val plain = ArrivalText.format(ArrivalState.OnTheWay(2, 4))
         val withTowards = ArrivalText.format(ArrivalState.OnTheWay(2, 4), towards = "科技园")
