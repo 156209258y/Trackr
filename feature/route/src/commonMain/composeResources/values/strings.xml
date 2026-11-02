@@ -37,9 +37,9 @@
     <string name="route_detail_line_name">线路名</string>
     <string name="route_detail_save_title">收藏路线</string>
     <string name="route_detail_save_name">名字</string>
-    <string name="route_plan_loading">正在规划最佳公交出行方案…</string>
+    <string name="route_plan_loading">正在规划公交路线…</string>
     <string name="route_plan_retry">重新规划</string>
-    <string name="route_plan_empty">输入起点与终点，开启全城公交换乘与多线直达规划</string>
+    <string name="route_plan_empty">输入起点和终点，看坐哪几路车、在哪换乘</string>
     <string name="route_plan_from_hint">我的位置 / 输入起点站</string>
     <string name="route_plan_clear_from">清空起点</string>
     <string name="route_plan_to_hint">输入目的地、商圈或公交地铁站</string>
@@ -48,7 +48,7 @@
     <string name="route_plan_go">规划</string>
     <string name="route_save_title">存入收藏</string>
     <string name="route_save_scheme">方案：%1$s (约 %2$s 分钟)</string>
-    <string name="route_save_pick_group">选择所属收藏分组：</string>
+    <string name="route_save_pick_group">放到哪个分组：</string>
     <string name="route_save_all">全部</string>
     <string name="route_save_new_group">新建自定义分组</string>
     <string name="route_save_new_group_hint">输入新分组名 (如: 周末出行)</string>

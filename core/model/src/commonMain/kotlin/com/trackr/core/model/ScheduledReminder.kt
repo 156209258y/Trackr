@@ -3,7 +3,7 @@ package com.trackr.core.model
 import kotlinx.serialization.Serializable
 
 /**
- * 用户设定的定时通勤提醒配置
+ * 用户设定的定时提醒配置
  */
 @Serializable
 data class ScheduledReminder(
@@ -24,7 +24,7 @@ data class ScheduledReminder(
     val totalStops: Int = targetOrder,
     val dataSourceType: DataSourceType = DataSourceType.CHELAILE,
     val mygolbsCityCode: String? = null,
-    val autoStartLiveTracking: Boolean = false             // 到点是否直接开启常驻前台跟车
+    val autoStartLiveTracking: Boolean = false             // 到点是否直接开始追踪（前台服务）
 ) {
     val isOneTime: Boolean
         get() = daysOfWeek.isEmpty()

@@ -31,11 +31,11 @@ internal object GroupLegTracker {
         val state: TrackingSessionState,
         val reachedBoardStop: Boolean = false,
         val reachedDropStop: Boolean = false,
-        /** 定位跟车：车刚到上车站 A，但还没确认用户上车（应发“车已到站”提醒，阶段仍为 WAITING_BOARD） */
+        /** 定位上车检测：车刚到上车站 A，但还没确认用户上车（应发“车已到站”提醒，阶段仍为 WAITING_BOARD） */
         val busArrivedAtBoard: Boolean = false,
-        /** 定位跟车：判定用户没赶上待确认的那班车，已改为等下一班 */
+        /** 定位上车检测：判定用户没赶上待确认的那班车，已改为等下一班 */
         val missedBoarding: Boolean = false,
-        /** 定位跟车：ON_BOARD 阶段根据定位改锁了所乘车辆 */
+        /** 定位上车检测：ON_BOARD 阶段根据定位改锁了所乘车辆 */
         val relocked: Boolean = false
     )
 
@@ -107,7 +107,7 @@ internal object GroupLegTracker {
      */
     fun confirmBoarded(session: TrackingSessionState, buses: List<LiveBus>, nowMillis: Long): TrackingSessionState {
         val boardOrder = session.boardStopOrder
-        // 定位跟车正在确认某辆车时，用户手动确认的就是这辆
+        // 定位上车检测正在确认某辆车时，用户手动确认的就是这辆
         val candidateId = session.boardingCandidateBusId
         val picked = candidateId?.let { id -> buses.find { it.busId == id } }
             ?: pickBoardedBus(boardOrder, buses)
@@ -164,7 +164,7 @@ internal object GroupLegTracker {
                     }
                 }
                 if (update.busArrivedAtBoard) {
-                    // 定位跟车：车到站先提醒，阶段仍为等车（等定位确认是否上车）
+                    // 定位上车检测：车到站先提醒，阶段仍为等车（等定位确认是否上车）
                     if (state.hasTriggeredArrivedAlert) return AlertDecision(state)
                     val alertState = state.copy(
                         targetStopName = previous.boardStopName,
@@ -216,7 +216,7 @@ internal object GroupLegTracker {
      *
      * @param session 当前会话状态（legPhase 必须为 WAITING_BOARD 或 ON_BOARD）
      * @param buses 本次实时数据中该线路的在途车辆
-     * @param boarding 定位跟车上下文；null 表示定位不可用（没有精确定位权限等），保持“车到 A 即上车”的原行为
+     * @param boarding 定位上车检测上下文；null 表示定位不可用（没有精确定位权限等），保持“车到 A 即上车”的原行为
      * @param nowMillis 当前墙钟时刻（毫秒），写进 `updatedAtMillis`
      */
     fun processPoll(
@@ -435,7 +435,7 @@ internal object GroupLegTracker {
         val lockedId = incoming.lockedBusId
         val locked = buses.find { it.busId == lockedId }
 
-        // 定位跟车：锁定车离用户很远、另一辆车就在用户身边，连续多次后改锁
+        // 定位上车检测：锁定车离用户很远、另一辆车就在用户身边，连续多次后改锁
         var session = incoming
         if (boarding != null) {
             val (relockId, updated) = BoardingDetector.evaluateRelock(incoming, locked, buses, boarding)

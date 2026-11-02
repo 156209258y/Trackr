@@ -61,7 +61,7 @@ class RouteDetailViewModel(
 ) : ViewModel() {
 
     companion object {
-        /** 路线组变化触发实时刷新的防抖 */
+        /** 路线变化触发实时刷新的防抖 */
         const val ETA_REFRESH_DEBOUNCE_MS = 500L
     }
 
@@ -312,7 +312,7 @@ class RouteDetailViewModel(
     }
 
     /**
-     * 刷新路线组中所有候选线路在途车辆实时状态并聚合计算最先到站线路。
+     * 刷新路线中所有候选线路在途车辆实时状态并聚合计算最先到站线路。
      * 新一轮刷新会取消上一轮尚未完成的刷新，避免旧结果覆盖新结果。
      */
     fun refreshRealtimeEta(groupList: List<TransitGroup> = groups.value): Job {

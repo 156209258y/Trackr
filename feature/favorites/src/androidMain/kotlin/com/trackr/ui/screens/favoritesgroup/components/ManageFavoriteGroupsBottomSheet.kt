@@ -64,7 +64,7 @@ fun ManageFavoriteGroupsBottomSheet(
         title = {
             Column {
                 Text(
-                    text = "管理收藏分组",
+                    text = "管理分组",
                     style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
                     color = MaterialTheme.colorScheme.onSurface
                 )

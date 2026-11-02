@@ -213,7 +213,7 @@ fun ScheduledReminderDialog(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // 到点自动跟车选项
+                // 到点自动追踪选项
                 Surface(
                     color = MaterialTheme.colorScheme.surfaceContainerLow,
                     shape = RoundedCornerShape(12.dp),

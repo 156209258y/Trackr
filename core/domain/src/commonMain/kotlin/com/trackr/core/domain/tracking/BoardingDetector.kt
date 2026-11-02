@@ -7,7 +7,7 @@ import com.trackr.core.model.TrackingSessionState
 import kotlin.math.max
 
 /**
- * 定位跟车检测（纯函数，不依赖 Android）。
+ * 定位上车检测（纯函数，不依赖 Android）。
  *
  * 只用于分组换乘，并且只在有“新鲜且精确”的手机定位时启用；没有定位时由 [GroupLegTracker] 保持原有行为
  * （车到上车站 A 即视为上车）。坐标一律用 WGS-84：手机系统定位、车辆 wgsLat/wgsLng、站点 wgsLat/wgsLng。

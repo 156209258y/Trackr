@@ -136,7 +136,7 @@ class ScheduledReminderReceiverTest {
         assertTrue(ScheduledReminderReceiver.shouldAutoStartTracking(reminder, canScheduleExact = true))
         // 非精确闹钟触发：没有后台启动前台服务的豁免，必须降级为通知
         assertFalse(ScheduledReminderReceiver.shouldAutoStartTracking(reminder, canScheduleExact = false))
-        // 未配置自动跟车
+        // 未配置自动追踪
         assertFalse(
             ScheduledReminderReceiver.shouldAutoStartTracking(
                 reminder.copy(autoStartLiveTracking = false),
@@ -239,7 +239,7 @@ class ScheduledReminderReceiverTest {
         // 非精确闹钟不直接开追踪，改发带提示的通知
         assertTrue(controller.started.isEmpty())
         val notification = requireNotNull(postedReminderNotification(reminder.id))
-        assertTrue(bigTextOf(notification).contains("系统限制未能自动开启跟车，请点击「开启实时追踪」"))
+        assertTrue(bigTextOf(notification).contains("系统没让自动开始追踪，点「开始追踪」"))
         ShadowAlarmManager.setCanScheduleExactAlarms(true)
     }
 
@@ -254,7 +254,7 @@ class ScheduledReminderReceiverTest {
 
         assertEquals(1, controller.started.size)
         val notification = requireNotNull(postedReminderNotification(reminder.id))
-        assertTrue(bigTextOf(notification).contains("系统限制未能自动开启跟车"))
+        assertTrue(bigTextOf(notification).contains("系统没让自动开始追踪"))
     }
 
     @Test
@@ -300,7 +300,7 @@ class ScheduledReminderReceiverTest {
         ScheduledReminderReceiver().handleReminderTrigger(app, reminder.id)
         assertNotNull(postedReminderNotification(reminder.id))
 
-        // 点「开启实时追踪」仍启动失败：通知保留，方便再点
+        // 点「开始追踪」仍启动失败：通知保留，方便再点
         val refusing = installFakes(startResult = false)
         ScheduledReminderReceiver().handleStartTrackingNow(app, reminder.id)
         assertEquals(1, refusing.started.size)

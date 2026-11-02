@@ -75,7 +75,7 @@ class BusTrackingService : LifecycleService() {
     /** 最近一次成功刷新拿到的线路运营状态（非运营时降频轮询） */
     private var lastOperatingState: LineOperatingState = LineOperatingState.RUNNING
 
-    /** 本次前台服务是否带上了 location 类型（没有就拿不到锁屏后的定位，跟车检测关闭） */
+    /** 本次前台服务是否带上了 location 类型（没有就拿不到锁屏后的定位，上车检测关闭） */
     private var locationTrackingAllowed: Boolean = false
 
     /** 当前定位档位与收集它的协程 */

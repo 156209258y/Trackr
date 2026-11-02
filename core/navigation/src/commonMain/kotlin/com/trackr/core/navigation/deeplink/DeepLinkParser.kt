@@ -22,7 +22,7 @@ import com.trackr.core.navigation.deeplink.DeepLinkUris.Q_STOP
  *
  * `MainActivity` 是导出的，链接可能来自别的 App，所以这里是信任边界：
  * - scheme 不是 `trackr`、host 不认识、路径段数不对、百分号编码坏了 → null（忽略）。
- * - id（城市、线路、站、路线组、会话）：非空、≤ [MAX_ID_LENGTH] 个字符、不含控制字符。
+ * - id（城市、线路、站、路线、会话）：非空、≤ [MAX_ID_LENGTH] 个字符、不含控制字符。
  *   计划写的 `[A-Za-z0-9:_-]{1,64}` 会挡掉掌上公交的 id（`mg:0755:深圳:M492路:0` 带中文），所以没照用。
  * - 展示用的名字：去掉控制字符，超过 [MAX_NAME_LENGTH] 个字符截断。
  * - 只产出 [ScreenKey]，不转发任何 Intent。

@@ -3,7 +3,7 @@ package com.trackr.core.model
 import kotlinx.serialization.Serializable
 
 /**
- * 路线分组所属分类
+ * 路线所属分类
  */
 @Serializable
 enum class GroupCategory(val displayName: String) {
@@ -43,7 +43,7 @@ data class CandidateLine(
 )
 
 /**
- * 候选线路实时状态信息（多线同达卡片胶囊与详情）
+ * 候选线路实时状态信息（一程里勾上的几条线一起等时的卡片胶囊与详情）
  */
 @Serializable
 data class CandidateLineRealtimeInfo(
@@ -95,7 +95,7 @@ data class TransitLeg(
 }
 
 /**
- * 串联路线分组（包含多段换乘行程）
+ * 路线（包含多段换乘行程）
  */
 @Serializable
 data class TransitGroup(
@@ -120,7 +120,7 @@ data class TransitGroup(
 }
 
 /**
- * 整组跨站换乘实时追踪会话状态
+ * 整条路线跨站换乘的追踪会话状态
  */
 @Serializable
 data class GroupTrackingSessionState(

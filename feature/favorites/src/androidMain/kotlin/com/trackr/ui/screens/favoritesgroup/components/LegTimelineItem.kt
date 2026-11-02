@@ -157,7 +157,7 @@ fun LegTimelineItem(
                         realtimeInfoOf = realtimeInfoOf,
                         chipTagPrefix = "leg_chip_",
                         addButtonTag = "btn_add_line_leg_$legIndex",
-                        addDialogTitle = "添加换乘线路",
+                        addDialogTitle = "这一程再加一条线",
                         addPlaceholder = "例如：M375、204",
                         onSelect = onSelectCandidateLine,
                         onAdd = onAddCandidateLine

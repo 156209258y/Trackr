@@ -80,7 +80,7 @@ class DefaultRealtimeRepository(
 
     /**
      * 线路详情 in-flight 去重 + 短 TTL 缓存：
-     * 首页收藏、详情页、跟车服务、小组件等同时请求同一线路时只发一次上游请求。
+     * 首页收藏、详情页、追踪服务、小组件等同时请求同一线路时只发一次上游请求。
      */
     private val lineDetailFlights = SingleFlightCache<LineDetailKey, BusLineDetail>(
         ttlMillis = LINE_DETAIL_CACHE_TTL_MS,

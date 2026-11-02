@@ -163,7 +163,7 @@ fun TransitGroupCard(
                     realtimeInfoOf = { infoOf(0, it) },
                     chipTagPrefix = "candidate_chip_",
                     addButtonTag = "btn_add_candidate_direct",
-                    addDialogTitle = "添加同达线路",
+                    addDialogTitle = "这一程再加一条线",
                     addPlaceholder = "例如：311、M194",
                     onSelect = { lineId -> onSelectCandidateLine(0, lineId) },
                     onAdd = { lineName -> onAddCandidateLine(0, lineName) }

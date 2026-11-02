@@ -183,7 +183,7 @@ class FavoritesEditViewModel(
     }
 
     /**
-     * 为指定路线生成反向路线分组
+     * 为指定路线生成返程路线
      */
     fun createReverseGroup(group: TransitGroup) {
         viewModelScope.launch {

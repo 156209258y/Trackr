@@ -159,7 +159,7 @@ class NavigatorTest {
 
     @Test
     fun favoritesGroup_isChildPageOfHomeTab() {
-        // 首页「管理路线组」：压在首页栈上，返回回首页
+        // 首页「编辑收藏」：压在首页栈上，返回回首页
         val state = newState()
         val navigator = Navigator(state)
         navigator.open(ScreenKey.FavoritesGroup)

@@ -4,7 +4,7 @@ import com.trackr.core.model.ScheduledReminder
 import kotlinx.coroutines.flow.StateFlow
 
 /**
- * 定时通勤提醒仓库接口
+ * 定时提醒仓库接口
  */
 interface IScheduledReminderRepository {
     /**

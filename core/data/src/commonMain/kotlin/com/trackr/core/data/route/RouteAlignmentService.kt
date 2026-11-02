@@ -317,7 +317,7 @@ class RouteAlignmentService(
         }
 
     /**
-     * 将路线组中各段候选线路与实时公交数据源进行站序和真实 lineId 对齐
+     * 将路线中各段候选线路与实时公交数据源进行站序和真实 lineId 对齐
      */
     suspend fun alignTransitGroupWithRealtimeSource(group: TransitGroup): TransitGroup = withContext(ioDispatcher) {
         val defaultCity = settings.selectedCity.value
@@ -345,7 +345,7 @@ class RouteAlignmentService(
     }
 
     /**
-     * 构建返程路线分组（自动反转行程段、调换起终点与候选线路上下行并对齐真实源数据）
+     * 构建返程路线（自动反转行程段、调换起终点与候选线路上下行并对齐真实源数据）
      */
     @OptIn(ExperimentalUuidApi::class)
     suspend fun buildReverseTransitGroup(

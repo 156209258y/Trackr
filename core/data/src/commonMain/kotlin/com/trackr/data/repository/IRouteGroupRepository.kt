@@ -7,12 +7,12 @@ import com.trackr.core.model.TransitGroup
 import kotlinx.coroutines.flow.StateFlow
 
 /**
- * 路线分组与多段换乘仓储接口
+ * 路线与多段换乘仓储接口
  */
 interface IRouteGroupRepository {
 
     /**
-     * 全部路线分组响应式数据流（按 sortOrder / 更新时间排序）
+     * 全部路线响应式数据流（按 sortOrder / 更新时间排序）
      */
     val groups: StateFlow<List<TransitGroup>>
 
@@ -22,17 +22,17 @@ interface IRouteGroupRepository {
     val favoriteGroups: StateFlow<List<FavoriteGroup>>
 
     /**
-     * 新增路线分组
+     * 新增路线
      */
     suspend fun addGroup(group: TransitGroup)
 
     /**
-     * 更新已有路线分组
+     * 更新已有路线
      */
     suspend fun updateGroup(group: TransitGroup)
 
     /**
-     * 删除指定路线分组
+     * 删除指定路线
      */
     suspend fun deleteGroup(groupId: String)
 
@@ -47,12 +47,12 @@ interface IRouteGroupRepository {
     )
 
     /**
-     * 重新调整路线分组展示顺序
+     * 重新调整路线展示顺序
      */
     suspend fun reorderGroups(groupOrderIds: List<String>)
 
     /**
-     * 获取指定 ID 的路线分组
+     * 获取指定 ID 的路线
      */
     fun getGroupById(groupId: String): TransitGroup?
 

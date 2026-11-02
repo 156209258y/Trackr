@@ -74,7 +74,7 @@
     <string name="me_reminder_repeat">重复</string>
     <string name="me_reminder_after">到点以后</string>
     <string name="me_reminder_auto_start">自动开始追踪</string>
-    <string name="me_reminder_auto_start_desc">到点直接打开实时跟车；关着就只发一条提醒</string>
+    <string name="me_reminder_auto_start_desc">到点直接开始追踪；关着就只发一条提醒</string>
     <string name="me_reminder_this">这条提醒</string>
     <string name="me_reminder_towards">开往 %1$s</string>
     <string name="me_reminder_board_at">%1$s（第 %2$s 站）上车</string>

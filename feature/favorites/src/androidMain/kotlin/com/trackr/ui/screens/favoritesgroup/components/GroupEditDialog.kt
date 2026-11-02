@@ -35,7 +35,7 @@ import com.trackr.core.model.TransitLeg
 import java.util.UUID
 
 /**
- * 创建/编辑路线组弹窗
+ * 创建/编辑路线弹窗
  */
 @Composable
 fun GroupEditDialog(
@@ -126,7 +126,7 @@ fun GroupEditDialog(
 
     AlertDialog(
         onDismissRequest = handleDismissRequest,
-        title = { Text(if (initialGroup == null) "新建路线分组" else "编辑路线分组") },
+        title = { Text(if (initialGroup == null) "新建路线" else "编辑路线") },
         text = {
             Column(modifier = Modifier.fillMaxWidth()) {
                 OutlinedTextField(
@@ -140,9 +140,9 @@ fun GroupEditDialog(
 
                 Spacer(modifier = Modifier.height(10.dp))
 
-                // 所属收藏分组选择
+                // 分组选择
                 if (favoriteGroups.isNotEmpty()) {
-                    Text("所属收藏分组", style = MaterialTheme.typography.labelMedium)
+                    Text("分组", style = MaterialTheme.typography.labelMedium)
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -221,7 +221,7 @@ fun GroupEditDialog(
                 OutlinedTextField(
                     value = line2,
                     onValueChange = { line2 = it },
-                    label = { Text("换乘线路（如 地铁4号线）") },
+                    label = { Text("第 2 程坐的线（如 地铁4号线）") },
                     placeholder = { Text("支持多线路用逗号隔开，如 19, 204") },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true

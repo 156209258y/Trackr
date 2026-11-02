@@ -9,7 +9,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 /*
- * 第 17 步从 `FavoritesGroupViewModel` 拆出来、几个新 ViewModel 共用的路线分组逻辑（原样搬，不改行为）。
+ * 第 17 步从 `FavoritesGroupViewModel` 拆出来、几个新 ViewModel 共用的路线保存逻辑（原样搬，不改行为）。
  */
 
 /** 路线是否属于收藏分组 [favGroupId]（commute / home 兼容旧数据的归属规则） */

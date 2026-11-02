@@ -29,8 +29,8 @@ import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 
 /**
- * 定时通勤闹钟触发接收器
- * 到点后台执行单次线路实时状态拉取，并在通知栏发送快报与跟车动作
+ * 定时提醒闹钟触发接收器
+ * 到点后台执行单次线路实时状态拉取，并在通知栏发提醒和「开始追踪」按钮
  */
 class ScheduledReminderReceiver : BroadcastReceiver(), KoinComponent {
 
@@ -81,8 +81,8 @@ class ScheduledReminderReceiver : BroadcastReceiver(), KoinComponent {
             reminderScheduler.schedule(reminder)
         }
 
-        // 2. 如果配置了自动开启跟车，仅在精确闹钟（享有后台启动前台服务豁免）触发时直接拉起前台服务；
-        //    非精确闹钟或启动被系统拒绝时降级为带「开启实时追踪」按钮的普通提醒通知（通知按钮点击享有豁免）
+        // 2. 如果配置了到点自动追踪，仅在精确闹钟（享有后台启动前台服务豁免）触发时直接拉起前台服务；
+        //    非精确闹钟或启动被系统拒绝时降级为带「开始追踪」按钮的普通提醒通知（通知按钮点击享有豁免）
         var autoStartFallback = false
         if (reminder.autoStartLiveTracking) {
             if (shouldAutoStartTracking(reminder, reminderScheduler.canScheduleExact()) &&
@@ -152,16 +152,16 @@ class ScheduledReminderReceiver : BroadcastReceiver(), KoinComponent {
                     contentText = "开往 ${reminder.endStopName} · 目标站：${reminder.targetStopName}"
                 }
             } else {
-                summaryText = "已到预定通勤时间"
+                summaryText = "定时提醒到点了"
                 contentText = "点击打开【${reminder.lineName}】查看实时到站动态"
             }
         } else {
-            summaryText = "已到预定通勤时间"
+            summaryText = "定时提醒到点了"
             contentText = "点击打开【${reminder.lineName}】查看实时到站动态"
         }
 
         val finalContent = if (autoStartFallback) {
-            "$contentText\n系统限制未能自动开启跟车，请点击「开启实时追踪」"
+            "$contentText\n系统没让自动开始追踪，点「开始追踪」"
         } else {
             contentText
         }
@@ -200,7 +200,7 @@ class ScheduledReminderReceiver : BroadcastReceiver(), KoinComponent {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        // 快捷按钮：开启实时追踪
+        // 快捷按钮：开始追踪
         val startTrackingIntent = Intent(context, ScheduledReminderReceiver::class.java).apply {
             action = ACTION_START_TRACKING_NOW
             putExtra(EXTRA_REMINDER_ID, reminder.id)
@@ -216,7 +216,7 @@ class ScheduledReminderReceiver : BroadcastReceiver(), KoinComponent {
 
         val notification = NotificationCompat.Builder(context, CHANNEL_ID_SCHEDULED)
             .setSmallIcon(iconRes)
-            .setContentTitle("🚌 [通勤早报] ${reminder.lineName} · $titleSummary")
+            .setContentTitle("${reminder.lineName} · $titleSummary")
             .setContentText(content)
             .setStyle(NotificationCompat.BigTextStyle().bigText("$content\n开往：${reminder.endStopName}"))
             .setPriority(NotificationCompat.PRIORITY_HIGH)
@@ -224,7 +224,7 @@ class ScheduledReminderReceiver : BroadcastReceiver(), KoinComponent {
             .setAutoCancel(true)
             .addAction(
                 iconRes,
-                "开启实时追踪",
+                "开始追踪",
                 startTrackingPendingIntent
             )
             .build()
@@ -292,7 +292,7 @@ class ScheduledReminderReceiver : BroadcastReceiver(), KoinComponent {
         const val EXTRA_REMINDER_ID = "extra_reminder_id"
 
         /**
-         * 到点是否直接拉起前台跟车服务：只有配置了自动跟车且本次为精确闹钟时才直接启动。
+         * 到点是否直接拉起前台追踪服务：只有配置了自动追踪且本次为精确闹钟时才直接启动。
          * Android 12+ 未授予精确闹钟权限时闹钟以非精确方式触发，不享有后台启动前台服务的豁免。
          */
         internal fun shouldAutoStartTracking(reminder: ScheduledReminder, canScheduleExact: Boolean): Boolean {
