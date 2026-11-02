@@ -108,7 +108,7 @@ import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.resources.vectorResource
 
 /**
- * 「我的」页（v3）：分组「出行」「通知」「地图」「关于」，长辈版的「显示」组位置预留。
+ * 「我的」页（v3）：分组「显示」（长辈版开关）「出行」「通知」「地图」「关于」。
  * 无状态，只有哪个对话框 / Sheet 开着是本地状态。
  */
 @Composable
@@ -154,17 +154,15 @@ fun MeScreen(
             ),
             verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
-            // 长辈版：第 30 步接 SettingsRepository.uiMode，现在 elderMode 恒为 null，这组不显示
-            state.elderMode?.let { elderMode ->
-                item(key = "group_display", contentType = "settings_group") {
-                    SettingsGroup(title = stringResource(MeRes.string.me_group_display)) {
-                        SwitchRow(
-                            title = stringResource(MeRes.string.me_elder_mode),
-                            subtitle = stringResource(MeRes.string.me_elder_mode_desc),
-                            checked = elderMode,
-                            onCheckedChange = { onEvent(MeEvent.SetElderMode(it)) }
-                        )
-                    }
+            // 长辈版开关（SettingsRepository.uiMode）
+            item(key = "group_display", contentType = "settings_group") {
+                SettingsGroup(title = stringResource(MeRes.string.me_group_display)) {
+                    SwitchRow(
+                        title = stringResource(MeRes.string.me_elder_mode),
+                        subtitle = stringResource(MeRes.string.me_elder_mode_desc),
+                        checked = state.elderMode,
+                        onCheckedChange = { onEvent(MeEvent.SetElderMode(it)) }
+                    )
                 }
             }
 

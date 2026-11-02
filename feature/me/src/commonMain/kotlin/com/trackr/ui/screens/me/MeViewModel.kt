@@ -7,6 +7,7 @@ import com.trackr.core.data.repository.SettingsRepository
 import com.trackr.core.model.EngineMode
 import com.trackr.core.model.ScheduledReminder
 import com.trackr.core.model.TransitCodeProvider
+import com.trackr.core.model.UiMode
 import com.trackr.data.repository.IScheduledReminderRepository
 import com.trackr.ui.platform.LiveUpdateAccess
 import com.trackr.ui.platform.LiveUpdateStatus
@@ -25,7 +26,7 @@ import kotlinx.coroutines.launch
  * @param liveUpdate 状态栏胶囊的系统状态；平台没有这项（iOS）或实时通知关着时为 null，不显示那一行
  * @param amapKeyStatus 「高德 Key」那一行的状态文字
  * @param versionName 「关于」那一行显示的版本号；读不到为 null
- * @param elderMode 长辈版开关（位置预留，第 30 步接 `SettingsRepository.uiMode`）；null = 不显示
+ * @param elderMode 长辈版开关（`SettingsRepository.uiMode` 是不是 Elder）
  */
 data class MeUiState(
     val engineMode: EngineMode = EngineMode.CHELAILE,
@@ -38,7 +39,7 @@ data class MeUiState(
     val liveUpdate: LiveUpdateStatus? = null,
     val amapKeyStatus: String = amapKeyStatusText(hasMapKey = false, canShowMap = false),
     val versionName: String? = null,
-    val elderMode: Boolean? = null,
+    val elderMode: Boolean = false,
     val userMessages: List<UserMessage> = emptyList()
 )
 
@@ -80,6 +81,7 @@ class MeViewModel(
         settings.isLiveNotificationEnabled,
         settings.showOnLockScreen
     ) { engine, code, stops, live, lock -> SettingsPart(engine, code, stops, live, lock) }
+        .combine(settings.uiMode) { part, mode -> part.copy(elderMode = mode == UiMode.Elder) }
 
     private val mapKeyStatus = combine(amapKeys.hasMapKey, amapKeys.canShowMap) { has, canShow ->
         amapKeyStatusText(has, canShow)
@@ -102,7 +104,8 @@ class MeViewModel(
                 settings.preferredTransitCodeProvider.value,
                 settings.alertThresholdStops.value,
                 settings.isLiveNotificationEnabled.value,
-                settings.showOnLockScreen.value
+                settings.showOnLockScreen.value,
+                settings.uiMode.value == UiMode.Elder
             ),
             reminderRepository.reminders.value,
             liveUpdateStatus.value,
@@ -124,8 +127,8 @@ class MeViewModel(
             is MeEvent.SetLiveNotificationEnabled -> settings.setLiveNotificationEnabled(event.enabled)
             is MeEvent.SetShowOnLockScreen -> settings.setShowOnLockScreen(event.enabled)
             MeEvent.OpenLiveUpdateSettings -> liveUpdateAccess?.openSettings()
-            // 长辈版第 30 步才有；开关现在不显示
-            is MeEvent.SetElderMode -> Unit
+            // 第 30 步只换主题；长辈版导航和页面在第 31–34 步
+            is MeEvent.SetElderMode -> settings.setUiMode(if (event.enabled) UiMode.Elder else UiMode.Standard)
             is MeEvent.MessageShown -> notices.consume(event.id)
             // 导航事件由 Route 处理
             is MeEvent.OpenReminder, MeEvent.OpenAmapKey, MeEvent.OpenAbout -> Unit
@@ -151,6 +154,7 @@ class MeViewModel(
         remindersSubtitle = remindersRowSubtitle(reminders),
         isLiveNotificationEnabled = part.liveNotification,
         showOnLockScreen = part.showOnLockScreen,
+        elderMode = part.elderMode,
         // 和原来一样：实时通知关着时不显示胶囊权限
         liveUpdate = liveUpdate?.takeIf { part.liveNotification },
         amapKeyStatus = keyStatus,
@@ -163,6 +167,7 @@ class MeViewModel(
         val transitCode: TransitCodeProvider,
         val alertThresholdStops: Int,
         val liveNotification: Boolean,
-        val showOnLockScreen: Boolean
+        val showOnLockScreen: Boolean,
+        val elderMode: Boolean = false
     )
 }

@@ -3,6 +3,7 @@ package com.trackr.ui.screens.me
 import com.trackr.core.model.EngineMode
 import com.trackr.core.model.ScheduledReminder
 import com.trackr.core.model.TransitCodeProvider
+import com.trackr.core.model.UiMode
 import com.trackr.core.testing.FakeAmapKeyRepository
 import com.trackr.core.testing.FakeSettingsRepository
 import com.trackr.core.testing.MainDispatcherHolder
@@ -71,8 +72,32 @@ class MeViewModelTest {
         assertTrue(state.showOnLockScreen)
         assertEquals("没填，不显示「路线」页", state.amapKeyStatus)
         assertEquals("0.0.3", state.versionName)
-        // 长辈版开关位置预留：第 30 步之前不显示
-        assertNull(state.elderMode)
+        // 没存过界面模式 = 标准版，开关关着
+        assertFalse(state.elderMode)
+    }
+
+    @Test
+    fun elderSwitch_writesUiMode_andStateFollows() = runTest(main.dispatcher) {
+        val viewModel = createViewModel()
+
+        viewModel.onEvent(MeEvent.SetElderMode(true))
+        testScheduler.advanceUntilIdle()
+        assertEquals(UiMode.Elder, settings.uiMode.value)
+        assertTrue(viewModel.uiState.value.elderMode)
+
+        viewModel.onEvent(MeEvent.SetElderMode(false))
+        testScheduler.advanceUntilIdle()
+        assertEquals(UiMode.Standard, settings.uiMode.value)
+        assertFalse(viewModel.uiState.value.elderMode)
+    }
+
+    @Test
+    fun elderMode_setElsewhere_showsOn() = runTest(main.dispatcher) {
+        val viewModel = createViewModel()
+        // 比如字号提示里点了「打开长辈版」
+        settings.setUiMode(UiMode.Elder)
+        testScheduler.advanceUntilIdle()
+        assertTrue(viewModel.uiState.value.elderMode)
     }
 
     @Test
