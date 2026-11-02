@@ -89,22 +89,7 @@ fun StationArrivalContent(
 
     val nowTime = now ?: remember(live?.updatedAtMillis) { live?.let { ArrivalText.localTimeOf(it.updatedAtMillis) } }
     val arrivalState = remember(static, live, currentOrder, nowTime) {
-        if (live == null) {
-            ArrivalState.Loading
-        } else {
-            val line = static.line
-            ArrivalText.stateFor(
-                targetOrder = currentOrder,
-                buses = live.buses,
-                operatingState = live.operatingState,
-                startStop = line.startStop,
-                firstTime = line.firstTime,
-                lastTime = line.lastTime,
-                nextDeparture = live.nextDepartureFromStart?.takeIf { it.isNotBlank() } ?: live.fallbackNextDeparture,
-                statusDescription = live.statusDescription,
-                now = nowTime
-            )
-        }
+        stationArrivalState(static, live, currentOrder, nowTime)
     }
     val arrival = remember(arrivalState, static.line.name, selectedStop?.name) {
         ArrivalText.format(arrivalState, lineName = static.line.name, stopName = selectedStop?.name.orEmpty())
@@ -295,6 +280,26 @@ private fun ArrivalHeadline(arrival: ArrivalDisplay, color: Color) {
             }
         }
     }
+}
+
+/**
+ * 候车站此刻的到站状态（标准版主卡和长辈版线路页共用）：实时没回来是「正在查车」；
+ * 全部车过站时下一班用实时给的，没给就用时刻表补的 [LineLive.fallbackNextDeparture]。
+ */
+internal fun stationArrivalState(static: LineStatic, live: LineLive?, targetOrder: Int, now: LocalTime?): ArrivalState {
+    if (live == null) return ArrivalState.Loading
+    val line = static.line
+    return ArrivalText.stateFor(
+        targetOrder = targetOrder,
+        buses = live.buses,
+        operatingState = live.operatingState,
+        startStop = line.startStop,
+        firstTime = line.firstTime,
+        lastTime = line.lastTime,
+        nextDeparture = live.nextDepartureFromStart?.takeIf { it.isNotBlank() } ?: live.fallbackNextDeparture,
+        statusDescription = live.statusDescription,
+        now = now
+    )
 }
 
 /** 站名已经以「站」结尾就不再加 */

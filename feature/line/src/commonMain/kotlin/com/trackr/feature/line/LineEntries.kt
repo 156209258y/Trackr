@@ -5,6 +5,7 @@ import androidx.navigation3.runtime.EntryProviderScope
 import androidx.navigation3.runtime.NavKey
 import com.trackr.core.navigation.TrackrNavigator
 import com.trackr.core.navigation.ScreenKey
+import com.trackr.feature.line.elder.ElderLineDetailScreen
 import com.trackr.ui.screens.linedetail.LineDetailRoute
 import com.trackr.ui.screens.linedetail.LineDetailViewModel
 import org.koin.compose.viewmodel.koinViewModel
@@ -23,6 +24,25 @@ fun EntryProviderScope<NavKey>.lineEntries(navigator: TrackrNavigator) {
             viewModel = detailViewModel,
             onBack = dropUnlessResumed { navigator.popChildPage() }
         )
+    }
+}
+
+/**
+ * 长辈版线路页（§8.4、8.5，第 32 步）：同一个 Key、同一个 ViewModel 和事件处理，只换成 [ElderLineDetailScreen]
+ * （沿途车站放在页内的「换站」[com.trackr.feature.line.elder.ElderPickStopScreen]）。
+ */
+fun EntryProviderScope<NavKey>.elderLineEntries(navigator: TrackrNavigator) {
+    entry<ScreenKey.LineDetail> { key ->
+        val detailViewModel: LineDetailViewModel = koinViewModel(
+            key = "detail_${key.cityId}_${key.lineId}_${key.targetOrder}"
+        ) { parametersOf(key) }
+
+        LineDetailRoute(
+            viewModel = detailViewModel,
+            onBack = dropUnlessResumed { navigator.popChildPage() }
+        ) { state, onEvent ->
+            ElderLineDetailScreen(state = state, onEvent = onEvent)
+        }
     }
 }
 

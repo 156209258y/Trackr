@@ -25,7 +25,11 @@ import org.koin.compose.koinInject
 @Composable
 fun LineDetailRoute(
     viewModel: LineDetailViewModel,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    /** 画哪个页面：标准版 [LineDetailScreen]，长辈版 `ElderLineDetailScreen`（§8.5：共用 ViewModel 和事件处理，只换页面） */
+    screen: @Composable (state: LineDetailUiState, onEvent: (LineDetailEvent) -> Unit) -> Unit = { state, onEvent ->
+        LineDetailScreen(state = state, onEvent = onEvent)
+    }
 ) {
     // 只在页面处于前台（RESUMED）时轮询；回桌面、锁屏或被其他页面覆盖时停止（重构计划 §4.4）
     LifecycleResumeEffect(viewModel) {
@@ -38,9 +42,9 @@ fun LineDetailRoute(
     val liveUpdateGate = rememberLiveUpdateGate()
     var pendingGuide by rememberSaveable { mutableStateOf<LiveUpdateGuide?>(null) }
 
-    LineDetailScreen(
-        state = state,
-        onEvent = { event ->
+    screen(
+        state,
+        { event ->
             when (event) {
                 LineDetailEvent.Back -> onBack()
                 is LineDetailEvent.Refresh -> viewModel.refreshNow(fromPull = event.fromPull)
