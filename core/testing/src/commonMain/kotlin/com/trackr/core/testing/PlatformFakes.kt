@@ -87,13 +87,16 @@ class FakeTrackingController(
     }
 }
 
-class FakeAnnouncer : Announcer {
+/** 记下读过的句子；[isAvailable] 设成 false 模拟手机没有朗读引擎（不记、[speak] 返回 false） */
+class FakeAnnouncer(var isAvailable: Boolean = true) : Announcer {
     val spoken: MutableList<String> = mutableListOf()
     var stopCount: Int = 0
         private set
 
-    override fun speak(text: String) {
+    override suspend fun speak(text: String): Boolean {
+        if (!isAvailable) return false
         spoken += text
+        return true
     }
 
     override fun stop() {

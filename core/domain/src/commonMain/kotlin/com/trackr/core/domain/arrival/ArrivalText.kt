@@ -208,13 +208,28 @@ object ArrivalText {
     }
 
     /**
+     * 「读给我听」的整句（长辈版设计稿「朗读的句子」）：和屏幕大字同一套状态，时刻读成「7点20分」，
+     * 站名补「站」字，如「325路，开往科技园，还有 2 站，大约 4 分钟到科技园站」。
+     *
+     * @param lineName 线路名
+     * @param stopName 候车站名
+     * @param towards 开往哪里（终点站，和车身牌子一样）；空串不读
+     */
+    fun spoken(state: ArrivalState, lineName: String = "", stopName: String = "", towards: String = ""): String =
+        format(state, lineName = lineName, stopName = stopName, towards = towards).spoken
+
+    /**
      * 状态变成文字。
      * @param lineName 线路名（只用于朗读）
      * @param stopName 候车站名（只用于朗读）
+     * @param towards 开往哪里（只用于朗读）
      */
-    fun format(state: ArrivalState, lineName: String = "", stopName: String = ""): ArrivalDisplay {
-        val who = lineName.trim().takeIf { it.isNotEmpty() }?.let { "$it，" }.orEmpty()
-        val toStop = stopName.trim().takeIf { it.isNotEmpty() }?.let { "到$it" }.orEmpty()
+    fun format(state: ArrivalState, lineName: String = "", stopName: String = "", towards: String = ""): ArrivalDisplay {
+        val who = listOfNotNull(
+            lineName.trim().takeIf { it.isNotEmpty() },
+            towards.trim().takeIf { it.isNotEmpty() }?.let { "开往$it" }
+        ).joinToString("") { "$it，" }
+        val toStop = stopName.trim().takeIf { it.isNotEmpty() }?.let { "到${spokenStop(it)}" }.orEmpty()
         return when (state) {
             ArrivalState.Loading -> ArrivalDisplay(
                 value = "—",
@@ -222,7 +237,7 @@ object ArrivalText {
                 detail = "正在查车…",
                 short = "正在查车…",
                 tone = ArrivalTone.Mute,
-                spoken = "正在查车"
+                spoken = "${who}正在查车"
             )
 
             is ArrivalState.OnTheWay -> formatOnTheWay(state, who, toStop)
@@ -251,7 +266,7 @@ object ArrivalText {
                         detail = from,
                         short = "下一班 $next $from",
                         tone = ArrivalTone.Mute,
-                        spoken = "${who}车都过了，下一班 $next $from"
+                        spoken = "${who}车都过了，下一班 ${spokenClock(state.nextDeparture)} $from"
                     )
                 } else {
                     val last = state.lastTime.takeIf { it.isNotBlank() }?.let(::clockText)
@@ -262,7 +277,8 @@ object ArrivalText {
                         detail = detail,
                         short = listOfNotNull("车都过了", last?.let { "末班 $it" }).joinToString(" · "),
                         tone = ArrivalTone.Mute,
-                        spoken = "${who}车都过了，$detail"
+                        spoken = "${who}车都过了，暂无下一班发车时间" +
+                            (state.lastTime.takeIf { it.isNotBlank() }?.let { "，末班 ${spokenClock(it)}" } ?: "")
                     )
                 }
             }
@@ -276,13 +292,18 @@ object ArrivalText {
                     else -> "还没发车"
                 }
                 val from = if (next != null || first != null) fromStartText(state.startStop) else "暂无发车时间"
+                val spokenValue = when {
+                    next != null -> "下一班 ${spokenClock(state.nextDeparture)}"
+                    first != null -> "首班 ${spokenClock(state.firstTime)}"
+                    else -> "还没发车"
+                }
                 ArrivalDisplay(
                     value = value,
                     unit = null,
                     detail = from,
                     short = "$value $from",
                     tone = ArrivalTone.Mute,
-                    spoken = "${who}还没发车，$value $from"
+                    spoken = if (spokenValue == "还没发车") "${who}还没发车，$from" else "${who}还没发车，$spokenValue $from"
                 )
             }
 
@@ -294,13 +315,18 @@ object ArrivalText {
                     last != null -> "末班 $last 已过"
                     else -> "末班已过"
                 }
+                val spokenDetail = when {
+                    first != null -> "明天首班 ${spokenClock(state.firstTime)}"
+                    last != null -> "末班 ${spokenClock(state.lastTime)} 已过"
+                    else -> "末班已过"
+                }
                 ArrivalDisplay(
                     value = "今天没车了",
                     unit = null,
                     detail = detail,
                     short = "今天没车了 · $detail",
                     tone = ArrivalTone.Warn,
-                    spoken = "${who}今天没车了，$detail"
+                    spoken = "${who}今天没车了，$spokenDetail"
                 )
             }
 
@@ -322,7 +348,8 @@ object ArrivalText {
                     short = state.lastMinutes?.let { "$it 分钟 · $detail" } ?: detail,
                     tone = ArrivalTone.Mute,
                     detailIsWarning = true,
-                    spoken = state.lastMinutes?.let { "没网，${who}上次查到约 $it 分钟$toStop" } ?: "没网"
+                    spoken = state.lastMinutes?.let { "${who}没网，上次查到大约 $it 分钟${toStop.ifEmpty { "到站" }}" }
+                        ?: "${who}没网，查不到车"
                 )
             }
         }
@@ -346,7 +373,7 @@ object ArrivalText {
                 detail = stopsText.orEmpty(),
                 short = listOfNotNull("$minutes 分钟", stopsText).joinToString(" · "),
                 tone = tone,
-                spoken = "$who${spokenStops}约 $minutes 分钟${toStop.ifEmpty { "到站" }}"
+                spoken = "$who${spokenStops}大约 $minutes 分钟${toStop.ifEmpty { "到站" }}"
             )
             stops != null && stops > 0 -> ArrivalDisplay(
                 value = stops.toString(),
@@ -373,6 +400,15 @@ object ArrivalText {
                 spoken = "${who}车在路上，暂无到站时间"
             )
         }
+    }
+
+    /** 朗读用的站名：不以「站」结尾就补上（「科技园」读成「科技园站」） */
+    private fun spokenStop(name: String): String = if (name.endsWith("站")) name else "${name}站"
+
+    /** 朗读用的时刻：「07:20」读成「7点20分」，整点「7点」；认不出原样返回 */
+    fun spokenClock(raw: String): String {
+        val time = parseClock(raw) ?: return raw.trim()
+        return if (time.minute == 0) "${time.hour}点" else "${time.hour}点${time.minute}分"
     }
 
     private fun fromStartText(startStop: String): String =

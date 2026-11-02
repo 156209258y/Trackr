@@ -77,14 +77,26 @@ interface TrackingController {
     fun updateUserFix(fix: UserFix)
 }
 
-/** 朗读（长辈版用）。Android：TextToSpeech；iOS：AVSpeechSynthesizer */
+/**
+ * 朗读（长辈版「读给我听」，重构计划 §8.6）。Android：TextToSpeech；iOS：AVSpeechSynthesizer。
+ * 朗读引擎第一次用时才初始化，所以能不能读要等 [speak] 返回才知道。
+ */
 interface Announcer {
 
-    /** 朗读一段文字；正在读的会被打断 */
-    fun speak(text: String)
+    /**
+     * 朗读一段文字；正在读的会被打断。
+     * @return 开始读了为 true；读不了（没有朗读引擎、引擎不支持中文、初始化超时）为 false，调用方据此提示用户
+     */
+    suspend fun speak(text: String): Boolean
 
     /** 停止朗读 */
     fun stop()
+}
+
+/** 没有朗读能力（iOS 还没做、测试里不关心朗读时的默认值）：什么都不读，[speak] 总是 false */
+object NoAnnouncer : Announcer {
+    override suspend fun speak(text: String): Boolean = false
+    override fun stop() = Unit
 }
 
 /** 打开乘车码。Android：Intent 打开支付宝 / 云闪付；iOS：URL Scheme */

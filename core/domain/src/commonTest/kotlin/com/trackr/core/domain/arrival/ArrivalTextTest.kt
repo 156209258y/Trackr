@@ -63,7 +63,7 @@ class ArrivalTextTest {
         assertEquals("还有 4 站", d.detail)
         assertEquals("8 分钟 · 还有 4 站", d.short)
         assertEquals(ArrivalTone.Normal, d.tone)
-        assertEquals("325路，还有 4 站，约 8 分钟到科技园", d.spoken)
+        assertEquals("325路，还有 4 站，大约 8 分钟到科技园站", d.spoken)
     }
 
     @Test
@@ -141,7 +141,7 @@ class ArrivalTextTest {
         assertEquals("快去上车 · 下一辆 9 分钟", d.detail)
         assertEquals("到站了 · 下一辆 9 分钟", d.short)
         assertEquals(ArrivalTone.Go, d.tone)
-        assertEquals("325路，车到科技园了，快去上车，下一辆 9 分钟", d.spoken)
+        assertEquals("325路，车到科技园站了，快去上车，下一辆 9 分钟", d.spoken)
 
         val noNext = ArrivalText.format(ArrivalState.Arriving())
         assertEquals("快去上车", noNext.detail)
@@ -318,7 +318,46 @@ class ArrivalTextTest {
             assertTrue(d.value.isNotBlank(), "$state 缺大字")
             assertTrue(d.short.isNotBlank(), "$state 缺短文字")
         }
-        assertEquals("325路，车都过了，下一班 07:20 从 白石洲 发车", ArrivalText.format(states[3], "325路").spoken)
+        assertEquals("325路，车都过了，下一班 7点20分 从 白石洲 发车", ArrivalText.format(states[3], "325路").spoken)
+    }
+
+    @Test
+    fun spoken_allEightStates() {
+        fun say(state: ArrivalState) = ArrivalText.spoken(state, lineName = "325路", stopName = "科技园", towards = "科技园")
+        val who = "325路，开往科技园，"
+        assertEquals("${who}正在查车", say(ArrivalState.Loading))
+        assertEquals("${who}还有 2 站，大约 4 分钟到科技园站", say(ArrivalState.OnTheWay(2, 4)))
+        assertEquals("${who}还有 3 站到科技园站", say(ArrivalState.OnTheWay(3, null)))
+        assertEquals("${who}车到科技园站了，快去上车", say(ArrivalState.Arriving()))
+        assertEquals("${who}车都过了，下一班 7点20分 从 白石洲 发车", say(ArrivalState.AllPassed("07:20", "白石洲", "22:30")))
+        assertEquals("${who}车都过了，暂无下一班发车时间，末班 22点30分", say(ArrivalState.AllPassed(null, "白石洲", "22:30")))
+        assertEquals("${who}还没发车，首班 6点30分 从 白石洲 发车", say(ArrivalState.NotStarted("06:30", null, "白石洲")))
+        assertEquals("${who}还没发车，下一班 7点 从 白石洲 发车", say(ArrivalState.NotStarted("06:30", "7:00", "白石洲")))
+        assertEquals("${who}今天没车了，明天首班 6点30分", say(ArrivalState.Ended("06:30", "22:30")))
+        assertEquals("${who}暂停运营", say(ArrivalState.NoService("暂停运营", "暂无发车计划")))
+        assertEquals("${who}没网，上次查到大约 4 分钟到科技园站", say(ArrivalState.Offline(4, 1)))
+        assertEquals("${who}没网，查不到车", say(ArrivalState.Offline()))
+    }
+
+    @Test
+    fun spoken_withoutNamesAndStationSuffix() {
+        // 不给线路名 / 开往时不读前缀；站名已经带「站」不重复
+        assertEquals("还有 2 站，大约 4 分钟到站", ArrivalText.spoken(ArrivalState.OnTheWay(2, 4)))
+        assertEquals("车到深大地铁站了，快去上车", ArrivalText.spoken(ArrivalState.Arriving(), stopName = "深大地铁站"))
+        assertEquals("325路，车到站了，快去上车", ArrivalText.spoken(ArrivalState.Arriving(), lineName = "325路"))
+        // 屏幕上的字不受 towards 影响
+        val plain = ArrivalText.format(ArrivalState.OnTheWay(2, 4))
+        val withTowards = ArrivalText.format(ArrivalState.OnTheWay(2, 4), towards = "科技园")
+        assertEquals(plain.copy(spoken = ""), withTowards.copy(spoken = ""))
+    }
+
+    @Test
+    fun spokenClock_readsLikeSpeech() {
+        assertEquals("7点20分", ArrivalText.spokenClock("07:20"))
+        assertEquals("7点", ArrivalText.spokenClock("7:00"))
+        assertEquals("22点30分", ArrivalText.spokenClock("22:30:00"))
+        assertEquals("0点5分", ArrivalText.spokenClock("00:05"))
+        assertEquals("约半小时", ArrivalText.spokenClock(" 约半小时 "))
     }
 
     @Test
