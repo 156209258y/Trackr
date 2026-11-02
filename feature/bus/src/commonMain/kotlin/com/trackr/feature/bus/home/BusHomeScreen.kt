@@ -20,8 +20,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -30,8 +28,6 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -39,6 +35,8 @@ import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.trackr.ui.components.message.HostMessage
+import com.trackr.ui.components.message.UserMessageHost
 import com.trackr.core.designsystem.resources.Res
 import com.trackr.core.designsystem.resources.action_relocate
 import com.trackr.core.designsystem.resources.ic_arrow_drop_down
@@ -82,16 +80,6 @@ fun BusHomeScreen(
     modifier: Modifier = Modifier
 ) {
     val fabState = rememberTransitCodeFabState()
-    val snackbarHostState = remember { SnackbarHostState() }
-
-    // 一次性消息：一条一条显示，显示完回报
-    val message = state.userMessages.firstOrNull()
-    LaunchedEffect(message?.id) {
-        if (message != null) {
-            snackbarHostState.showSnackbar(message.text)
-            onEvent(BusHomeEvent.MessageShown(message.id))
-        }
-    }
 
     Scaffold(
         modifier = modifier.nestedScroll(fabState.nestedScrollConnection),
@@ -110,7 +98,14 @@ fun BusHomeScreen(
                 modifier = Modifier.padding(bottom = BOTTOM_BAR_HEIGHT)
             )
         },
-        snackbarHost = { SnackbarHost(snackbarHostState, modifier = Modifier.padding(bottom = BOTTOM_BAR_HEIGHT)) }
+        // 一次性消息：一条一条显示，显示完回报
+        snackbarHost = {
+            UserMessageHost(
+                message = state.userMessages.firstOrNull()?.let { HostMessage(key = it.id, text = it.text) },
+                onResult = { key, _ -> onEvent(BusHomeEvent.MessageShown(key as Long)) },
+                modifier = Modifier.padding(bottom = BOTTOM_BAR_HEIGHT)
+            )
+        }
     ) { innerPadding ->
         val pullState = rememberPullToRefreshState()
         val layoutDirection = LocalLayoutDirection.current

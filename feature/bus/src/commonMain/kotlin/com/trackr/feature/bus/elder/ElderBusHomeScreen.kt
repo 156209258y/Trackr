@@ -78,8 +78,9 @@ import com.trackr.ui.components.elder.ElderButton
 import com.trackr.ui.components.elder.ElderButtonHeight
 import com.trackr.ui.components.elder.ElderConfirmDialog
 import com.trackr.ui.components.elder.ElderLineBadge
-import com.trackr.ui.components.elder.ElderNoticeDialog
 import com.trackr.ui.components.elder.ShowTransitCodeButton
+import com.trackr.ui.components.message.HostMessage
+import com.trackr.ui.components.message.UserMessageHost
 import com.trackr.ui.components.transitcode.TransitCodeChooserSheet
 import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.resources.vectorResource
@@ -187,10 +188,11 @@ fun ElderBusHomeScreen(
         )
     }
 
-    // 一次性消息：长辈版不用会自己消失的提示条，点「知道了」才算显示过
-    state.userMessages.firstOrNull()?.let { message ->
-        ElderNoticeDialog(text = message.text, onDismiss = { onEvent(BusHomeEvent.MessageShown(message.id)) })
-    }
+    // 一次性消息：长辈版不用会自己消失的提示条，点「知道了」才算显示过（UserMessageHost 按长辈主题选常驻提示）
+    UserMessageHost(
+        message = state.userMessages.firstOrNull()?.let { HostMessage(key = it.id, text = it.text) },
+        onResult = { key, _ -> onEvent(BusHomeEvent.MessageShown(key as Long)) }
+    )
 
     if (state.isCityPickerOpen) {
         CityPickerBottomSheet(

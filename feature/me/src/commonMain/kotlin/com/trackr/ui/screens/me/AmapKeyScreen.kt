@@ -25,15 +25,12 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboardManager
@@ -84,8 +81,6 @@ fun AmapKeyScreen(
 ) {
     val clipboard = LocalClipboardManager.current
     val uriHandler = LocalUriHandler.current
-    val snackbarHostState = remember { SnackbarHostState() }
-    UserMessageEffect(state.userMessages, snackbarHostState) { onEvent(AmapKeyEvent.MessageShown(it)) }
 
     fun copy(text: String, what: String) {
         clipboard.setText(AnnotatedString(text))
@@ -95,7 +90,7 @@ fun AmapKeyScreen(
     Scaffold(
         modifier = modifier,
         contentWindowInsets = WindowInsets.safeDrawing,
-        snackbarHost = { SnackbarHost(snackbarHostState) },
+        snackbarHost = { MeMessageHost(state.userMessages) { onEvent(AmapKeyEvent.MessageShown(it)) } },
         topBar = {
             TopAppBar(
                 title = { Text(text = stringResource(MeRes.string.me_amap_title), fontWeight = FontWeight.Bold) },

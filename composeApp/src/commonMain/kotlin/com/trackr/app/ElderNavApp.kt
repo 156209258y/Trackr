@@ -1,9 +1,6 @@
 package com.trackr.app
 
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
@@ -31,6 +28,8 @@ import com.trackr.feature.me.meEntries
 import com.trackr.feature.route.routeEntries
 import com.trackr.feature.search.searchEntries
 import com.trackr.feature.stop.stopEntries
+import com.trackr.ui.components.message.HostMessage
+import com.trackr.ui.components.message.UserMessageHost
 import com.trackr.ui.navigation.LocalAppViewModelStoreOwner
 import org.koin.compose.viewmodel.koinViewModel
 
@@ -97,15 +96,12 @@ internal fun ElderNavApp(
         predictivePopTransitionSpec = TrackrTransitions.predictivePop
     )
 
-    if (navigator.unsupportedNotice) {
-        AlertDialog(
-            onDismissRequest = navigator::dismissUnsupportedNotice,
-            text = { Text(ELDER_UNSUPPORTED_NOTICE) },
-            confirmButton = {
-                TextButton(onClick = navigator::dismissUnsupportedNotice) { Text("知道了") }
-            }
-        )
-    }
+    // 打开了长辈版不支持的页面：常驻提示，点「知道了」才关（第 31 步留的对话框换成 UserMessageHost）
+    UserMessageHost(
+        message = if (navigator.unsupportedNotice) HostMessage(key = ELDER_UNSUPPORTED_NOTICE, text = ELDER_UNSUPPORTED_NOTICE) else null,
+        onResult = { _, _ -> navigator.dismissUnsupportedNotice() },
+        persistent = true
+    )
 }
 
 /**

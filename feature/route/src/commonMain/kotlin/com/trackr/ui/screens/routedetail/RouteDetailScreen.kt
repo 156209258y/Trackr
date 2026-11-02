@@ -35,15 +35,12 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -59,6 +56,8 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.compose.dropUnlessResumed
 import com.trackr.core.designsystem.resources.Res
+import com.trackr.ui.components.message.HostMessage
+import com.trackr.ui.components.message.UserMessageHost
 import com.trackr.core.designsystem.resources.action_add
 import com.trackr.core.designsystem.resources.action_back
 import com.trackr.core.designsystem.resources.action_boarded
@@ -157,14 +156,6 @@ fun RouteDetailScreen(
     onEvent: (RouteDetailEvent) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val snackbarHostState = remember { SnackbarHostState() }
-    LaunchedEffect(message) {
-        message?.let {
-            snackbarHostState.showSnackbar(it)
-            onMessageShown()
-        }
-    }
-
     var showMore by remember { mutableStateOf(false) }
     var showAddLineForLeg by remember { mutableStateOf<Int?>(null) }
     var showDelete by remember { mutableStateOf(false) }
@@ -177,7 +168,12 @@ fun RouteDetailScreen(
     Scaffold(
         modifier = modifier,
         contentWindowInsets = WindowInsets.safeDrawing,
-        snackbarHost = { SnackbarHost(snackbarHostState) },
+        snackbarHost = {
+            UserMessageHost(
+                message = message?.let { HostMessage(key = it, text = it) },
+                onResult = { _, _ -> onMessageShown() }
+            )
+        },
         topBar = {
             TopAppBar(
                 title = {

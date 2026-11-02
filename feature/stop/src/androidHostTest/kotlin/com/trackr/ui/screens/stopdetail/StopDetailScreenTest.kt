@@ -1,6 +1,5 @@
 package com.trackr.ui.screens.stopdetail
 
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
@@ -57,7 +56,7 @@ class StopDetailScreenTest {
     private fun setContent(state: StopDetailUiState) {
         composeTestRule.setContent {
             TrackrTheme {
-                StopDetailScreen(state = state, onEvent = { events += it }, snackbarHostState = SnackbarHostState())
+                StopDetailScreen(state = state, onEvent = { events += it })
             }
         }
     }

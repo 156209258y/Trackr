@@ -38,9 +38,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarDuration
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -48,7 +45,6 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -95,6 +91,8 @@ import com.trackr.feature.line.resources.line_detail_reverse
 import com.trackr.feature.line.resources.line_detail_stop_count
 import com.trackr.feature.line.resources.line_detail_timetable
 import com.trackr.feature.line.resources.line_detail_track_this
+import com.trackr.ui.components.message.HostMessage
+import com.trackr.ui.components.message.UserMessageHost
 import com.trackr.ui.components.ScheduledReminderDialog
 import com.trackr.ui.components.TransitCodeBottomSheet
 import com.trackr.ui.components.routeRailItemIndex
@@ -160,24 +158,8 @@ fun LineDetailScreen(
     modifier: Modifier = Modifier
 ) {
     val currentOnEvent by rememberUpdatedState(onEvent)
-    val snackbarHostState = remember { SnackbarHostState() }
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
-
-    // 一次性提示：一次显示一条，显示完告诉 ViewModel
-    val message = state.userMessages.firstOrNull()
-    LaunchedEffect(message?.id) {
-        if (message == null) return@LaunchedEffect
-        val result = snackbarHostState.showSnackbar(
-            message = message.text,
-            actionLabel = message.action?.label,
-            duration = SnackbarDuration.Short
-        )
-        if (result == SnackbarResult.ActionPerformed && message.action == LineUserMessage.Action.CHANGE_GROUP) {
-            currentOnEvent(LineDetailEvent.OpenGroupPicker)
-        }
-        currentOnEvent(LineDetailEvent.MessageShown(message.id))
-    }
 
     val static = state.static
 
@@ -205,7 +187,21 @@ fun LineDetailScreen(
                 )
             }
         },
-        snackbarHost = { SnackbarHost(snackbarHostState) }
+        // 一次性提示：一次显示一条，显示完告诉 ViewModel
+        snackbarHost = {
+            UserMessageHost(
+                message = state.userMessages.firstOrNull()?.let {
+                    HostMessage(key = it.id, text = it.text, actionLabel = it.action?.label, duration = SnackbarDuration.Short)
+                },
+                onResult = { key, actionPerformed ->
+                    val message = state.userMessages.firstOrNull { it.id == key }
+                    if (actionPerformed && message?.action == LineUserMessage.Action.CHANGE_GROUP) {
+                        currentOnEvent(LineDetailEvent.OpenGroupPicker)
+                    }
+                    currentOnEvent(LineDetailEvent.MessageShown(key as Long))
+                }
+            )
+        }
     ) { innerPadding ->
         when {
             static == null && state.isLoading -> FullscreenLoadingView(

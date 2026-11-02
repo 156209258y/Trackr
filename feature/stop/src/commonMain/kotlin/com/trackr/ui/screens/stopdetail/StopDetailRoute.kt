@@ -1,9 +1,9 @@
 package com.trackr.ui.screens.stopdetail
 
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleResumeEffect
@@ -11,14 +11,28 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.trackr.core.navigation.TrackrNavigator
 import com.trackr.core.navigation.ScreenKey
+import com.trackr.ui.components.message.HostMessage
+import com.trackr.ui.components.message.UserMessageHost
 
 /**
- * 站点详情的有状态外壳：收集状态、轮询随 RESUMED 启停（§4.4）、一次性提示、导航。页面本身见 [StopDetailScreen]。
+ * 站点详情的有状态外壳：收集状态、轮询随 RESUMED 启停（§4.4）、一次性提示、导航。
+ *
+ * @param screen 画哪个页面：标准版 [StopDetailScreen]，长辈版 `ElderStopDetailScreen`（§8.5：共用 ViewModel 和事件处理，只换页面）。
+ *   `messageHost` 是一次性提示的宿主（[UserMessageHost]，标准版 Snackbar、长辈版点「知道了」才关），页面放进自己的布局里
  */
 @Composable
-internal fun StopDetailRoute(viewModel: StopDetailViewModel, navigator: TrackrNavigator) {
+internal fun StopDetailRoute(
+    viewModel: StopDetailViewModel,
+    navigator: TrackrNavigator,
+    screen: @Composable (
+        state: StopDetailUiState,
+        onEvent: (StopDetailEvent) -> Unit,
+        messageHost: @Composable () -> Unit
+    ) -> Unit = { state, onEvent, messageHost ->
+        StopDetailScreen(state = state, onEvent = onEvent, messageHost = messageHost)
+    }
+) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    val snackbarHostState = remember { SnackbarHostState() }
 
     // 只在页面处于前台（RESUMED）时轮询；回桌面、锁屏或被其他页面覆盖时停止（重构计划 §4.4）
     LifecycleResumeEffect(viewModel) {
@@ -26,8 +40,11 @@ internal fun StopDetailRoute(viewModel: StopDetailViewModel, navigator: TrackrNa
         onPauseOrDispose { viewModel.onScreenPaused() }
     }
 
+    // ViewModel 发来的一次性提示排成队，宿主一次显示一条，显示完删掉
+    val messages = remember { mutableStateListOf<HostMessage>() }
     LaunchedEffect(viewModel) {
-        viewModel.userMessages.collect { snackbarHostState.showSnackbar(it) }
+        var nextId = 0L
+        viewModel.userMessages.collect { messages += HostMessage(key = nextId++, text = it) }
     }
 
     // 本站一起等出现「上了哪辆？」待选：打开导航弹层（和通知点进来的是同一个，栈顶已是它就不重复叠），
@@ -44,9 +61,9 @@ internal fun StopDetailRoute(viewModel: StopDetailViewModel, navigator: TrackrNa
     val lifecycleOwner = LocalLifecycleOwner.current
     fun resumed() = lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)
 
-    StopDetailScreen(
-        state = state,
-        onEvent = { event ->
+    screen(
+        state,
+        { event ->
             when (event) {
                 StopDetailEvent.Back -> if (resumed() && !viewModel.handleBack()) navigator.popChildPage()
                 is StopDetailEvent.OpenLine -> if (resumed()) {
@@ -65,6 +82,11 @@ internal fun StopDetailRoute(viewModel: StopDetailViewModel, navigator: TrackrNa
                 else -> viewModel.onEvent(event)
             }
         },
-        snackbarHostState = snackbarHostState
+        {
+            UserMessageHost(
+                message = messages.firstOrNull(),
+                onResult = { key, _ -> messages.removeAll { it.key == key } }
+            )
+        }
     )
 }

@@ -29,8 +29,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -42,7 +40,6 @@ import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -98,16 +95,13 @@ fun ReminderEditScreen(
     onEvent: (ReminderEditEvent) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val snackbarHostState = remember { SnackbarHostState() }
     var showTimePicker by rememberSaveable { mutableStateOf(false) }
     val draft = state.draft
-
-    UserMessageEffect(state.userMessages, snackbarHostState) { onEvent(ReminderEditEvent.MessageShown(it)) }
 
     Scaffold(
         modifier = modifier,
         contentWindowInsets = WindowInsets.safeDrawing,
-        snackbarHost = { SnackbarHost(snackbarHostState) },
+        snackbarHost = { MeMessageHost(state.userMessages) { onEvent(ReminderEditEvent.MessageShown(it)) } },
         topBar = {
             TopAppBar(
                 title = { Text(text = stringResource(MeRes.string.me_reminder_edit_title), fontWeight = FontWeight.Bold) },

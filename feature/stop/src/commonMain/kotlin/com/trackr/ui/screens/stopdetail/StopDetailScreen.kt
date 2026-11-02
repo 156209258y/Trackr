@@ -35,8 +35,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -90,8 +88,9 @@ import org.jetbrains.compose.resources.stringResource
 fun StopDetailScreen(
     state: StopDetailUiState,
     onEvent: (StopDetailEvent) -> Unit,
-    snackbarHostState: SnackbarHostState,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    /** 一次性提示（`StopDetailRoute` 传 `UserMessageHost`） */
+    messageHost: @Composable () -> Unit = {}
 ) {
     val watch = state.watch.takeIf { !state.selecting }
 
@@ -106,7 +105,7 @@ fun StopDetailScreen(
         modifier = modifier,
         topBar = { StopDetailTopBar(state = state, watch = watch, onEvent = onEvent) },
         bottomBar = { StopDetailBottomBar(state = state, watch = watch, onEvent = onEvent) },
-        snackbarHost = { SnackbarHost(snackbarHostState) }
+        snackbarHost = messageHost
     ) { innerPadding ->
         val layoutDirection = LocalLayoutDirection.current
         val contentPadding = PaddingValues(

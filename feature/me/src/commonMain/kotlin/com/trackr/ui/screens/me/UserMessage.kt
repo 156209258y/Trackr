@@ -1,9 +1,8 @@
 package com.trackr.ui.screens.me
 
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.rememberUpdatedState
+import com.trackr.ui.components.message.HostMessage
+import com.trackr.ui.components.message.UserMessageHost
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -11,7 +10,7 @@ import kotlinx.coroutines.flow.update
 
 /**
  * 一次性提示（计划 §2.1 UDF）：放在 UiState 的 `userMessages` 里，页面显示完回调 `MessageShown(id)` 再删。
- * 第 34 步统一成 `UserMessageHost`（长辈版换常驻提示）。
+ * 页面用 [MeMessageHost] 显示（第 34 步：`UserMessageHost`，长辈版换常驻提示）。
  */
 data class UserMessage(val id: Long, val text: String)
 
@@ -37,17 +36,17 @@ class MeNotices {
     }
 }
 
-/** 把 [messages] 的第一条用 Snackbar 显示，显示完（消失或被划掉）回调 [onShown]，再显示下一条 */
+/**
+ * 把 [messages] 的第一条交给 [UserMessageHost] 显示（标准版 Snackbar，长辈版点「知道了」才关），
+ * 显示完回调 [onShown]，再显示下一条。放在 Scaffold 的 `snackbarHost` 槽里
+ */
 @Composable
-internal fun UserMessageEffect(
+internal fun MeMessageHost(
     messages: List<UserMessage>,
-    snackbarHostState: SnackbarHostState,
     onShown: (Long) -> Unit
 ) {
-    val current = messages.firstOrNull() ?: return
-    val latestOnShown = rememberUpdatedState(onShown)
-    LaunchedEffect(current.id) {
-        snackbarHostState.showSnackbar(current.text)
-        latestOnShown.value(current.id)
-    }
+    UserMessageHost(
+        message = messages.firstOrNull()?.let { HostMessage(key = it.id, text = it.text) },
+        onResult = { key, _ -> onShown(key as Long) }
+    )
 }

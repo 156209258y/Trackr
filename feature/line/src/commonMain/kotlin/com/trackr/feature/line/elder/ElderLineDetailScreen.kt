@@ -57,9 +57,10 @@ import com.trackr.ui.components.elder.ElderArrival
 import com.trackr.ui.components.elder.ElderButton
 import com.trackr.ui.components.elder.ElderConfirmDialog
 import com.trackr.ui.components.elder.ElderLineBadge
-import com.trackr.ui.components.elder.ElderNoticeDialog
 import com.trackr.ui.components.elder.ElderTopBar
 import com.trackr.ui.components.elder.ShowTransitCodeButton
+import com.trackr.ui.components.message.HostMessage
+import com.trackr.ui.components.message.UserMessageHost
 import com.trackr.ui.screens.linedetail.LineDetailEvent
 import com.trackr.ui.screens.linedetail.LineDetailUiState
 import com.trackr.ui.screens.linedetail.LineStatic
@@ -160,9 +161,10 @@ fun ElderLineDetailScreen(
     }
 
     // 一次性消息：点「知道了」才关（长辈版没有分组，提示条上的「换分组」不给）
-    state.userMessages.firstOrNull()?.let { message ->
-        ElderNoticeDialog(text = message.text, onDismiss = { onEvent(LineDetailEvent.MessageShown(message.id)) })
-    }
+    UserMessageHost(
+        message = state.userMessages.firstOrNull()?.let { HostMessage(key = it.id, text = it.text) },
+        onResult = { key, _ -> onEvent(LineDetailEvent.MessageShown(key as Long)) }
+    )
 
     // 乘车码选择（只在「每次询问」时出现）
     if (state.isTransitCodeSheetOpen) {
