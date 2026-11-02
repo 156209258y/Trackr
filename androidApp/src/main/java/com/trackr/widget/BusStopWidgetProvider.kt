@@ -30,24 +30,12 @@ class BusStopWidgetProvider : GlanceAppWidgetReceiver() {
         BusStopWidgetWorker.refreshNow(context)
     }
 
-    /**
-     * 升级前桌面上的旧 RemoteViews 刷新按钮发的是 [ACTION_WIDGET_REFRESH] 显式广播；
-     * 第一次 onUpdate 重画成 Glance 之前点它也要能刷新。
-     */
-    override fun onReceive(context: Context, intent: Intent) {
-        super.onReceive(context, intent)
-        if (intent.action == ACTION_WIDGET_REFRESH) BusStopWidgetWorker.refreshNow(context)
-    }
-
     override fun onDisabled(context: Context) {
         super.onDisabled(context)
         BusStopWidgetWorker.cancel(context)
     }
 
     companion object {
-        /** 旧 RemoteViews 刷新按钮的显式广播 action（不在 Manifest 的导出 filter 里，S2）；只为升级过渡保留 */
-        const val ACTION_WIDGET_REFRESH = "com.trackr.action.WIDGET_REFRESH"
-
         /**
          * 收藏变了：马上按新收藏重画（updateAll），再排一次刷新取数。桌面上没有小组件时什么都不做。
          */
