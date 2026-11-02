@@ -47,6 +47,22 @@
     <string name="line_detail_stop_count">共 %1$s 站</string>
     <string name="line_detail_timetable">时刻表 ›</string>
     <string name="line_detail_track_this">追踪这班车</string>
+    <!-- 长辈版线路页 / 换站（第 32 步） -->
+    <string name="line_elder_pick_stop_title">在哪一站上车？</string>
+    <string name="line_elder_bus_here">车在这</string>
+    <string name="line_elder_bus_coming">车快到</string>
+    <string name="line_elder_picked">现在选的</string>
+    <string name="line_elder_board_at">在 %1$s 上车</string>
+    <string name="line_elder_pick_stop">换站</string>
+    <string name="line_elder_alert_me">车快到时叫我</string>
+    <string name="line_elder_alerting">车快到时会叫你</string>
+    <string name="line_elder_stop_alert">不用叫了</string>
+    <string name="line_elder_stop_alert_confirm">不再提醒这班车了吗？</string>
+    <string name="line_elder_keep_alert">继续提醒</string>
+    <string name="line_elder_switch_direction">换方向</string>
+    <string name="line_elder_favorite">收藏</string>
+    <string name="line_elder_unfavorite">取消收藏</string>
+    <string name="line_elder_no_stop">先点「换站」选上车的站</string>
     <string name="line_follow_title">单车跟随 · %1$s</string>
     <string name="line_follow_unknown_plate">指定车辆</string>
     <string name="line_follow_heading">开往  %1$s</string>
