@@ -26,7 +26,7 @@ import com.trackr.feature.bus.home.BusHomeViewModel
 import com.trackr.feature.line.elderLineEntries
 import com.trackr.feature.me.meEntries
 import com.trackr.feature.route.routeEntries
-import com.trackr.feature.search.searchEntries
+import com.trackr.feature.search.elderSearchEntries
 import com.trackr.feature.stop.stopEntries
 import com.trackr.ui.components.message.HostMessage
 import com.trackr.ui.components.message.UserMessageHost
@@ -105,12 +105,12 @@ internal fun ElderNavApp(
 }
 
 /**
- * 长辈版能打开的页面（§8.4）：长辈版首页（第 32 步，右上角「设置」）、搜索、长辈版线路页（第 32 步）、站点和「上了哪辆？」、路线详情、「我的」及其子页。
+ * 长辈版能打开的页面（§8.4）：长辈版首页（第 32 步，右上角「设置」）、长辈版搜索（第 34 步）、长辈版线路页（第 32 步）、站点和「上了哪辆？」、路线详情、「我的」及其子页。
  * 规划、编辑收藏、编辑提醒不支持，[ElderNavigator] 不会把它们压栈；`routeEntries` 里的规划页 entry 用不到。
  */
 private fun EntryProviderScope<NavKey>.elderEntries(navigator: ElderNavigator) {
     elderBusEntries(navigator)
-    searchEntries(navigator)
+    elderSearchEntries(navigator)
     elderLineEntries(navigator)
     stopEntries(navigator)
     routeEntries(navigator)
