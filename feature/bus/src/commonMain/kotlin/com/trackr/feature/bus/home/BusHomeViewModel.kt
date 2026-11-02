@@ -401,7 +401,7 @@ class BusHomeViewModel(
                 }
                 // 没连上网时附近站会空着：说一句，不然看着像「附近没站」
                 if (firstResult.isFailure && stops.isEmpty()) {
-                    addMessage(NEARBY_FAILED)
+                    addMessage(NEARBY_FAILED, elderText = NEARBY_FAILED_ELDER)
                 }
             }
 
@@ -551,9 +551,9 @@ class BusHomeViewModel(
         edit { state -> state.copy(userMessages = state.userMessages.filterNot { it.id == id }) }
     }
 
-    private fun addMessage(text: String) {
+    private fun addMessage(text: String, elderText: String? = null) {
         val id = nextMessageId++
-        edit { state -> state.copy(userMessages = state.userMessages + UserMessage(id, text)) }
+        edit { state -> state.copy(userMessages = state.userMessages + UserMessage(id, text, elderText)) }
     }
 
     /** 读一张卡片的到站；手机读不了时给一条提示 */
@@ -576,5 +576,8 @@ class BusHomeViewModel(
 
         const val LOCATION_UNAVAILABLE = "定位不可用，已保留当前位置"
         const val NEARBY_FAILED = "附近站没刷出来，下拉再试一次"
+
+        /** 长辈首页没有下拉刷新：附近站空着时下面有「重新定位」按钮（第 32 步遗留） */
+        const val NEARBY_FAILED_ELDER = "附近站没刷出来，点下面的「重新定位」再试一次"
     }
 }

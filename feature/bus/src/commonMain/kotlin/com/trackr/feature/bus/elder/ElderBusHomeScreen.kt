@@ -190,7 +190,7 @@ fun ElderBusHomeScreen(
 
     // 一次性消息：长辈版不用会自己消失的提示条，点「知道了」才算显示过（UserMessageHost 按长辈主题选常驻提示）
     UserMessageHost(
-        message = state.userMessages.firstOrNull()?.let { HostMessage(key = it.id, text = it.text) },
+        message = state.userMessages.firstOrNull()?.let { HostMessage(key = it.id, text = it.elderText ?: it.text) },
         onResult = { key, _ -> onEvent(BusHomeEvent.MessageShown(key as Long)) }
     )
 

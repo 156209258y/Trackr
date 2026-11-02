@@ -296,6 +296,22 @@ class ElderBusHomeScreenTest {
     }
 
     @Test
+    fun message_usesElderWording() {
+        setContent(
+            stateOf(
+                messages = listOf(
+                    UserMessage(id = 3, text = "附近站没刷出来，下拉再试一次", elderText = "附近站没刷出来，点下面的「重新定位」再试一次")
+                )
+            )
+        )
+
+        composeTestRule.onNodeWithText("附近站没刷出来，点下面的「重新定位」再试一次").assertIsDisplayed()
+        composeTestRule.onNodeWithText("附近站没刷出来，下拉再试一次").assertDoesNotExist()
+        composeTestRule.onNodeWithText("知道了").performClick()
+        assertEquals(BusHomeEvent.MessageShown(3), events.last())
+    }
+
+    @Test
     fun confirmDialog_survivesRecreation() {
         val tester = StateRestorationTester(composeTestRule)
         tester.setContent { ElderHome(stateOf(tracking = true), 1f) }

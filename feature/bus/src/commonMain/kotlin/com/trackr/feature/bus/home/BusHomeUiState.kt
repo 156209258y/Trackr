@@ -87,7 +87,12 @@ data class BusHomeUiState(
 }
 
 /** 一次性消息。[id] 用来回报「显示过了」 */
-data class UserMessage(val id: Long, val text: String)
+data class UserMessage(
+    val id: Long,
+    val text: String,
+    /** 长辈版换一种说法（长辈首页没有下拉刷新）；null 时两版一样 */
+    val elderText: String? = null
+)
 
 /** 打开线路页要的参数（和 `ScreenKey.LineDetail` 一一对应） */
 data class LineTarget(

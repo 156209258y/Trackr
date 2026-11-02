@@ -700,6 +700,9 @@ class BusHomeViewModelTest {
 
         val message = viewModel.uiState.value.userMessages.single()
         assertEquals(BusHomeViewModel.NEARBY_FAILED, message.text)
+        // 长辈首页没有下拉刷新，换成点「重新定位」的说法
+        assertEquals(BusHomeViewModel.NEARBY_FAILED_ELDER, message.elderText)
+        assertFalse(message.elderText.orEmpty().contains("下拉"))
 
         viewModel.onEvent(BusHomeEvent.MessageShown(message.id))
         assertTrue(viewModel.uiState.value.userMessages.isEmpty())
