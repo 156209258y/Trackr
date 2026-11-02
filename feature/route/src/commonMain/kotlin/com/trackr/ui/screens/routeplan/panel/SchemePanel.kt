@@ -280,7 +280,7 @@ private fun SchemeDetail(
                     val isMain = lineIndex == 0
                     Surface(
                         onClick = { onLineClick(line) },
-                        shape = RoundedCornerShape(8.dp),
+                        shape = MaterialTheme.shapes.small,
                         color = if (isMain) legLineColor(legIndex) else MaterialTheme.colorScheme.surfaceContainerHighest,
                         modifier = Modifier.testTag("scheme_line_chip_${line.lineName}")
                     ) {

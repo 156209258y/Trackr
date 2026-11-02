@@ -358,7 +358,7 @@ private fun StopLineRow(
         else -> ({ onEvent(StopDetailEvent.OpenLine(row)) })
     }
     Surface(
-        shape = RoundedCornerShape(16.dp),
+        shape = MaterialTheme.shapes.medium,
         color = MaterialTheme.colorScheme.surfaceContainerLow,
         modifier = Modifier.fillMaxWidth()
     ) {
@@ -482,7 +482,7 @@ private fun HeroCard(kicker: String, big: String, unit: String?, detail: String)
 @Composable
 private fun WatchLineRow(line: WatchLineUi) {
     Surface(
-        shape = RoundedCornerShape(16.dp),
+        shape = MaterialTheme.shapes.medium,
         color = MaterialTheme.colorScheme.surfaceContainerLow,
         modifier = Modifier.fillMaxWidth()
     ) {
@@ -514,7 +514,7 @@ private fun WatchLineRow(line: WatchLineUi) {
 @Composable
 internal fun LineBadge(name: String) {
     Surface(
-        shape = RoundedCornerShape(8.dp),
+        shape = MaterialTheme.shapes.small,
         color = MaterialTheme.colorScheme.primaryContainer,
         contentColor = MaterialTheme.colorScheme.onPrimaryContainer
     ) {

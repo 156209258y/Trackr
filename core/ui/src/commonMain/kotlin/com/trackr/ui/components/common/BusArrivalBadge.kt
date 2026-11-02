@@ -2,7 +2,6 @@ package com.trackr.ui.components.common
 
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -77,7 +76,7 @@ fun arrivalToneColor(tone: ArrivalTone): Color = when (tone) {
 fun BusArrivalBadge(
     statusInfo: BusArrivalStatusInfo,
     modifier: Modifier = Modifier,
-    shape: Shape = RoundedCornerShape(8.dp),
+    shape: Shape = MaterialTheme.shapes.small,
     containerColor: Color? = null,
     contentColor: Color? = null,
     textStyle: TextStyle = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
@@ -120,7 +119,7 @@ fun BusArrivalBadge(
     text: String,
     modifier: Modifier = Modifier,
     isHighlighted: Boolean = text.contains("已到站") || text.contains("即将进站"),
-    shape: Shape = RoundedCornerShape(8.dp),
+    shape: Shape = MaterialTheme.shapes.small,
     containerColor: Color? = null,
     contentColor: Color? = null,
     textStyle: TextStyle = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),

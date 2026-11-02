@@ -15,7 +15,6 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.sp
 import com.trackr.core.designsystem.resources.Res
 import com.trackr.core.designsystem.resources.action_close
 import com.trackr.core.designsystem.resources.action_copy
@@ -71,7 +70,7 @@ internal fun MapDiagnosticsDialog(
         text = {
             Text(
                 text = report,
-                style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace, fontSize = 12.sp)
+                style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace)
             )
         },
         confirmButton = {

@@ -128,7 +128,7 @@ fun ScheduledReminderDialog(
                 // 时间输入面板
                 Surface(
                     color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
-                    shape = RoundedCornerShape(16.dp),
+                    shape = MaterialTheme.shapes.medium,
                     modifier = Modifier.padding(vertical = 8.dp)
                 ) {
                     Box(modifier = Modifier.padding(12.dp)) {

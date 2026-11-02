@@ -91,7 +91,7 @@ fun TransitCodeBottomSheet(
             // 1. 支付宝乘车码选项卡
             Surface(
                 onClick = { onSelectProvider(TransitCodeProvider.ALIPAY, rememberChoice) },
-                shape = RoundedCornerShape(16.dp),
+                shape = MaterialTheme.shapes.medium,
                 color = alipayColor.copy(alpha = 0.08f),
                 tonalElevation = 1.dp,
                 modifier = Modifier.fillMaxWidth()
@@ -138,7 +138,7 @@ fun TransitCodeBottomSheet(
             // 2. 云闪付乘车码选项卡
             Surface(
                 onClick = { onSelectProvider(TransitCodeProvider.UNIONPAY, rememberChoice) },
-                shape = RoundedCornerShape(16.dp),
+                shape = MaterialTheme.shapes.medium,
                 color = unionpayColor.copy(alpha = 0.08f),
                 tonalElevation = 1.dp,
                 modifier = Modifier.fillMaxWidth()

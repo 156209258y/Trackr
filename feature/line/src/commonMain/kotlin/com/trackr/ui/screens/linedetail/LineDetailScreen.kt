@@ -394,7 +394,7 @@ private fun DirectionHeader(
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
                 text = "${line.startStop} → ${line.endStop}",
-                fontSize = 16.sp,
+                style = MaterialTheme.typography.bodyLarge,
                 fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.weight(1f, fill = false)
@@ -404,7 +404,7 @@ private fun DirectionHeader(
                 Spacer(modifier = Modifier.width(8.dp))
                 Surface(
                     onClick = onSwitchDirection,
-                    shape = RoundedCornerShape(8.dp),
+                    shape = MaterialTheme.shapes.small,
                     color = MaterialTheme.colorScheme.secondaryContainer,
                     contentColor = MaterialTheme.colorScheme.onSecondaryContainer
                 ) {
@@ -571,7 +571,7 @@ private fun LineBottomBar(
             if (isTracking) {
                 OutlinedButton(
                     onClick = onToggleTracking,
-                    shape = RoundedCornerShape(16.dp),
+                    shape = MaterialTheme.shapes.medium,
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
                     modifier = Modifier
                         .weight(1f)
@@ -583,7 +583,7 @@ private fun LineBottomBar(
                 Button(
                     onClick = onToggleTracking,
                     enabled = canTrack,
-                    shape = RoundedCornerShape(16.dp),
+                    shape = MaterialTheme.shapes.medium,
                     modifier = Modifier
                         .weight(1f)
                         .height(52.dp)

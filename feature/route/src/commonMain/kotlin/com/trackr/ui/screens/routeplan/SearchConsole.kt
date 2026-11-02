@@ -252,9 +252,9 @@ private fun TipsCard(
             .fillMaxWidth()
             .padding(top = 6.dp)
             .heightIn(max = 240.dp)
-            .shadow(elevation = 6.dp, shape = RoundedCornerShape(16.dp))
+            .shadow(elevation = 6.dp, shape = MaterialTheme.shapes.medium)
             .testTag("route_plan_tips"),
-        shape = RoundedCornerShape(16.dp),
+        shape = MaterialTheme.shapes.medium,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
         LazyColumn(

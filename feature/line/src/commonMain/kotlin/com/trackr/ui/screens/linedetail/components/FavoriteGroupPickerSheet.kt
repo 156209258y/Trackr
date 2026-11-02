@@ -68,7 +68,7 @@ private fun GroupRow(name: String, selected: Boolean, onClick: () -> Unit) {
     ) {
         Text(
             text = name,
-            fontSize = 16.sp,
+            style = MaterialTheme.typography.bodyLarge,
             fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
             color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.weight(1f)

@@ -402,7 +402,7 @@ private fun VerticalTimelineRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(rowBg, shape = RoundedCornerShape(8.dp))
+            .background(rowBg, shape = MaterialTheme.shapes.small)
             .clickable { onSelectStop() }
             .padding(horizontal = 8.dp)
             .drawVerticalTrackLine(
@@ -460,7 +460,7 @@ private fun VerticalTimelineRow(
                 if (isSelected) {
                     Spacer(modifier = Modifier.width(6.dp))
                     Surface(
-                        shape = RoundedCornerShape(4.dp),
+                        shape = MaterialTheme.shapes.extraSmall,
                         color = MaterialTheme.colorScheme.primary
                     ) {
                         Text(
@@ -508,7 +508,7 @@ private fun VerticalTimelineRow(
         // 4. 到站车辆小标签
         stationBuses.forEach { bus ->
             Surface(
-                shape = RoundedCornerShape(8.dp),
+                shape = MaterialTheme.shapes.small,
                 color = if (bus.isArrived) busColors.busArrivingAmber else busColors.busChipContainer,
                 onClick = { onSelectBus(bus) },
                 modifier = Modifier.padding(start = 4.dp)

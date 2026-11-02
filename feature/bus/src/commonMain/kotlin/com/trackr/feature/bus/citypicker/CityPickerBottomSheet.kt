@@ -143,7 +143,7 @@ fun CityPickerItemRow(
             ) {
                 if (isCurrent) {
                     Surface(
-                        shape = RoundedCornerShape(4.dp),
+                        shape = MaterialTheme.shapes.extraSmall,
                         color = MaterialTheme.colorScheme.primary
                     ) {
                         Text(
@@ -157,7 +157,7 @@ fun CityPickerItemRow(
                 }
                 if (isLocated) {
                     Surface(
-                        shape = RoundedCornerShape(4.dp),
+                        shape = MaterialTheme.shapes.extraSmall,
                         color = MaterialTheme.colorScheme.tertiaryContainer
                     ) {
                         Text(
@@ -172,7 +172,7 @@ fun CityPickerItemRow(
                     DataSourceBadge(
                         style = DataSourceBadgeStyle.CHELAILE,
                         text = DataSourceType.CHELAILE.displayName,
-                        shape = RoundedCornerShape(4.dp),
+                        shape = MaterialTheme.shapes.extraSmall,
                         contentPadding = PaddingValues(horizontal = 4.dp, vertical = 1.dp)
                     )
                 }
@@ -180,7 +180,7 @@ fun CityPickerItemRow(
                     DataSourceBadge(
                         style = DataSourceBadgeStyle.MYGOLBS,
                         text = DataSourceType.MYGOLBS.displayName,
-                        shape = RoundedCornerShape(4.dp),
+                        shape = MaterialTheme.shapes.extraSmall,
                         contentPadding = PaddingValues(horizontal = 4.dp, vertical = 1.dp)
                     )
                 }
@@ -253,7 +253,7 @@ fun CityPickerBottomSheet(
                 modifier = Modifier.fillMaxWidth(),
                 placeholder = { Text(stringResource(BusRes.string.bus_city_search_hint)) },
                 singleLine = true,
-                shape = RoundedCornerShape(16.dp),
+                shape = MaterialTheme.shapes.medium,
                 leadingIcon = {
                     Icon(imageVector = vectorResource(Res.drawable.ic_search), contentDescription = stringResource(BusRes.string.bus_city_search))
                 },
@@ -333,7 +333,7 @@ fun CityPickerBottomSheet(
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Surface(
-                        shape = RoundedCornerShape(8.dp),
+                        shape = MaterialTheme.shapes.small,
                         color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
                     ) {
                         Row(
@@ -357,9 +357,9 @@ fun CityPickerBottomSheet(
 
                     Surface(
                         modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
+                            .clip(MaterialTheme.shapes.small)
                             .clickable { onRelocate() },
-                        shape = RoundedCornerShape(8.dp),
+                        shape = MaterialTheme.shapes.small,
                         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f)
                     ) {
                         Row(

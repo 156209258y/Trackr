@@ -159,7 +159,7 @@ fun TimetableBottomSheet(
                 ) {
                     timetable.todayDepartures.forEach { time ->
                         Surface(
-                            shape = RoundedCornerShape(8.dp),
+                            shape = MaterialTheme.shapes.small,
                             color = MaterialTheme.colorScheme.surfaceVariant
                         ) {
                             Text(
@@ -188,7 +188,7 @@ fun TimetableBottomSheet(
                 ) {
                     timetable.yesterdayDepartures.forEach { time ->
                         Surface(
-                            shape = RoundedCornerShape(8.dp),
+                            shape = MaterialTheme.shapes.small,
                             color = MaterialTheme.colorScheme.surfaceVariant
                         ) {
                             Text(

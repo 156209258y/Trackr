@@ -95,7 +95,7 @@ fun BusFollowContent(
                 val followedPlate = followedBus?.let { sanitizePlateOrFleetNo(it.plateOrFleetNo) }?.ifBlank { null }
                 Text(
                     text = stringResource(LineRes.string.line_follow_title, followedPlate ?: stringResource(LineRes.string.line_follow_unknown_plate)),
-                    fontSize = 16.sp,
+                    style = MaterialTheme.typography.bodyLarge,
                     fontWeight = FontWeight.Bold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -142,11 +142,11 @@ fun BusFollowContent(
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(stringResource(LineRes.string.line_follow_to_terminus), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text(stringResource(LineRes.string.line_follow_stops, stopsLeftToTerminus), fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                        Text(stringResource(LineRes.string.line_follow_stops, stopsLeftToTerminus), style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold)
                     }
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(stringResource(LineRes.string.line_follow_speed), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text("${followedBus.speedKmh.toInt()} km/h", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                        Text("${followedBus.speedKmh.toInt()} km/h", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold)
                     }
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
