@@ -122,6 +122,8 @@ class RecordedResponsesTest {
             listOf("玉林北站定制夜班车", "G02路", "17路", "玉林旅游客运站至北流成南站公交线路"),
             stops.single().lines.map { it.line.name }
         )
+        // CMD=105 的 stationOrder 恒为 0；站序取 stationID + 1（12/16/10/3 -> 13/17/11/4），和 CMD=103 站表一致
+        assertEquals(listOf(13, 17, 11, 4), stops.single().lines.map { it.targetOrder })
 
         // 表单 POST：Content-Type 和原来 OkHttp 时一样不带 charset
         val first = requests.first()

@@ -455,7 +455,11 @@ class MygolbsApiClient(
             val comments = item.optString("comments")
             val neartext = item.optString("neartext")
             val neartime = item.optString("neartime")
-            val stationOrder = item.optInt("stationOrder", 0)
+            // CMD=105 的 stationOrder 恒为 0；能用的站序在 stationID：它是这条线在本站的序号（0 起，站序 = stationID + 1）。
+            // 莆田、厦门、泉州、玉林都对得上 CMD=103 站表里的 order。
+            val stationOrder = item.optInt("stationOrder", 0).takeIf { it > 0 }
+                ?: item.optString("stationID").toIntOrNull()?.takeIf { it >= 0 }?.plus(1)
+                ?: 0
             val routeBean = item.optJSONObject("routeBean")
             val isSubway = routeBean?.optString("routeType") == "3" || lineName.contains("地铁")
             if (isSubway) continue // 过滤纯地铁线路
