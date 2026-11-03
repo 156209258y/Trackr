@@ -14,6 +14,7 @@ import com.trackr.core.model.isPureSubwayStation
 import com.trackr.core.network.provider.ITransitProvider
 import com.trackr.core.network.provider.model.LineDetailRequest
 import com.trackr.core.network.provider.model.StopDetailRequest
+import com.trackr.core.network.remote.mygolbs.MygolbsIds
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 
@@ -44,6 +45,9 @@ class TransitProviderCoordinator(
     )
 
     private var cachedCities: List<TransitCity> = emptyList()
+
+    /** 某个数据源对应的 Provider；认不出来返回 null */
+    fun providerFor(source: DataSourceType): ITransitProvider? = providers[source]
 
     /**
      * 并发获取车来了与掌上公交支持的城市列表，并进行编码与独有城市双源融合
@@ -265,7 +269,7 @@ class TransitProviderCoordinator(
         val defaultFallback = fallbackProvider(mode)
 
         val targetProvider = when {
-            line.source == DataSourceType.MYGOLBS || line.lineId.startsWith("mg:") -> providers[DataSourceType.MYGOLBS]
+            line.source == DataSourceType.MYGOLBS || MygolbsIds.isMygolbsId(line.lineId) -> providers[DataSourceType.MYGOLBS]
             line.source == DataSourceType.CHELAILE -> providers[DataSourceType.CHELAILE]
             providers[DataSourceType.MYGOLBS]?.supportsLine(line.lineId) == true -> providers[DataSourceType.MYGOLBS]
             providers[DataSourceType.CHELAILE]?.supportsLine(line.lineId) == true -> providers[DataSourceType.CHELAILE]

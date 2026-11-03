@@ -20,6 +20,14 @@ interface ITransitProvider {
     fun supportsStop(request: StopDetailRequest): Boolean
     fun supportsLocationRadar(): Boolean
 
+    /**
+     * 站点接口是否直接带回车辆明细（含全线站序）。
+     *
+     * 车来了的站点接口带每辆车的站序，可以直接用来判断「几站到」；
+     * 掌上公交的站点接口只给「x 站」文字，要车辆明细必须再按线路查。
+     */
+    fun stopDetailIncludesBuses(): Boolean = true
+
     suspend fun getSupportedCities(): List<TransitCity>
     suspend fun resolveCityByLocation(wgsLat: Double, wgsLng: Double): String?
     /** 逆地理区县名（未清洗，如 "北流市"、"玉州区"）；不支持的数据源返回 null */

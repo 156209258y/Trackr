@@ -20,6 +20,7 @@ import com.trackr.core.model.TransitSearchResult
 import com.trackr.core.network.json.JSONArray
 import com.trackr.core.network.json.JSONObject
 import com.trackr.core.network.remote.common.BaseTransitApiClient
+import com.trackr.core.network.remote.common.TimetableRules
 import io.ktor.client.HttpClient
 import io.ktor.client.request.HttpRequestBuilder
 import io.ktor.client.request.header
@@ -967,24 +968,15 @@ class ChelaileApiClient(
         }
         val reference = atTimeHHMM ?: beijingNow
 
-        val fromToday = if (atTimeHHMM != null) {
-            todayDepartures.firstOrNull { it > reference }
-        } else {
-            todayDepartures.firstOrNull { it >= reference }
-        }
-
-        val fromYesterday = if (atTimeHHMM != null) {
-            yesterdayDepartures.firstOrNull { it > reference }
-        } else {
-            yesterdayDepartures.firstOrNull { it >= reference }
-        }
-
-        val nextDep = fromToday ?: fromYesterday
-        val nextDepSource = when {
-            fromToday != null -> "今日发车预测"
-            fromYesterday != null -> "昨日实际班次"
-            else -> null
-        }
+        // 和掌上公交共用同一套「下一班」规则，避免两个数据源口径不一致
+        val resolved = TimetableRules.resolveNext(
+            todayDepartures = todayDepartures,
+            yesterdayDepartures = yesterdayDepartures,
+            referenceHHMM = reference,
+            strict = atTimeHHMM != null
+        )
+        val nextDep = resolved.time
+        val nextDepSource = resolved.source
 
         val lineObj = data.optJSONObject("line")
         val lineName = lineObj?.optString("name") ?: lineNo

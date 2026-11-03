@@ -385,6 +385,10 @@ class FakeRealtimeRepository(
         atTimeHHMM: String?
     ): Result<LineTimetable> = timetableResult
 
+    /** 和线上一致：掌上公交站点接口不带车辆明细 */
+    override fun stopDetailIncludesBuses(source: DataSourceType): Boolean =
+        source != DataSourceType.MYGOLBS
+
     override suspend fun refreshFavoritesRealtime(): Result<Map<String, NearbyStop>> = favoritesRealtimeResult
 }
 

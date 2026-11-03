@@ -8,15 +8,15 @@ import com.trackr.core.model.BusLineDirection
 import com.trackr.core.model.DataSourceType
 import com.trackr.core.model.LineTimetable
 import com.trackr.core.model.NearbyStop
-import com.trackr.core.model.ProvinceCityCatalog
 import com.trackr.core.model.TransitCity
 import com.trackr.core.model.TransitSearchResult
 import com.trackr.core.model.isPureSubwayStation
-import com.trackr.core.network.provider.ITransitProvider
+import com.trackr.core.network.provider.BaseTransitProvider
 import com.trackr.core.network.provider.model.LineDetailRequest
 import com.trackr.core.network.provider.model.StopDetailRequest
 import com.trackr.core.network.remote.chelaile.ChelaileApiClient
 import com.trackr.core.network.remote.common.SingleFlightCache
+import com.trackr.core.network.remote.mygolbs.MygolbsIds
 import kotlinx.atomicfu.locks.SynchronizedObject
 import kotlinx.atomicfu.locks.synchronized
 import kotlinx.coroutines.async
@@ -33,7 +33,7 @@ class ChelaileTransitProvider(
     private val chelaileClient: ChelaileApiClient,
     /** 单调时钟：各级补全缓存的过期判断；测试可注入 */
     private val clock: MonotonicClock = ProcessMonotonicClock
-) : ITransitProvider {
+) : BaseTransitProvider() {
 
     override val sourceType: DataSourceType = DataSourceType.CHELAILE
 
@@ -57,25 +57,14 @@ class ChelaileTransitProvider(
     /** 主查询返回空结果的站点 key -> 记录时刻；有效期内直接走经纬度兜底，不再重复主查询 */
     private val emptyMainQueryAt = LockedLongMap()
 
-    override fun supportsLine(lineId: String): Boolean = !lineId.startsWith("mg:")
+    /** 车来了接住所有不是掌上公交协议的 id（旧行为） */
+    override fun ownsId(id: String): Boolean = !MygolbsIds.isMygolbsId(id)
 
-    override fun supportsStop(request: StopDetailRequest): Boolean {
-        return request.stopId?.startsWith("mg:") != true &&
-                request.physicalStId?.startsWith("mg:") != true &&
-                request.namesakeStId?.startsWith("mg:") != true
-    }
+    /** 一个 id 都没给时按旧行为算车来了 */
+    override val missingIdMeansOwned: Boolean = true
 
-    override fun supportsLocationRadar(): Boolean = true
-
-    override suspend fun getSupportedCities(): List<TransitCity> {
-        return chelaileClient.getCities(hotOnly = false).map { city ->
-            if (city.province.isBlank()) {
-                city.copy(province = ProvinceCityCatalog.inferProvince(city.cityName))
-            } else {
-                city
-            }
-        }
-    }
+    override suspend fun loadSupportedCities(): List<TransitCity> =
+        chelaileClient.getCities(hotOnly = false)
 
     override suspend fun resolveCityByLocation(wgsLat: Double, wgsLng: Double): String? {
         return chelaileClient.reverseGeocodeCityName(wgsLat, wgsLng)

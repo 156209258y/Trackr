@@ -3,7 +3,6 @@ package com.trackr.core.data.repository
 import com.trackr.core.domain.tracking.LinePoll
 import com.trackr.core.domain.tracking.WatchPoll
 import com.trackr.core.domain.tracking.WatchPollPlan
-import com.trackr.core.model.DataSourceType
 import com.trackr.core.model.NearbyStop
 import com.trackr.core.model.NearbyStopLineStatus
 import com.trackr.core.model.TrackingTarget
@@ -133,9 +132,9 @@ class WatchTogetherPoller(
             ?: stops.firstOrNull().takeIf { physical == null && target.stopId.isBlank() }
     }
 
-    /** 站点接口给的这条线能不能直接用：有来车；或没来车但有状态文字（如「等待发车」）。掌上公交的站点接口不带来车 */
+    /** 站点接口给的这条线能不能直接用：有来车；或没来车但有状态文字（如「等待发车」）。能不能用由数据源自己说 */
     private fun carriesBuses(stop: NearbyStop, status: NearbyStopLineStatus): Boolean {
-        if (stop.source == DataSourceType.MYGOLBS) return false
+        if (!realtime.stopDetailIncludesBuses(stop.source)) return false
         if (status.approachingBuses.isNotEmpty()) return true
         return status.statusText.isNotBlank() || !status.preArrivalTime.isNullOrBlank()
     }

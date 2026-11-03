@@ -289,6 +289,9 @@ class DefaultRealtimeRepository(
         coordinator.getTimetable(city, line, atTimeHHMM, settings.engineMode.value)
     }
 
+    override fun stopDetailIncludesBuses(source: DataSourceType): Boolean =
+        coordinator.providerFor(source)?.stopDetailIncludesBuses() ?: true
+
     override suspend fun refreshFavoritesRealtime(): Result<Map<String, NearbyStop>> = runCatching {
         val favs = favoritesRepository.favorites.value
         if (favs.isEmpty()) return@runCatching emptyMap()

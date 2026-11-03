@@ -19,6 +19,7 @@ import com.trackr.core.model.TransitGroup
 import com.trackr.core.model.TransitSearchResult
 import com.trackr.core.model.UiMode
 import com.trackr.core.model.UserFix
+import com.trackr.core.network.remote.mygolbs.MygolbsIds
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 
@@ -176,7 +177,7 @@ interface RealtimeRepository {
         stationId: String? = null,
         wgsLat: Double? = null,
         wgsLng: Double? = null,
-        source: DataSourceType = if (lineId.startsWith("mg:")) DataSourceType.MYGOLBS else DataSourceType.CHELAILE,
+        source: DataSourceType = if (MygolbsIds.isMygolbsId(lineId)) DataSourceType.MYGOLBS else DataSourceType.CHELAILE,
         lineNameHint: String = "",
         directionHint: Int = 0
     ): Result<BusLineDetail>
@@ -186,6 +187,12 @@ interface RealtimeRepository {
         line: BusLineDirection,
         atTimeHHMM: String? = null
     ): Result<LineTimetable>
+
+    /**
+     * 站点接口是否直接带回车辆明细（含全线站序）。
+     * 掌上公交只给「x 站」文字，一起等要按线路补查。默认 true，Fake 不用改。
+     */
+    fun stopDetailIncludesBuses(source: DataSourceType): Boolean = true
 
     /** 收藏的每条线各查一次线路详情（命中 6 秒合并缓存），返回 收藏 id -> 站点 */
     suspend fun refreshFavoritesRealtime(): Result<Map<String, NearbyStop>>
