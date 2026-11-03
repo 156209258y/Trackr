@@ -16,6 +16,7 @@ import com.trackr.core.model.DataSourceType
 import com.trackr.core.model.FavoriteGroup
 import com.trackr.core.model.GroupCategory
 import com.trackr.core.model.GroupTrackingSessionState
+import com.trackr.core.model.LineOperatingState
 import com.trackr.core.model.TrackingTarget
 import com.trackr.core.model.TransitCity
 import com.trackr.core.model.TransitGroup
@@ -435,11 +436,28 @@ class RouteDetailViewModel(
                                     isFastest = false
                                 )
                             } else {
+                                // 没车时按线路的运营状态写，别一律写成「等待发车」：
+                                // 末班之后掌上公交和车来了都应显示「末班已过」。
+                                val serviceText = when (detail.operatingState) {
+                                    LineOperatingState.ENDED -> "末班已过"
+                                    LineOperatingState.WAITING -> "等待发车"
+                                    LineOperatingState.SUSPENDED -> "暂停运营"
+                                    LineOperatingState.NO_REALTIME -> "未开通实时"
+                                    LineOperatingState.RUNNING ->
+                                        detail.statusDescription.ifBlank { "暂无在途车辆" }
+                                }
+                                val chipText = when (detail.operatingState) {
+                                    LineOperatingState.ENDED -> "末班已过"
+                                    LineOperatingState.WAITING -> "等待发车"
+                                    LineOperatingState.SUSPENDED -> "暂停运营"
+                                    LineOperatingState.NO_REALTIME -> "未开通"
+                                    LineOperatingState.RUNNING -> "等待发车"
+                                }
                                 CandidateLineRealtimeInfo(
                                     lineId = candidate.lineId,
                                     lineName = candidate.lineName,
-                                    etaText = "暂无在途车辆",
-                                    shortChipEta = "等待发车",
+                                    etaText = serviceText,
+                                    shortChipEta = chipText,
                                     stopsAway = Int.MAX_VALUE,
                                     estimatedMinutes = Int.MAX_VALUE,
                                     directionText = directionText,
