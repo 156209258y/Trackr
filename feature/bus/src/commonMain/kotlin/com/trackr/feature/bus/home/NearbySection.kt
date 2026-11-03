@@ -1,6 +1,7 @@
 package com.trackr.feature.bus.home
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -132,7 +133,7 @@ private fun NearbyStopCard(
     }
 }
 
-/** 上下两行：「325 → 科技园」一行，「4 分钟 · 2 站」一行。
+/** 上下两行：「325 → 科技园」一行，「4 分钟 · 2 站」一行（右对齐）。
  *  线路名可能很长（如「盘龙大观园河西旅游专线」），挤一行会把终点方向压没；
  *  名字在自己的格子里省略，终点和到站信息都留得住。 */
 @Composable
@@ -156,7 +157,11 @@ private fun NearbyLineRow(line: NearbyLineUi, onClick: () -> Unit) {
             )
         }
         Spacer(modifier = Modifier.height(dimens.spaceXs))
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.End,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
             Text(
                 text = line.arrival.big,
                 style = MaterialTheme.typography.item,

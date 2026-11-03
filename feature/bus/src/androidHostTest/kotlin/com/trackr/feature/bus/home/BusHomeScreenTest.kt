@@ -194,14 +194,25 @@ class BusHomeScreenTest {
 
     @Test
     fun nearbyStop_longLineName_keepsDirectionAndArrival() {
-        // 长线路名占满自己那一行后省略，不能把终点方向压没；到站信息在第二行
+        // 长线路名占满自己那一行后省略，不能把终点方向压没；到站信息在第二行，靠右对齐
         setContent(stateOf(nearbyLineName = "盘龙大观园河西旅游专线"))
 
         composeTestRule.onNodeWithTag(BusHomeTags.LIST).performScrollToNode(hasText("→ 蛇口港"))
-        val direction = composeTestRule.onNodeWithText("→ 蛇口港").assertIsDisplayed().fetchSemanticsNode()
+        val row = composeTestRule.onNodeWithText("→ 蛇口港").fetchSemanticsNode()
+        val direction = composeTestRule.onNodeWithText("→ 蛇口港", useUnmergedTree = true)
+            .assertIsDisplayed().fetchSemanticsNode()
         val directionWidth = with(composeTestRule.density) { direction.boundsInRoot.width.toDp() }
         assertTrue("终点方向被线路名挤没了：$directionWidth", directionWidth > 60.dp)
         composeTestRule.onNodeWithText("盘龙大观园河西旅游专线").assertIsDisplayed()
+
+        val arrival = composeTestRule.onAllNodes(hasText("分钟", substring = true), useUnmergedTree = true)
+            .fetchSemanticsNodes()
+            .single { it.boundsInRoot.top >= direction.boundsInRoot.bottom }
+        assertTrue("到站时间没在第二行", arrival.boundsInRoot.top >= direction.boundsInRoot.bottom)
+        val small = composeTestRule.onNodeWithText("还有 4 站", useUnmergedTree = true)
+            .assertIsDisplayed().fetchSemanticsNode()
+        val gap = with(composeTestRule.density) { (row.boundsInRoot.right - small.boundsInRoot.right).toDp() }
+        assertTrue("第二行没右对齐，右边还空 $gap", gap < 24.dp)
     }
 
     @Test
