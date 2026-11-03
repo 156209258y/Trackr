@@ -45,10 +45,14 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -166,6 +170,18 @@ fun LineDetailScreen(
     val scope = rememberCoroutineScope()
 
     val static = state.static
+
+    // 从某个站点点进来：整页列表（含走向条）直接跳到那一站，只跳一次。
+    // 没带站序（搜索、收藏等）就保持从顶部开始；换向、选站、轮询都不会再跳。
+    var didJumpToEntryStop by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(static?.stops, state.entryStopOrder) {
+        val stops = static?.stops ?: return@LaunchedEffect
+        val order = state.entryStopOrder ?: return@LaunchedEffect
+        if (didJumpToEntryStop || stops.none { it.order == order }) return@LaunchedEffect
+        didJumpToEntryStop = true
+        val index = railStartIndex(state.errorMessage != null) + routeRailItemIndex(stops, order)
+        listState.scrollToItem((index - 2).coerceAtLeast(0))
+    }
 
     // 车辆列表 / 单车跟随里，系统返回 = 退一级，不离开线路详情
     NavigationBackHandler(

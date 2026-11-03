@@ -633,6 +633,24 @@ class LineDetailViewModelTest {
     }
 
     @Test
+    fun entryStopOrder_exposedWhenOpenedFromStation() = runTest(main.dispatcher) {
+        // 从某个站点点进来：页面要拿这个站序把走向条直接滚到那一站
+        val viewModel = createViewModel(targetOrder = 2)
+        testScheduler.runCurrent()
+
+        assertEquals(2, viewModel.uiState.value.entryStopOrder)
+    }
+
+    @Test
+    fun entryStopOrder_nullWhenOpenedWithoutStation() = runTest(main.dispatcher) {
+        // 搜索 / 收藏这类没有带站序的入口：页面保持从顶部开始
+        val viewModel = createViewModel()
+        testScheduler.runCurrent()
+
+        assertNull(viewModel.uiState.value.entryStopOrder)
+    }
+
+    @Test
     fun testPolling_skipsWhenPreviousLoadStillInFlight() = runTest(main.dispatcher) {
         val repo = CountingLineRepository(fakeRepository.realtime)
         val gate = CompletableDeferred<Unit>()

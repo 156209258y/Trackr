@@ -105,6 +105,8 @@ data class LineUserMessage(
 data class LineDetailUiState(
     /** 进页面时带来的线路名（数据回来前顶栏先显示它） */
     val lineNameHint: String = "",
+    /** 进页面时带来的站序（从某个站点点进来才有）；页面据此把走向条直接滚到那一站 */
+    val entryStopOrder: Int? = null,
     /** 第一次网络请求还没回来 */
     val isLoading: Boolean = true,
     /** 有请求在进行（轮询、选站、手动刷新）；不用来画下拉圈 */
@@ -174,7 +176,12 @@ class LineDetailViewModel(
     private val clockMillis: () -> Long = { ProcessMonotonicClock.elapsedMillis() }
 ) : ViewModel() {
 
-    private val _uiState = MutableStateFlow(LineDetailUiState(lineNameHint = lineNameHint))
+    private val _uiState = MutableStateFlow(
+        LineDetailUiState(
+            lineNameHint = lineNameHint,
+            entryStopOrder = initialTargetOrder?.takeIf { it > 0 }
+        )
+    )
     val uiState: StateFlow<LineDetailUiState> = _uiState.asStateFlow()
 
     private var currentLineId: String = initialLineId
