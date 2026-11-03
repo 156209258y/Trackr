@@ -135,4 +135,41 @@ class MygolbsServiceHoursTest {
         },
         wallClock = clock
     )
+
+    @Test
+    fun searchLines_takesFirstLastByDirection() = runBlocking {
+        val json = """
+        {
+          "status": 1,
+          "buslines": [
+            {
+              "lineName": "17路",
+              "upperOrDown": "2",
+              "from": "A",
+              "to": "B",
+              "comments": "2元",
+              "routeBean": {
+                "routeType": "1",
+                "suTime": "06:30",
+                "euTime": "18:00",
+                "sdTime": "06:35",
+                "edTime": "19:05",
+                "seutimes": [{"first": "06:30", "last": "18:00"}],
+                "sedtimes": [{"first": "07:00", "last": "19:00"}]
+              }
+            }
+          ]
+        }
+        """.trimIndent()
+        val client = MygolbsApiClient(mockHttpClient { request -> mockResponse(request, json) })
+
+        val dirs = client.searchLines(cityCode = "450900", cityName = "玉林市", keyword = "17").single().directions
+
+        val up = dirs.first { it.direction == 0 }
+        assertEquals("06:30", up.firstTime)
+        assertEquals("18:00", up.lastTime)
+        val down = dirs.first { it.direction == 1 }
+        assertEquals("07:00", down.firstTime)
+        assertEquals("19:00", down.lastTime)
+    }
 }

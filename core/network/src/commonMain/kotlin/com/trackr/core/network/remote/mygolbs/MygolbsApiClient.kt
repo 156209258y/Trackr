@@ -286,6 +286,7 @@ class MygolbsApiClient(
                 ?: json.optJSONArray("list")
                 ?: JSONArray()
             val lineMap = LinkedHashMap<String, MutableList<BusLineDirection>>()
+            val routeBeanByLine = LinkedHashMap<String, JSONObject>()
             for (i in 0 until dataArr.length()) {
                 val item = dataArr.optJSONObject(i) ?: continue
                 val lineName = item.optString("lineName").ifBlank { item.optString("LINENAME") }
@@ -302,9 +303,14 @@ class MygolbsApiClient(
                 val routeBean = item.optJSONObject("routeBean")
                 val isSubway = routeBean?.optString("routeType") == "3" || lineName.contains("地铁")
                 if (isSubway) continue // 过滤纯地铁线路
+                if (routeBean != null) routeBeanByLine[lineName] = routeBean
 
-                val firstTime = routeBean?.optString("suTime").orEmpty()
-                val lastTime = routeBean?.optString("euTime").orEmpty()
+                // 首末班按方向取：上行用 seutimes，下行用 sedtimes；以前一律写 su/eu，反向会显示错的方向时段
+                val windows = serviceWindows(routeBean, upperOrDown)
+                val firstTime = windows.firstOrNull()?.first
+                    ?: routeBean?.optString(if (upperOrDown == "1") "suTime" else "sdTime").orEmpty()
+                val lastTime = windows.lastOrNull()?.last
+                    ?: routeBean?.optString(if (upperOrDown == "1") "euTime" else "edTime").orEmpty()
                 val dirInt = if (upperOrDown == "1") 0 else 1
 
                 val dir = BusLineDirection(
@@ -329,6 +335,8 @@ class MygolbsApiClient(
                 val effectiveDirs = if (dirs.size == 1) {
                     val d1 = dirs[0]
                     val revUpperOrDown = if (d1.direction == 0) "2" else "1"
+                    // 反向的首末班从同一 routeBean 的另一方向数组取，别直接抄正向
+                    val revWindows = serviceWindows(routeBeanByLine[lineName], revUpperOrDown)
                     val revDir = BusLineDirection(
                         lineId = "mg:$cityCode:$normalizedCity:$lineName:$revUpperOrDown",
                         name = lineName,
@@ -336,8 +344,8 @@ class MygolbsApiClient(
                         direction = if (d1.direction == 0) 1 else 0,
                         startStop = d1.endStop,
                         endStop = d1.startStop,
-                        firstTime = d1.firstTime,
-                        lastTime = d1.lastTime,
+                        firstTime = revWindows.firstOrNull()?.first ?: d1.firstTime,
+                        lastTime = revWindows.lastOrNull()?.last ?: d1.lastTime,
                         price = d1.price,
                         source = DataSourceType.MYGOLBS,
                         mygolbsCityCode = cityCode,
