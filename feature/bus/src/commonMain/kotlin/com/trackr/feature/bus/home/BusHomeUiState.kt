@@ -145,7 +145,7 @@ sealed interface FavoriteRowUi {
     val key: String
 
     /**
-     * 收藏的车：「325 · 科技园站上车 · 白石洲 → 科技园」+ 到站。
+     * 收藏的车：「325 · 科技园站上车 · → 科技园」+ 到站。
      * @param arrival 还没拿到实时数据时是「正在查车」
      * @param spoken「读给我听」读的整句（长辈版），如「325路，开往科技园，还有 2 站，大约 4 分钟到科技园站」
      */
@@ -178,7 +178,7 @@ data class NearbyStopUi(
     val open: StopTarget
 )
 
-/** 附近站里的一条线：「325 白石洲 → 科技园 · 4 分钟」 */
+/** 附近站里的一条线：「325 → 科技园 · 4 分钟」 */
 data class NearbyLineUi(
     val key: String,
     val lineName: String,

@@ -598,7 +598,7 @@ class BusHomeViewModelTest {
         assertEquals(listOf("stop_f1", "stop_f2", "route_r1"), rows.map { it.key })
         val first = rows[0] as FavoriteRowUi.Stop
         assertEquals("科技园站上车", first.boardText)
-        assertEquals("白石洲 → 科技园", first.direction)
+        assertEquals("→ 科技园", first.direction)
         val routeRow = rows[2] as FavoriteRowUi.Route
         assertEquals("家 → 公司", routeRow.title)
         assertEquals("325 › 19 · 换乘 1 次", routeRow.linesText)

@@ -18,7 +18,8 @@ import com.trackr.ui.components.arrival.ArrivalUi
 /**
  * 首页数据 → 扁平 UI 模型（纯函数，单测直接测）。
  *
- * 文案按 v3：方向一律「始发 → 终点」；没车时有下一班发车时间就写「下一班 07:20 · 从 X 发车」，
+ * 文案按 v3：路线方向「始发 → 终点」；首页卡片的方向只写「→ 终点」（始发站太长放不下）；
+ * 没车时有下一班发车时间就写「下一班 07:20 · 从 X 发车」，
  * 数据源给了状态字就照写，都没有才写「暂无在途车辆」。
  */
 internal object BusHomeMapper {
@@ -176,7 +177,7 @@ internal object BusHomeMapper {
             key = item.key,
             lineName = fav.lineName,
             boardText = "${fav.targetStopName}上车",
-            direction = directionText(fav.startStop, fav.endStop),
+            direction = terminalText(fav.endStop, fav.startStop),
             arrival = ArrivalUi.of(display),
             open = lineTargetOf(fav),
             spoken = display.spoken
@@ -230,7 +231,7 @@ internal object BusHomeMapper {
                     NearbyLineUi(
                         key = "${status.line.lineId}_${status.targetOrder}_$index",
                         lineName = status.line.name,
-                        direction = directionText(status.line.startStop, status.line.endStop),
+                        direction = terminalText(status.line.endStop, status.line.startStop),
                         arrival = arrivalFor(status, nextDepartureIsFromStart = false),
                         open = LineTarget(
                             cityId = cityId,
@@ -315,7 +316,16 @@ internal object BusHomeMapper {
 
     // ---- 小工具 ----
 
-    /** 「始发 → 终点」；没有始发站时只写「→ 终点」 */
+    /**
+     * 首页卡片的方向只写「→ 终点」，不写始发站：掌上公交的始发站名很长，和到站文字挤一行放不下。
+     * 没有终点时退回始发站。
+     */
+    fun terminalText(end: String, start: String = ""): String {
+        val e = end.trim()
+        return if (e.isNotEmpty()) "→ $e" else start.trim()
+    }
+
+    /** 「始发 → 终点」；没有始发站时只写「→ 终点」（路线标题用，首页卡片用 [terminalText]） */
     fun directionText(start: String, end: String): String {
         val s = start.trim()
         val e = end.trim()

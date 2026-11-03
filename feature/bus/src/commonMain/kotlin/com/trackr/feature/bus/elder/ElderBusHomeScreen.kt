@@ -389,7 +389,7 @@ private fun LazyListScope.elderFavorites(rows: List<FavoriteRowUi>, onEvent: (Bu
     }
 }
 
-/** 一辆车：「325」「科技园站上车」「白石洲 → 科技园」+ 大字到站 +「读给我听」 */
+/** 一辆车：「325」「科技园站上车」「→ 科技园」+ 大字到站 +「读给我听」 */
 @Composable
 private fun ElderFavoriteStopCard(row: FavoriteRowUi.Stop, onClick: () -> Unit, onReadAloud: () -> Unit) {
     val dimens = TrackrTheme.dimens
@@ -534,7 +534,7 @@ private fun ElderNearbyStopCard(stop: NearbyStopUi, onOpenStop: () -> Unit, onOp
 }
 
 /**
- * 「325  白石洲 → 科技园」下面一行「4 分钟 · 2 站」。到站字不放右边：字放大到 2 倍时三样挤一行会把方向挤成一字一行
+ * 「325  → 科技园」下面一行「4 分钟 · 2 站」。到站字不放右边：字放大到 2 倍时三样挤一行会把方向挤成一字一行
  */
 @Composable
 private fun ElderNearbyLineRow(line: NearbyLineUi, onClick: () -> Unit) {

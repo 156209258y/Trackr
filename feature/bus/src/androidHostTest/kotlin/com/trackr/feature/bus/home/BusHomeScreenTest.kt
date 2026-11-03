@@ -135,7 +135,7 @@ class BusHomeScreenTest {
         setContent(stateOf())
 
         composeTestRule.onNodeWithText("科技园站上车").assertIsDisplayed()
-        composeTestRule.onNodeWithText("白石洲 → 科技园").assertIsDisplayed()
+        composeTestRule.onNodeWithText("→ 科技园").assertIsDisplayed()
         composeTestRule.onNodeWithTag(BusHomeTags.favoriteRow("stop_f1")).performClick()
         val open = events.last() as BusHomeEvent.OpenLine
         assertEquals("l325", open.target.lineId)
@@ -194,9 +194,9 @@ class BusHomeScreenTest {
     fun nearbyStop_lineRowOpensLine_headerOpensStop() {
         setContent(stateOf())
 
-        composeTestRule.onNodeWithTag(BusHomeTags.LIST).performScrollToNode(hasText("西丽 → 蛇口港"))
+        composeTestRule.onNodeWithTag(BusHomeTags.LIST).performScrollToNode(hasText("→ 蛇口港"))
         composeTestRule.onNodeWithText("120米 · 1 条线").assertIsDisplayed()
-        composeTestRule.onNodeWithText("西丽 → 蛇口港").performClick()
+        composeTestRule.onNodeWithText("→ 蛇口港").performClick()
         val line = events.last() as BusHomeEvent.OpenLine
         assertEquals("l19", line.target.lineId)
         assertEquals("n1", line.target.stopId)

@@ -130,7 +130,7 @@ private fun NearbyStopCard(
     }
 }
 
-/** 「325 | 白石洲 → 科技园 | 4 分钟 / 2 站」 */
+/** 「325 | → 科技园 | 4 分钟 / 2 站」 */
 @Composable
 private fun NearbyLineRow(line: NearbyLineUi, onClick: () -> Unit) {
     val dimens = TrackrTheme.dimens

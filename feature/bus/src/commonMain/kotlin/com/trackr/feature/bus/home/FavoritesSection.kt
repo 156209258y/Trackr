@@ -122,7 +122,7 @@ private fun GroupChips(state: BusHomeUiState, onSelect: (String?) -> Unit) {
     }
 }
 
-/** 收藏的车：线路号 | 「科技园站上车」「白石洲 → 科技园」 | 到站 */
+/** 收藏的车：线路号 | 「科技园站上车」「→ 科技园」 | 到站 */
 @Composable
 private fun FavoriteStopRow(row: FavoriteRowUi.Stop, onClick: () -> Unit) {
     RowCard(onClick = onClick, testTag = BusHomeTags.favoriteRow(row.key)) {

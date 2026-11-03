@@ -210,7 +210,7 @@ class ElderBusHomeScreenTest {
         // 标准版选了「回家」分组（同一个 ViewModel），长辈版仍列全部收藏
         setContent(stateOf(selectedGroupId = "g2"))
         composeTestRule.onNodeWithText("科技园站上车").assertIsDisplayed()
-        composeTestRule.onNodeWithText("白石洲 → 科技园").assertIsDisplayed()
+        composeTestRule.onNodeWithText("→ 科技园").assertIsDisplayed()
         // 没车时给下一班发车时间
         composeTestRule.onNodeWithText("下一班 07:20").assertIsDisplayed()
         composeTestRule.onNodeWithText("从 白石洲 发车").assertIsDisplayed()
