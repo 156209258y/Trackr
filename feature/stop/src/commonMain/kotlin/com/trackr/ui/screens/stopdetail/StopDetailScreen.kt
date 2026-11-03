@@ -5,6 +5,8 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -344,6 +346,7 @@ private fun PlatformChips(labels: List<String>, selected: Int, onEvent: (StopDet
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun StopLineRow(
     row: StopLineRowUi,
@@ -351,10 +354,11 @@ private fun StopLineRow(
     checked: Boolean,
     onEvent: (StopDetailEvent) -> Unit
 ) {
+    // 能点开线路页只看 lineId（掌上公交的站点行不带站序）；勾进「一起等」仍然要有站序
     val onClick: (() -> Unit)? = when {
-        !row.selectable -> null
-        selecting -> ({ onEvent(StopDetailEvent.ToggleLine(row.key)) })
-        else -> ({ onEvent(StopDetailEvent.OpenLine(row)) })
+        selecting -> if (row.selectable) ({ onEvent(StopDetailEvent.ToggleLine(row.key)) }) else null
+        row.lineId.isNotBlank() -> ({ onEvent(StopDetailEvent.OpenLine(row)) })
+        else -> null
     }
     Surface(
         shape = MaterialTheme.shapes.medium,
@@ -377,25 +381,43 @@ private fun StopLineRow(
                 )
                 Spacer(Modifier.width(4.dp))
             }
-            LineBadge(row.lineName)
-            Spacer(Modifier.width(12.dp))
+            /* 上下两行：第一行线路号 + 终点，第二行运营时间 + 到站。
+               线路名可能很长（如「351路（临时改道）」），到站也可能是整句状态文字（掌上公交），
+               挤在一行里会把中间压成 0 宽、时间竖着排。文字都限一行 + 省略，行高就不会跟着内容炸开。 */
             Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = if (row.endStop.isNotBlank()) "→ ${row.endStop}" else row.lineName,
-                    style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Medium),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                if (row.hours.isNotBlank() && !selecting) {
+                // 线路名和终点放不下时终点整段换到下一行，不会被挤成「→ …」
+                FlowRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(2.dp),
+                    itemVerticalAlignment = Alignment.CenterVertically
+                ) {
+                    LineBadge(row.lineName)
                     Text(
-                        text = row.hours,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        text = if (row.endStop.isNotBlank()) "→ ${row.endStop}" else row.lineName,
+                        style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Medium),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
+                Spacer(Modifier.height(2.dp))
+                Row(verticalAlignment = Alignment.Bottom) {
+                    if (row.hours.isNotBlank() && !selecting) {
+                        Text(
+                            text = row.hours,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f)
+                        )
+                    } else {
+                        Spacer(Modifier.weight(1f))
+                    }
+                    Spacer(Modifier.width(8.dp))
+                    ArrivalColumn(row.arrival, modifier = Modifier.widthIn(max = 176.dp))
+                }
             }
-            Spacer(Modifier.width(8.dp))
-            ArrivalColumn(row.arrival)
             if (!selecting) {
                 IconButton(
                     onClick = { onEvent(StopDetailEvent.ToggleFavorite(row.key)) },
@@ -502,7 +524,7 @@ private fun WatchLineRow(line: WatchLineUi) {
                     Text(line.plate, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
-            ArrivalColumn(line.arrival)
+            ArrivalColumn(line.arrival, modifier = Modifier.widthIn(max = 160.dp))
         }
     }
 }
@@ -526,11 +548,11 @@ internal fun LineBadge(name: String) {
     }
 }
 
-/** 右侧到站大字：数字 + 小单位，下面一行小字；颜色按 [ArrivalTone] */
+/** 右侧到站大字：数字 + 小单位，下面一行小字；颜色按 [ArrivalTone]。宽度由调用方限制，超了省略 */
 @Composable
-private fun ArrivalColumn(arrival: ArrivalDisplay) {
+private fun ArrivalColumn(arrival: ArrivalDisplay, modifier: Modifier = Modifier) {
     val color = toneColor(arrival.tone)
-    Column(horizontalAlignment = Alignment.End) {
+    Column(modifier = modifier, horizontalAlignment = Alignment.End) {
         Row(verticalAlignment = Alignment.Bottom) {
             val numeric = arrival.unit != null
             Text(
@@ -541,7 +563,8 @@ private fun ArrivalColumn(arrival: ArrivalDisplay) {
                 } else {
                     MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold)
                 },
-                maxLines = 1
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
             val unit = arrival.unit
             if (unit != null) {
@@ -554,7 +577,8 @@ private fun ArrivalColumn(arrival: ArrivalDisplay) {
                 arrival.detail,
                 style = MaterialTheme.typography.bodySmall,
                 color = if (arrival.detailIsWarning) TrackrTheme.colors.warn else MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
         }
     }

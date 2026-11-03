@@ -9,6 +9,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.unit.dp
 import com.trackr.core.designsystem.theme.TrackrTheme
 import com.trackr.core.domain.arrival.ArrivalDisplay
 import com.trackr.core.domain.arrival.ArrivalTone
@@ -20,6 +21,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.GraphicsMode
 
 /** v3 站点详情页（第 21 步）：无状态页面，喂手写的状态、记下发出的事件 */
 @RunWith(RobolectricTestRunner::class)
@@ -41,6 +43,21 @@ class StopDetailScreenTest {
     private val row19 = row325.copy(
         key = "r19", lineId = "L19", lineName = "19", endStop = "蛇口港", hours = "06:00–23:00", isFavorite = false,
         arrival = arrival("2", "分钟", "还有 1 站", ArrivalTone.Go)
+    )
+
+    /** 掌上公交的站点行：线路名和状态文字都很长，而且没有站序（targetOrder = 0） */
+    private val rowLong = row325.copy(
+        key = "r351",
+        lineId = "mg:0:莆田市:351路（临时改道）:2",
+        lineName = "351路（临时改道）",
+        endStop = "莆田汽车站",
+        hours = "06:10–19:10",
+        arrival = arrival("8站 [开往 秀屿区政府]", null, ""),
+        isFavorite = false,
+        selectable = false,
+        targetOrder = 0,
+        stopId = "mg:莆田市:东津",
+        source = DataSourceType.MYGOLBS
     )
 
     private val base = StopDetailUiState(
@@ -91,6 +108,19 @@ class StopDetailScreenTest {
             ),
             events
         )
+    }
+
+    @GraphicsMode(GraphicsMode.Mode.NATIVE)
+    @Test
+    fun longLineName_withoutStationOrder_stillShowsHoursAndOpensLine() {
+        // 长线路名 + 长状态文字不能把行挤成竖排；没有站序也要能点开线路页（候车站由线路页按站名找）
+        setContent(base.copy(rows = listOf(rowLong)))
+        val hours = composeTestRule.onNodeWithText("06:10–19:10", useUnmergedTree = true).assertIsDisplayed().fetchSemanticsNode()
+        val hoursHeight = with(composeTestRule.density) { hours.size.height.toDp() }
+        assertTrue("运营时间被挤成竖排：$hoursHeight", hoursHeight < 40.dp)
+        composeTestRule.onNodeWithText("8站 [开往 秀屿区政府]").assertIsDisplayed()
+        composeTestRule.onNodeWithText("→ 莆田汽车站").performClick()
+        assertEquals(listOf(StopDetailEvent.OpenLine(rowLong)), events)
     }
 
     @Test

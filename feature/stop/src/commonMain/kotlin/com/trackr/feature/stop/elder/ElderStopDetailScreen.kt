@@ -211,7 +211,7 @@ private fun ElderStopLineCard(row: StopLineRowUi, onClick: () -> Unit) {
                     Text(text = row.hours, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
-            if (row.selectable) {
+            if (row.lineId.isNotBlank()) {
                 Box(modifier = Modifier.padding(start = dimens.spaceS)) {
                     Icon(imageVector = vectorResource(Res.drawable.ic_chevron_right), contentDescription = null, modifier = Modifier.size(32.dp))
                 }
@@ -219,7 +219,8 @@ private fun ElderStopLineCard(row: StopLineRowUi, onClick: () -> Unit) {
         }
     }
     val cardModifier = Modifier.fillMaxWidth().testTag(ElderStopTags.line(row.key))
-    if (row.selectable) {
+    // 能点开线路页只看 lineId：掌上公交的站点行不带站序，但线路页可以按站名找到候车站
+    if (row.lineId.isNotBlank()) {
         Surface(onClick = onClick, shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.surface, modifier = cardModifier) {
             content()
         }
