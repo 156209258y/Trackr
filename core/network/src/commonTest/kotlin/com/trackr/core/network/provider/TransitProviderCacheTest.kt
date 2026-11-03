@@ -236,7 +236,7 @@ class TransitProviderCacheTest {
         provider.getNearbyStops(testCity, 31.23, 121.47, 4)
         val second = provider.getNearbyStops(testCity, 31.23, 121.47, 4)
 
-        assertEquals("2站到达", second[0].lines[0].statusText)
+        assertEquals("2站", second[0].lines[0].statusText)
         assertEquals(2, count("106"))
         assertEquals(1, count("105"))
 

@@ -485,10 +485,18 @@ class MygolbsApiClient(
                 if (rb.has("hasReal")) rb.optInt("hasReal", 1) else 1
             } ?: 1
 
+            // 上游 neartext 形如「7站 [开往 市检察院]」「1站 [到达 祥和山庄]」：方括号里是终点或下一站，
+            // 首页卡片和站点行放不下，只留「7站」「即将到站」「已到站」「等待发车」（「2站到达」这类也去掉「到达」）。
+            val nearTextClean = neartext
+                .substringBefore('[')
+                .substringBefore('【')
+                .trim()
+                .removeSuffix("到达")
+                .trim()
             val statusText = when {
                 hasReal == 0 -> "未开通实时"
-                neartext.isNotBlank() -> neartext
-                neartime.isNotBlank() -> "预计 $neartime 到达"
+                nearTextClean.isNotBlank() -> nearTextClean
+                neartime.isNotBlank() -> "预计 ${neartime.trim()} 到达"
                 else -> "正在运营中"
             }
 

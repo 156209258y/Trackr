@@ -783,7 +783,7 @@ class TransitProviderTest {
         assertEquals(DataSourceType.MYGOLBS, stops[0].source)
         assertEquals(1, stops[0].lines.size)
         assertEquals("108路", stops[0].lines[0].line.name)
-        assertEquals("2站到达", stops[0].lines[0].statusText)
+        assertEquals("2站", stops[0].lines[0].statusText)
     }
 
     @Test
@@ -843,5 +843,36 @@ class TransitProviderTest {
         // hasReal == 1 的真实发车保持原状 "等待发车"
         assertEquals("1路", lines[1].line.name)
         assertEquals("等待发车", lines[1].statusText)
+    }
+
+    @Test
+    fun testMygolbsProvider_stopLines_keepsOnlyStopsCountFromNearText() = runBlocking {
+        // 上游 neartext 形如「7站 [开往 市检察院]」「已到站 [到达 公交南站]」，方括号里是终点 / 下一站，卡片放不下
+        val interceptor = MockHandler { request ->
+            if (request.body.contains("CMD=105")) {
+                val jsonLines = """
+                {
+                  "status": "1",
+                  "data": [
+                    { "lineName": "303路", "upperOrDown": "1", "neartext": "7站 [开往 市检察院]" },
+                    { "lineName": "5路", "upperOrDown": "1", "neartext": "已到站 [到达 公交南站]" },
+                    { "lineName": "2路", "upperOrDown": "1", "neartext": "2站到达" }
+                  ]
+                }
+                """.trimIndent()
+                mockResponse(request, jsonLines)
+            } else {
+                mockResponse(request, """{"status": "1", "data": []}""")
+            }
+        }
+
+        val provider = MygolbsTransitProvider(MygolbsApiClient(mockHttpClient(handler = interceptor)))
+
+        val request = StopDetailRequest(stopId = "mg:莆田市:公交北站", stopName = "公交北站")
+        val lines = provider.getStopDetail(testCity, request)[0].lines
+
+        assertEquals("7站", lines[0].statusText)
+        assertEquals("已到站", lines[1].statusText)
+        assertEquals("2站", lines[2].statusText)
     }
 }
