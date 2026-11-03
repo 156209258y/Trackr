@@ -1,6 +1,7 @@
 package com.trackr.ui.screens.me
 
 import com.trackr.core.model.EngineMode
+import com.trackr.core.model.RailMode
 import com.trackr.core.model.ScheduledReminder
 import com.trackr.core.model.TransitCodeProvider
 import com.trackr.core.model.UiMode
@@ -89,6 +90,21 @@ class MeViewModelTest {
         testScheduler.advanceUntilIdle()
         assertEquals(UiMode.Standard, settings.uiMode.value)
         assertFalse(viewModel.uiState.value.elderMode)
+    }
+
+    @Test
+    fun railMode_defaultsToHorizontal_andFollowsSetting() = runTest(main.dispatcher) {
+        val viewModel = createViewModel()
+        assertEquals(RailMode.Horizontal, viewModel.uiState.value.railMode)
+
+        viewModel.onEvent(MeEvent.SetRailMode(RailMode.Vertical))
+        testScheduler.advanceUntilIdle()
+        assertEquals(RailMode.Vertical, settings.railMode.value)
+        assertEquals(RailMode.Vertical, viewModel.uiState.value.railMode)
+
+        viewModel.onEvent(MeEvent.SetRailMode(RailMode.Horizontal))
+        testScheduler.advanceUntilIdle()
+        assertEquals(RailMode.Horizontal, viewModel.uiState.value.railMode)
     }
 
     @Test

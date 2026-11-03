@@ -55,6 +55,8 @@
     <string name="me_group_display">显示</string>
     <string name="me_elder_mode">长辈版</string>
     <string name="me_elder_mode_desc">字更大，按钮更大</string>
+    <string name="me_rail_mode">走向条样式</string>
+    <string name="me_rail_mode_desc">线路详情页的站点怎么排</string>
     <string name="me_group_travel">出行</string>
     <string name="me_arrival_alert">到站前提醒</string>
     <string name="me_arrival_alert_desc">车离上车站还剩几站时震动提醒</string>

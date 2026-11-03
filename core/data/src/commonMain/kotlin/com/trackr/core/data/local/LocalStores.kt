@@ -38,6 +38,8 @@ data class TransitLocalSnapshot(
     val alertThresholdStops: Int? = null,
     /** 界面模式（`UiMode` 的名字）；没存过为 null，按标准版 */
     val uiMode: String? = null,
+    /** 走向条样式（`RailMode` 的名字）；没存过为 null，按横排 */
+    val railMode: String? = null,
     val fontScalePromptDismissed: Boolean? = null,
     val favorites: List<FavoriteStationLine> = emptyList(),
     val searchHistory: List<String> = emptyList()
@@ -54,6 +56,7 @@ interface TransitLocalStore {
     suspend fun saveShowOnLockScreen(enabled: Boolean)
     suspend fun saveAlertThresholdStops(stops: Int)
     suspend fun saveUiMode(name: String)
+    suspend fun saveRailMode(name: String)
     suspend fun saveFontScalePromptDismissed(dismissed: Boolean)
     suspend fun saveSearchHistory(list: List<String>)
     suspend fun clearSearchHistory()

@@ -62,6 +62,7 @@ class SharedPrefsTransitStore(private val prefs: SharedPreferences) : TransitLoc
         showOnLockScreen = if (prefs.contains(KEY_SHOW_ON_LOCK_SCREEN)) prefs.getBoolean(KEY_SHOW_ON_LOCK_SCREEN, true) else null,
         alertThresholdStops = if (prefs.contains(KEY_ALERT_THRESHOLD_STOPS)) prefs.getInt(KEY_ALERT_THRESHOLD_STOPS, 2) else null,
         uiMode = prefs.getString(KEY_UI_MODE, null),
+        railMode = prefs.getString(KEY_RAIL_MODE, null),
         fontScalePromptDismissed = if (prefs.contains(KEY_FONT_SCALE_PROMPT_DISMISSED)) prefs.getBoolean(KEY_FONT_SCALE_PROMPT_DISMISSED, false) else null,
         searchHistory = decodeOrEmpty(prefs.getString(KEY_SEARCH_HISTORY, null))
     )
@@ -98,6 +99,10 @@ class SharedPrefsTransitStore(private val prefs: SharedPreferences) : TransitLoc
         prefs.edit().putString(KEY_UI_MODE, name).apply()
     }
 
+    override suspend fun saveRailMode(name: String) {
+        prefs.edit().putString(KEY_RAIL_MODE, name).apply()
+    }
+
     override suspend fun saveFontScalePromptDismissed(dismissed: Boolean) {
         prefs.edit().putBoolean(KEY_FONT_SCALE_PROMPT_DISMISSED, dismissed).apply()
     }
@@ -127,6 +132,7 @@ class SharedPrefsTransitStore(private val prefs: SharedPreferences) : TransitLoc
         private const val KEY_SHOW_ON_LOCK_SCREEN = "show_on_lock_screen"
         private const val KEY_ALERT_THRESHOLD_STOPS = "alert_threshold_stops"
         private const val KEY_UI_MODE = "ui_mode"
+        private const val KEY_RAIL_MODE = "rail_mode"
         private const val KEY_FONT_SCALE_PROMPT_DISMISSED = "font_scale_prompt_dismissed"
         /** 收藏的车（[SharedPrefsFavoritesStore] 读写） */
         const val KEY_FAVORITES = "favorites_json"

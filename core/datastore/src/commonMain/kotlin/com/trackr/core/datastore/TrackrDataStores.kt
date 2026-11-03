@@ -51,6 +51,9 @@ object SettingsKeys {
     /** 界面模式（`UiMode` 的名字，第 30 步新加，旧存储没有这个键）；没有或认不出 = 标准版 */
     val UI_MODE = stringPreferencesKey("ui_mode")
 
+    /** 线路详情走向条样式（`RailMode` 的名字）；没有或认不出 = 横排 */
+    val RAIL_MODE = stringPreferencesKey("rail_mode")
+
     /** 系统字体放大时的「试试长辈版」提示点过了（第 30 步新加）；没有 = 还没点过 */
     val FONT_SCALE_PROMPT_DISMISSED = booleanPreferencesKey("font_scale_prompt_dismissed")
     val FAVORITES_GROUP_MIGRATION_VERSION = intPreferencesKey("favorites_group_migration_version")

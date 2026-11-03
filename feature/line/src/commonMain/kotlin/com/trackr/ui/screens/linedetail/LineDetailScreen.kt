@@ -85,8 +85,6 @@ import com.trackr.core.designsystem.resources.ic_qr_code
 import com.trackr.core.designsystem.resources.ic_star
 import com.trackr.core.designsystem.resources.ic_star_filled
 import com.trackr.core.designsystem.resources.ic_swap
-import com.trackr.core.designsystem.resources.ic_view_columns
-import com.trackr.core.designsystem.resources.ic_view_rows
 import com.trackr.core.designsystem.resources.transit_code
 import com.trackr.core.designsystem.theme.busColors
 import com.trackr.core.model.BusLineDetail
@@ -94,6 +92,7 @@ import com.trackr.core.model.BusStop
 import com.trackr.core.model.DataSourceType
 import com.trackr.core.model.LineOperatingState
 import com.trackr.core.model.LiveBus
+import com.trackr.core.model.RailMode
 import com.trackr.core.model.TransitCodeProvider
 import com.trackr.feature.line.resources.Res as LineRes
 import com.trackr.feature.line.resources.line_detail_error
@@ -105,8 +104,6 @@ import com.trackr.feature.line.resources.line_detail_reverse
 import com.trackr.feature.line.resources.line_detail_stop_count
 import com.trackr.feature.line.resources.line_detail_timetable
 import com.trackr.feature.line.resources.line_detail_track_this
-import com.trackr.feature.line.resources.line_rail_switch_to_horizontal
-import com.trackr.feature.line.resources.line_rail_switch_to_vertical
 import com.trackr.ui.components.message.HostMessage
 import com.trackr.ui.components.message.UserMessageHost
 import com.trackr.ui.components.HorizontalRailColumnWidth
@@ -184,8 +181,8 @@ fun LineDetailScreen(
 
     val static = state.static
 
-    // 走向条默认横排，一个按钮切换；只记到本次页面（转屏不丢，换线路回默认）
-    var isHorizontalRail by rememberSaveable { mutableStateOf(true) }
+    // 走向条样式是「我的」里的全局设置，线路页不提供切换入口
+    val isHorizontalRail = state.railMode == RailMode.Horizontal
     // 从某个站点点进来：走向条直接跳到那一站，只跳一次。主卡固定在顶部，不会跟着跳走。
     // 没带站序（搜索、收藏等）就保持从顶部开始；换向、选站、轮询都不会再跳。
     var didJumpToEntryStop by rememberSaveable { mutableStateOf(false) }
@@ -207,11 +204,11 @@ fun LineDetailScreen(
         }
     }
 
-    // 用户主动切横竖：把新视图滚到当前候车站；换向、选站、轮询都不滚
-    var previousHorizontalRail by remember { mutableStateOf(isHorizontalRail) }
-    LaunchedEffect(isHorizontalRail) {
-        if (previousHorizontalRail == isHorizontalRail) return@LaunchedEffect
-        previousHorizontalRail = isHorizontalRail
+    // 在「我的」改了走向条样式再回来：把新视图滚到当前候车站；换向、选站、轮询都不滚
+    var previousRailMode by remember { mutableStateOf(state.railMode) }
+    LaunchedEffect(state.railMode) {
+        if (previousRailMode == state.railMode) return@LaunchedEffect
+        previousRailMode = state.railMode
         val stops = static?.stops ?: return@LaunchedEffect
         val order = state.selectedStop?.order ?: return@LaunchedEffect
         val index = routeRailItemIndex(stops, order)
@@ -319,8 +316,6 @@ fun LineDetailScreen(
                     Column(modifier = contentModifier) {
                         DirectionHeader(
                             static = static,
-                            isHorizontalRail = isHorizontalRail,
-                            onToggleRailMode = { isHorizontalRail = !isHorizontalRail },
                             onSwitchDirection = { onEvent(LineDetailEvent.SwitchDirection) },
                             onOpenTimetable = { onEvent(LineDetailEvent.OpenTimetable) }
                         )
@@ -496,8 +491,6 @@ private fun LineTopBar(
 @Composable
 private fun DirectionHeader(
     static: LineStatic,
-    isHorizontalRail: Boolean,
-    onToggleRailMode: () -> Unit,
     onSwitchDirection: () -> Unit,
     onOpenTimetable: () -> Unit
 ) {
@@ -551,26 +544,6 @@ private fun DirectionHeader(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.weight(1f, fill = false)
             )
-            // 横竖走向条切换：图标画的是「点一下会变成哪种」，和其它列表/地图切换一致
-            IconButton(
-                onClick = onToggleRailMode,
-                modifier = Modifier.size(32.dp)
-            ) {
-                Icon(
-                    imageVector = vectorResource(
-                        if (isHorizontalRail) Res.drawable.ic_view_rows else Res.drawable.ic_view_columns
-                    ),
-                    contentDescription = stringResource(
-                        if (isHorizontalRail) {
-                            LineRes.string.line_rail_switch_to_vertical
-                        } else {
-                            LineRes.string.line_rail_switch_to_horizontal
-                        }
-                    ),
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(18.dp)
-                )
-            }
             TextButton(onClick = onOpenTimetable) {
                 Text(text = stringResource(LineRes.string.line_detail_timetable), fontSize = 13.sp)
             }

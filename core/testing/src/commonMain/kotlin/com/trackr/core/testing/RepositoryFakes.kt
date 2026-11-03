@@ -19,6 +19,7 @@ import com.trackr.core.model.TransitCity
 import com.trackr.core.model.TransitCodeProvider
 import com.trackr.core.model.TransitGroup
 import com.trackr.core.model.TransitSearchResult
+import com.trackr.core.model.RailMode
 import com.trackr.core.model.UiMode
 import com.trackr.core.model.UserFix
 import kotlinx.coroutines.flow.Flow
@@ -74,11 +75,18 @@ class FakeSettingsRepository(
     private val _uiMode = MutableStateFlow(UiMode.Standard)
     override val uiMode: StateFlow<UiMode> = _uiMode.asStateFlow()
 
+    private val _railMode = MutableStateFlow(RailMode.Horizontal)
+    override val railMode: StateFlow<RailMode> = _railMode.asStateFlow()
+
     private val _fontScalePromptDismissed = MutableStateFlow(false)
     override val fontScalePromptDismissed: StateFlow<Boolean> = _fontScalePromptDismissed.asStateFlow()
 
     override fun setUiMode(mode: UiMode) {
         _uiMode.value = mode
+    }
+
+    override fun setRailMode(mode: RailMode) {
+        _railMode.value = mode
     }
 
     override fun dismissFontScalePrompt() {

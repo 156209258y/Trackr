@@ -10,6 +10,7 @@ import com.trackr.core.designsystem.theme.TrackrTheme
 import com.trackr.core.model.BusLineDirection
 import com.trackr.core.model.BusStop
 import com.trackr.core.model.LiveBus
+import com.trackr.core.model.RailMode
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -86,26 +87,12 @@ class LineDetailEntryScrollTest {
     }
 
     @Test
-    fun switchedToVertical_jumpsListToEntryStation() {
-        show(stateOf(entryStopOrder = 20))
+    fun verticalMode_jumpsListToEntryStation() {
+        // 走向条样式来自「我的」设置，线路页没有切换按钮
+        show(stateOf(entryStopOrder = 20).copy(railMode = RailMode.Vertical))
 
-        composeTestRule.onNodeWithContentDescription("切换为竖排走向条").performClick()
-
-        // 切到竖排后，竖排列表同样定位到第 20 站
         composeTestRule.onNodeWithText("S20").assertIsDisplayed()
         composeTestRule.onNodeWithText("S01").assertIsNotDisplayed()
-    }
-
-    @Test
-    fun switchedBackToHorizontal_showsOnlyHorizontalRail() {
-        show(stateOf(entryStopOrder = 20))
-
-        composeTestRule.onNodeWithContentDescription("切换为竖排走向条").performClick()
-        composeTestRule.onNodeWithContentDescription("切换为横排走向条").performClick()
-
-        // 横排没有竖排站点列表，站名按单字竖排，所以整段 "S20" 文本不存在
-        composeTestRule.onNodeWithContentDescription("S20").assertIsDisplayed()
-        composeTestRule.onNodeWithText("S20").assertDoesNotExist()
     }
 
     @Test

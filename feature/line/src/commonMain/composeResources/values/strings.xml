@@ -106,6 +106,4 @@
     <string name="line_station_expand_card">展开卡片</string>
     <string name="line_rail_condition">响应</string>
     <string name="line_rail_arrived">到站</string>
-    <string name="line_rail_switch_to_vertical">切换为竖排走向条</string>
-    <string name="line_rail_switch_to_horizontal">切换为横排走向条</string>
 </resources>

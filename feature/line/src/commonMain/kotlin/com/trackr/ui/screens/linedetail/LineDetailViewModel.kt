@@ -24,6 +24,7 @@ import com.trackr.core.model.FavoriteStationLine
 import com.trackr.core.model.LineOperatingState
 import com.trackr.core.model.LineTimetable
 import com.trackr.core.model.LiveBus
+import com.trackr.core.model.RailMode
 import com.trackr.core.model.ScheduledReminder
 import com.trackr.core.model.TrackingSessionState
 import com.trackr.core.model.TrackingTarget
@@ -132,6 +133,8 @@ data class LineDetailUiState(
     val isReminderDialogOpen: Boolean = false,
     val preferredTransitCodeProvider: TransitCodeProvider = TransitCodeProvider.ASK_ALWAYS,
     val isTransitCodeSheetOpen: Boolean = false,
+    /** 走向条样式（「我的」全局设置）：横排只有横条，竖排是时间轴列表 */
+    val railMode: RailMode = RailMode.Horizontal,
     /** 当前追踪会话（页面据此判断「本站是否正在追踪」） */
     val trackingSession: TrackingSessionState = TrackingSessionState(),
     val userMessages: List<LineUserMessage> = emptyList()
@@ -252,6 +255,11 @@ class LineDetailViewModel(
         viewModelScope.launch {
             settings.preferredTransitCodeProvider.collectLatest { provider ->
                 _uiState.update { it.copy(preferredTransitCodeProvider = provider) }
+            }
+        }
+        viewModelScope.launch {
+            settings.railMode.collectLatest { mode ->
+                _uiState.update { it.copy(railMode = mode) }
             }
         }
         viewModelScope.launch {

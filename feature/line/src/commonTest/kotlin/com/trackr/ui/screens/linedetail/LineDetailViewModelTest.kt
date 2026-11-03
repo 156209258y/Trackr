@@ -11,6 +11,7 @@ import com.trackr.core.model.DataSourceType
 import com.trackr.core.model.FavoriteGroup
 import com.trackr.core.model.LineTimetable
 import com.trackr.core.model.LiveBus
+import com.trackr.core.model.RailMode
 import com.trackr.core.model.TrackingTarget
 import com.trackr.core.model.TransitCity
 import com.trackr.core.model.TransitCodeProvider
@@ -178,6 +179,18 @@ class LineDetailViewModelTest {
             announcer = announcer,
             enableAutoPolling = false
         )
+    }
+
+    @Test
+    fun railMode_followsGlobalSetting() = runTest(main.dispatcher) {
+        val viewModel = createViewModel()
+        testScheduler.runCurrent()
+        assertEquals(RailMode.Horizontal, viewModel.uiState.value.railMode)
+
+        fakeRepository.settings.setRailMode(RailMode.Vertical)
+        testScheduler.runCurrent()
+
+        assertEquals(RailMode.Vertical, viewModel.uiState.value.railMode)
     }
 
     // ---------- 读给我听（第 33 步） ----------

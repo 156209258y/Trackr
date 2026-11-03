@@ -69,6 +69,7 @@ import com.trackr.core.designsystem.resources.ic_clock
 import com.trackr.core.designsystem.resources.transit_code
 import com.trackr.core.designsystem.theme.TrackrTheme
 import com.trackr.core.model.EngineMode
+import com.trackr.core.model.RailMode
 import com.trackr.core.model.ScheduledReminder
 import com.trackr.core.model.TransitCodeProvider
 import com.trackr.feature.me.resources.Res as MeRes
@@ -81,6 +82,8 @@ import com.trackr.feature.me.resources.me_data_source
 import com.trackr.feature.me.resources.me_elder_mode
 import com.trackr.feature.me.resources.me_elder_mode_desc
 import com.trackr.feature.me.resources.me_group_display
+import com.trackr.feature.me.resources.me_rail_mode
+import com.trackr.feature.me.resources.me_rail_mode_desc
 import com.trackr.feature.me.resources.me_group_map
 import com.trackr.feature.me.resources.me_group_notify
 import com.trackr.feature.me.resources.me_group_travel
@@ -116,6 +119,7 @@ fun MeScreen(
 ) {
     var showTransitCodeDialog by rememberSaveable { mutableStateOf(false) }
     var showAlertThresholdDialog by rememberSaveable { mutableStateOf(false) }
+    var showRailModeDialog by rememberSaveable { mutableStateOf(false) }
     var showRemindersSheet by rememberSaveable { mutableStateOf(false) }
 
 
@@ -157,6 +161,13 @@ fun MeScreen(
                         subtitle = stringResource(MeRes.string.me_elder_mode_desc),
                         checked = state.elderMode,
                         onCheckedChange = { onEvent(MeEvent.SetElderMode(it)) }
+                    )
+                    GroupDivider()
+                    SettingRow(
+                        title = stringResource(MeRes.string.me_rail_mode),
+                        subtitle = stringResource(MeRes.string.me_rail_mode_desc),
+                        value = railModeLabel(state.railMode),
+                        onClick = { showRailModeDialog = true }
                     )
                 }
             }
@@ -286,6 +297,20 @@ fun MeScreen(
         )
     }
 
+    if (showRailModeDialog) {
+        ChoiceDialog(
+            title = stringResource(MeRes.string.me_rail_mode),
+            options = RailMode.entries,
+            selected = state.railMode,
+            label = ::railModeLabel,
+            onSelect = {
+                onEvent(MeEvent.SetRailMode(it))
+                showRailModeDialog = false
+            },
+            onDismiss = { showRailModeDialog = false }
+        )
+    }
+
     if (showRemindersSheet) {
         RemindersSheet(
             reminders = state.reminders,
@@ -306,6 +331,11 @@ private fun transitCodeLabel(provider: TransitCodeProvider): String = when (prov
 }
 
 private fun alertThresholdLabel(stops: Int): String = "提前 $stops 站"
+
+private fun railModeLabel(mode: RailMode): String = when (mode) {
+    RailMode.Horizontal -> "横排"
+    RailMode.Vertical -> "竖排"
+}
 
 /** 一组设置：小号主色组标题 + 圆角卡片；行之间由调用方放 [GroupDivider] */
 @Composable
