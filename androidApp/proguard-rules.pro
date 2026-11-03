@@ -35,9 +35,13 @@
 -keep class com.amap.api.** { *; }
 -keep class com.autonavi.** { *; }
 -keep class com.loc.** { *; }
+# location 11.x 把实现类挪到 com.amap.location.**，libapssdk.so 的 JNI_OnLoad 按原类名
+# FindClass（如 com.amap.location.support.log.ALLog）并回调这些类；被改名或裁掉会 SIGABRT
+-keep class com.amap.location.** { *; }
 -dontwarn com.amap.api.**
 -dontwarn com.autonavi.**
 -dontwarn com.loc.**
+-dontwarn com.amap.location.**
 # 11.x 起内置的 location fusion 会反射引用可选的 GNSS 模块（com.amap.ams.*），
 # 该模块未打进一体化包，属于「可选依赖缺失」，忽略即可
 -dontwarn com.amap.ams.**
