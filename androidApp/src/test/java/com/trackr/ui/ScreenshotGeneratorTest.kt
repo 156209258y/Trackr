@@ -323,7 +323,7 @@ class ScreenshotGeneratorTest {
         )
         mainDispatcherRule.testDispatcher.scheduler.advanceUntilIdle()
 
-        // 1. 线路详情 (Light Theme)。第 20 步起走向条只留竖向
+        // 1. 线路详情 (Light Theme)。默认横排走向条，站名竖排
         composeTestRule.setContent {
             TrackrTheme(darkTheme = false) {
                 Surface(modifier = Modifier.fillMaxSize()) {

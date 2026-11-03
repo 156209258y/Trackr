@@ -60,6 +60,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -84,6 +85,8 @@ import com.trackr.core.designsystem.resources.ic_qr_code
 import com.trackr.core.designsystem.resources.ic_star
 import com.trackr.core.designsystem.resources.ic_star_filled
 import com.trackr.core.designsystem.resources.ic_swap
+import com.trackr.core.designsystem.resources.ic_view_columns
+import com.trackr.core.designsystem.resources.ic_view_rows
 import com.trackr.core.designsystem.resources.transit_code
 import com.trackr.core.designsystem.theme.busColors
 import com.trackr.core.model.BusLineDetail
@@ -102,10 +105,15 @@ import com.trackr.feature.line.resources.line_detail_reverse
 import com.trackr.feature.line.resources.line_detail_stop_count
 import com.trackr.feature.line.resources.line_detail_timetable
 import com.trackr.feature.line.resources.line_detail_track_this
+import com.trackr.feature.line.resources.line_rail_switch_to_horizontal
+import com.trackr.feature.line.resources.line_rail_switch_to_vertical
 import com.trackr.ui.components.message.HostMessage
 import com.trackr.ui.components.message.UserMessageHost
+import com.trackr.ui.components.HorizontalRailColumnWidth
+import com.trackr.ui.components.HorizontalRouteRail
 import com.trackr.ui.components.ScheduledReminderDialog
 import com.trackr.ui.components.TransitCodeBottomSheet
+import com.trackr.ui.components.horizontalRailCardHeight
 import com.trackr.ui.components.routeRailItemIndex
 import com.trackr.ui.components.routeRailItems
 import com.trackr.ui.components.timetable.TimetableBottomSheet
@@ -113,6 +121,7 @@ import com.trackr.ui.screens.linedetail.components.BusFollowContent
 import com.trackr.ui.screens.linedetail.components.BusListContent
 import com.trackr.ui.screens.linedetail.components.FavoriteGroupPickerSheet
 import com.trackr.ui.screens.linedetail.components.StationArrivalContent
+import kotlin.math.roundToInt
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.resources.vectorResource
@@ -168,22 +177,50 @@ fun LineDetailScreen(
 ) {
     val currentOnEvent by rememberUpdatedState(onEvent)
     val listState = rememberLazyListState()
+    val stripScrollState = rememberScrollState()
+    val pageScrollState = rememberScrollState()
+    val density = LocalDensity.current
     val scope = rememberCoroutineScope()
 
     val static = state.static
 
+    // 走向条默认横排，一个按钮切换；只记到本次页面（转屏不丢，换线路回默认）
+    var isHorizontalRail by rememberSaveable { mutableStateOf(true) }
     // 从某个站点点进来：走向条直接跳到那一站，只跳一次。主卡固定在顶部，不会跟着跳走。
     // 没带站序（搜索、收藏等）就保持从顶部开始；换向、选站、轮询都不会再跳。
     var didJumpToEntryStop by rememberSaveable { mutableStateOf(false) }
     // 主卡可以收起成一行，把高度让给走向条；收起状态跟着页面保存
     var cardCollapsed by rememberSaveable { mutableStateOf(false) }
+    val railCardHeight = horizontalRailCardHeight(static?.stops.orEmpty())
+
     LaunchedEffect(static?.stops, state.entryStopOrder) {
         val stops = static?.stops ?: return@LaunchedEffect
         val order = state.entryStopOrder ?: return@LaunchedEffect
         if (didJumpToEntryStop || stops.none { it.order == order }) return@LaunchedEffect
         didJumpToEntryStop = true
         val index = routeRailItemIndex(stops, order)
-        listState.scrollToItem((index - 2).coerceAtLeast(0))
+        val target = (index - 2).coerceAtLeast(0)
+        if (isHorizontalRail) {
+            stripScrollState.scrollTo(with(density) { (HorizontalRailColumnWidth * target).roundToPx() })
+        } else {
+            listState.scrollToItem(target)
+        }
+    }
+
+    // 用户主动切横竖：把新视图滚到当前候车站；换向、选站、轮询都不滚
+    var previousHorizontalRail by remember { mutableStateOf(isHorizontalRail) }
+    LaunchedEffect(isHorizontalRail) {
+        if (previousHorizontalRail == isHorizontalRail) return@LaunchedEffect
+        previousHorizontalRail = isHorizontalRail
+        val stops = static?.stops ?: return@LaunchedEffect
+        val order = state.selectedStop?.order ?: return@LaunchedEffect
+        val index = routeRailItemIndex(stops, order)
+        val target = (index - 2).coerceAtLeast(0)
+        if (isHorizontalRail) {
+            stripScrollState.animateScrollTo(with(density) { (HorizontalRailColumnWidth * target).roundToPx() })
+        } else {
+            listState.animateScrollToItem(target)
+        }
     }
 
     // 车辆列表 / 单车跟随里，系统返回 = 退一级，不离开线路详情
@@ -260,11 +297,30 @@ fun LineDetailScreen(
                     val live = state.live
                     val busesByOrder = remember(live?.buses) { live?.buses.orEmpty().groupBy { it.order } }
                     val hasError = state.errorMessage != null
-                    // 主卡最多占六成高度：车辆列表很长时卡里自己滚，走向条始终留一块能看
-                    val cardMaxHeight = maxHeight * 0.6f
-                    Column(modifier = Modifier.fillMaxSize()) {
+                    // 主卡最多占六成；横排时再给横条和底栏让位，保证横线整个露出来
+                    val cardMaxHeight = if (isHorizontalRail) {
+                        val reserved = 120.dp + innerPadding.calculateBottomPadding() +
+                            if (hasError) 48.dp else 0.dp
+                        (maxHeight - reserved - railCardHeight - 16.dp)
+                            .coerceAtLeast(64.dp)
+                            .coerceAtMost(maxHeight * 0.6f)
+                    } else {
+                        maxHeight * 0.6f
+                    }
+                    // 横排没有可上下滚的列表；加一层纵向滚动，下拉刷新才收得到手势
+                    val contentModifier = if (isHorizontalRail) {
+                        Modifier
+                            .fillMaxSize()
+                            .verticalScroll(pageScrollState)
+                            .padding(bottom = innerPadding.calculateBottomPadding())
+                    } else {
+                        Modifier.fillMaxSize()
+                    }
+                    Column(modifier = contentModifier) {
                         DirectionHeader(
                             static = static,
+                            isHorizontalRail = isHorizontalRail,
+                            onToggleRailMode = { isHorizontalRail = !isHorizontalRail },
                             onSwitchDirection = { onEvent(LineDetailEvent.SwitchDirection) },
                             onOpenTimetable = { onEvent(LineDetailEvent.OpenTimetable) }
                         )
@@ -282,28 +338,53 @@ fun LineDetailScreen(
                             onPickStop = {
                                 val order = state.selectedStop?.order ?: return@HeroCard
                                 val index = routeRailItemIndex(static.stops, order)
-                                scope.launch { listState.animateScrollToItem((index - 2).coerceAtLeast(0)) }
+                                val target = (index - 2).coerceAtLeast(0)
+                                scope.launch {
+                                    if (isHorizontalRail) {
+                                        stripScrollState.animateScrollTo(
+                                            with(density) { (HorizontalRailColumnWidth * target).roundToPx() }
+                                        )
+                                    } else {
+                                        listState.animateScrollToItem(target)
+                                    }
+                                }
                             },
                             modifier = Modifier.heightIn(max = cardMaxHeight),
                             collapsed = cardCollapsed,
                             onToggleCollapsed = { cardCollapsed = !cardCollapsed }
                         )
-                        LazyColumn(
-                            state = listState,
-                            // 底部 = 底栏 + 系统导航栏（Scaffold 已算进 innerPadding），不用 consumeWindowInsets，避免被吃成 0（issue #2）
-                            contentPadding = PaddingValues(top = 4.dp, bottom = innerPadding.calculateBottomPadding() + 16.dp),
-                            modifier = Modifier
-                                .weight(1f)
-                                .fillMaxWidth()
-                        ) {
-                            routeRailItems(
+                        if (isHorizontalRail) {
+                            // 横排只有一条横线，没有竖排站点列表；卡片就贴在主卡下面，剩下的留给页面底色
+                            HorizontalRouteRail(
                                 stops = static.stops,
-                                busesByOrder = busesByOrder,
-                                selectedOrder = state.selectedStop?.order,
+                                buses = live?.buses.orEmpty(),
+                                selectedStop = state.selectedStop,
                                 selectedBusId = state.followedBusId,
+                                scrollState = stripScrollState,
                                 onSelectStop = { onEvent(LineDetailEvent.SelectStop(it)) },
-                                onSelectBus = { onEvent(LineDetailEvent.FollowBus(it)) }
+                                onSelectBus = { onEvent(LineDetailEvent.FollowBus(it)) },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 12.dp, vertical = 8.dp)
                             )
+                        } else {
+                            LazyColumn(
+                                state = listState,
+                                // 底部 = 底栏 + 系统导航栏（Scaffold 已算进 innerPadding），不用 consumeWindowInsets，避免被吃成 0（issue #2）
+                                contentPadding = PaddingValues(top = 4.dp, bottom = innerPadding.calculateBottomPadding() + 16.dp),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .fillMaxWidth()
+                            ) {
+                                routeRailItems(
+                                    stops = static.stops,
+                                    busesByOrder = busesByOrder,
+                                    selectedOrder = state.selectedStop?.order,
+                                    selectedBusId = state.followedBusId,
+                                    onSelectStop = { onEvent(LineDetailEvent.SelectStop(it)) },
+                                    onSelectBus = { onEvent(LineDetailEvent.FollowBus(it)) }
+                                )
+                            }
                         }
                     }
                 }
@@ -415,6 +496,8 @@ private fun LineTopBar(
 @Composable
 private fun DirectionHeader(
     static: LineStatic,
+    isHorizontalRail: Boolean,
+    onToggleRailMode: () -> Unit,
     onSwitchDirection: () -> Unit,
     onOpenTimetable: () -> Unit
 ) {
@@ -468,6 +551,26 @@ private fun DirectionHeader(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.weight(1f, fill = false)
             )
+            // 横竖走向条切换：图标画的是「点一下会变成哪种」，和其它列表/地图切换一致
+            IconButton(
+                onClick = onToggleRailMode,
+                modifier = Modifier.size(32.dp)
+            ) {
+                Icon(
+                    imageVector = vectorResource(
+                        if (isHorizontalRail) Res.drawable.ic_view_rows else Res.drawable.ic_view_columns
+                    ),
+                    contentDescription = stringResource(
+                        if (isHorizontalRail) {
+                            LineRes.string.line_rail_switch_to_vertical
+                        } else {
+                            LineRes.string.line_rail_switch_to_horizontal
+                        }
+                    ),
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
             TextButton(onClick = onOpenTimetable) {
                 Text(text = stringResource(LineRes.string.line_detail_timetable), fontSize = 13.sp)
             }

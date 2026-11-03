@@ -1,6 +1,7 @@
 package com.trackr.ui.screens.linedetail
 
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
@@ -58,11 +59,12 @@ class LineDetailEntryScrollTest {
     }
 
     @Test
-    fun openedFromStation_jumpsRailToThatStation() {
+    fun openedFromStation_jumpsHorizontalRailToThatStation() {
         show(stateOf(entryStopOrder = 20))
 
-        composeTestRule.onNodeWithText("S20").assertIsDisplayed()
-        composeTestRule.onNodeWithText("S01").assertDoesNotExist()
+        // 默认横排：横条滚到第 20 站，第 1 站被滚出视野
+        composeTestRule.onNodeWithContentDescription("S20").assertIsDisplayed()
+        composeTestRule.onNodeWithContentDescription("S01").assertIsNotDisplayed()
     }
 
     @Test
@@ -71,15 +73,38 @@ class LineDetailEntryScrollTest {
 
         // 走向条跳到第 20 站，主卡仍在顶上显示这一站的候车信息
         composeTestRule.onNodeWithText("S20站上车").assertIsDisplayed()
-        composeTestRule.onNodeWithText("S20").assertIsDisplayed()
-        composeTestRule.onNodeWithText("S01").assertDoesNotExist()
+        composeTestRule.onNodeWithContentDescription("S20").assertIsDisplayed()
+        composeTestRule.onNodeWithContentDescription("S01").assertIsNotDisplayed()
     }
 
     @Test
     fun openedWithoutStation_startsFromTop() {
         show(stateOf(entryStopOrder = null))
 
-        composeTestRule.onNodeWithText("S01").assertIsDisplayed()
+        composeTestRule.onNodeWithContentDescription("S01").assertIsDisplayed()
+        composeTestRule.onNodeWithContentDescription("S20").assertIsNotDisplayed()
+    }
+
+    @Test
+    fun switchedToVertical_jumpsListToEntryStation() {
+        show(stateOf(entryStopOrder = 20))
+
+        composeTestRule.onNodeWithContentDescription("切换为竖排走向条").performClick()
+
+        // 切到竖排后，竖排列表同样定位到第 20 站
+        composeTestRule.onNodeWithText("S20").assertIsDisplayed()
+        composeTestRule.onNodeWithText("S01").assertIsNotDisplayed()
+    }
+
+    @Test
+    fun switchedBackToHorizontal_showsOnlyHorizontalRail() {
+        show(stateOf(entryStopOrder = 20))
+
+        composeTestRule.onNodeWithContentDescription("切换为竖排走向条").performClick()
+        composeTestRule.onNodeWithContentDescription("切换为横排走向条").performClick()
+
+        // 横排没有竖排站点列表，站名按单字竖排，所以整段 "S20" 文本不存在
+        composeTestRule.onNodeWithContentDescription("S20").assertIsDisplayed()
         composeTestRule.onNodeWithText("S20").assertDoesNotExist()
     }
 
