@@ -17,6 +17,7 @@ import com.trackr.core.model.TimetableSegment
 import com.trackr.core.network.json.JSONArray
 import com.trackr.core.network.json.JSONObject
 import com.trackr.core.network.remote.common.BaseTransitApiClient
+import com.trackr.core.network.remote.common.ServiceHours
 import com.trackr.core.network.remote.common.SingleFlightCache
 import com.trackr.core.network.remote.common.TimetableRules
 import io.ktor.client.HttpClient
@@ -442,6 +443,41 @@ class MygolbsApiClient(
     }
 
     /**
+     * 掌上公交的方向首末班时段：上行（1）用 `seutimes`，下行（2）用 `sedtimes`。
+     * 这些字段和 CMD=103 的 `firstLast` 一致；没有时才退回 `su/eu` 或 `sd/ed`。
+     */
+    private fun serviceWindows(routeBean: JSONObject?, upperOrDown: String): List<ServiceHours.Window> {
+        val key = if (upperOrDown == "1") "seutimes" else "sedtimes"
+        val arr = routeBean?.optJSONArray(key)
+        val windows = ArrayList<ServiceHours.Window>()
+        if (arr != null) {
+            for (i in 0 until arr.length()) {
+                val item = arr.optJSONObject(i) ?: continue
+                val first = item.optString("first").trim()
+                val last = item.optString("last").trim()
+                if (first.isNotBlank() && last.isNotBlank()) {
+                    windows.add(ServiceHours.Window(first, last))
+                }
+            }
+        }
+        if (windows.isNotEmpty()) return windows
+
+        val fallbackFirst = routeBean
+            ?.optString(if (upperOrDown == "1") "suTime" else "sdTime")
+            .orEmpty()
+            .trim()
+        val fallbackLast = routeBean
+            ?.optString(if (upperOrDown == "1") "euTime" else "edTime")
+            .orEmpty()
+            .trim()
+        return if (fallbackFirst.isNotBlank() && fallbackLast.isNotBlank()) {
+            listOf(ServiceHours.Window(fallbackFirst, fallbackLast))
+        } else {
+            emptyList()
+        }
+    }
+
+    /**
      * 附近站专用：CMD=105 结果 20 秒内复用，并限制并发；失败时不缓存，返回空线路站点
      */
     private suspend fun getStopLinesForNearby(normalizedCity: String, stationName: String): NearbyStop {
@@ -462,6 +498,7 @@ class MygolbsApiClient(
      */
     private suspend fun fetchStopLines(normalizedCity: String, cleanStation: String): NearbyStop {
         val stopId = "mg:$normalizedCity:$cleanStation"
+        val nowHHMM = beijingNowHHMM()
         val json = callApi(
             mapOf(
                 "CMD" to "105",
@@ -495,8 +532,11 @@ class MygolbsApiClient(
             val isSubway = routeBean?.optString("routeType") == "3" || lineName.contains("地铁")
             if (isSubway) continue // 过滤纯地铁线路
 
-            val firstTime = routeBean?.optString("suTime").orEmpty()
-            val lastTime = routeBean?.optString("euTime").orEmpty()
+            val windows = serviceWindows(routeBean, upperOrDown)
+            val firstTime = windows.firstOrNull()?.first
+                ?: routeBean?.optString(if (upperOrDown == "1") "suTime" else "sdTime").orEmpty()
+            val lastTime = windows.lastOrNull()?.last
+                ?: routeBean?.optString(if (upperOrDown == "1") "euTime" else "edTime").orEmpty()
 
             val lineDir = BusLineDirection(
                 lineId = "mg:0:$normalizedCity:$lineName:$upperOrDown",
@@ -524,10 +564,21 @@ class MygolbsApiClient(
                 .trim()
                 .removeSuffix("到达")
                 .trim()
+            // 上游末班之后仍回「等待发车」；用同一方向的首末班时段判断，和车来了统一成「末班已过」
+            val serviceState = ServiceHours.state(nowHHMM, windows)
             val statusText = when {
                 hasReal == 0 -> "未开通实时"
-                nearTextClean.isNotBlank() -> nearTextClean
+                nearTextClean.isNotBlank() -> {
+                    if (serviceState == ServiceHours.State.AFTER_LAST &&
+                        (nearTextClean == "等待发车" || nearTextClean == "正在运营中")
+                    ) {
+                        "末班已过"
+                    } else {
+                        nearTextClean
+                    }
+                }
                 neartime.isNotBlank() -> "预计 ${neartime.trim()} 到达"
+                serviceState == ServiceHours.State.AFTER_LAST -> "末班已过"
                 else -> "正在运营中"
             }
 
@@ -789,17 +840,6 @@ class MygolbsApiClient(
         // 首页收藏卡「没车时显示下一班」靠的就是这个字段。
         val planTime = realtimeJson.optString("planTime").trim().takeIf { it.isNotBlank() }
 
-        val operatingState = when {
-            runState == 1 -> LineOperatingState.SUSPENDED
-            hasReal == 0 -> LineOperatingState.NO_REALTIME
-            else -> LineOperatingState.RUNNING
-        }
-        val statusDescription = when {
-            runState == 1 -> "该线路已停运"
-            hasReal == 0 -> "该线路未开通实时数据查询"
-            else -> ""
-        }
-
         // 解析逐站到站预测 (routeOnStationRTimeInfoList)
         val onStationArr = realtimeJson.optJSONArray("routeOnStationRTimeInfoList") ?: JSONArray()
         val etaMap = HashMap<String, Double>() // busNumber -> 分钟
@@ -865,6 +905,31 @@ class MygolbsApiClient(
                     nextStopName = nextStopName
                 )
             )
+        }
+
+        // 没车时按这个方向的首末班判运营状态：末班之后显示「末班已过」，首班之前显示「等待发车」。
+        // 有车时不动，避免末班刚过、车还在路上却报已结束。
+        val serviceState = if (liveBuses.isEmpty()) {
+            ServiceHours.state(
+                nowHHMM = beijingNowHHMM(),
+                windows = listOf(ServiceHours.Window(firstTime, lastTime))
+            )
+        } else {
+            ServiceHours.State.UNKNOWN
+        }
+        val operatingState = when {
+            runState == 1 -> LineOperatingState.SUSPENDED
+            hasReal == 0 -> LineOperatingState.NO_REALTIME
+            serviceState == ServiceHours.State.AFTER_LAST -> LineOperatingState.ENDED
+            serviceState == ServiceHours.State.BEFORE_FIRST -> LineOperatingState.WAITING
+            else -> LineOperatingState.RUNNING
+        }
+        val statusDescription = when {
+            runState == 1 -> "该线路已停运"
+            hasReal == 0 -> "该线路未开通实时数据查询"
+            serviceState == ServiceHours.State.AFTER_LAST -> "末班已过"
+            serviceState == ServiceHours.State.BEFORE_FIRST -> "等待发车"
+            else -> ""
         }
 
         val startStop = stopsList.firstOrNull()?.name ?: ""
