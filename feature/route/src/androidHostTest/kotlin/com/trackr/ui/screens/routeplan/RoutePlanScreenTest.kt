@@ -15,6 +15,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.performSemanticsAction
+import androidx.compose.ui.test.performClick
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.performTextInput
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -146,7 +147,7 @@ class RoutePlanScreenTest {
     fun searchConsole_placeholdersAndTyping() {
         setScreen(RoutePlanUiState())
 
-        composeTestRule.onNodeWithText("我的位置 / 输入起点站").assertIsDisplayed()
+        composeTestRule.onNodeWithText("输入起点站").assertIsDisplayed()
         composeTestRule.onNodeWithText("输入目的地、商圈或公交地铁站").assertIsDisplayed()
         composeTestRule.onNodeWithTag("btn_trigger_plan").assertIsDisplayed()
         // 「配置Key」胶囊已删（D2：Key 在「更多」页配）
@@ -159,6 +160,31 @@ class RoutePlanScreenTest {
 
         composeTestRule.onNodeWithTag("btn_trigger_plan").tap()
         assertEquals(RoutePlanEvent.Submit, lastAction())
+    }
+
+    @Test
+    fun emptyField_showsMyLocationOption_forBothFields() {
+        setScreen(RoutePlanUiState())
+
+        // 起点空着点进去：先弹「我的位置」，不是写死在提示里
+        composeTestRule.onNodeWithTag("input_origin").performClick()
+        composeTestRule.onNodeWithTag("tip_my_location").assertIsDisplayed()
+        composeTestRule.onNodeWithText("从当前位置出发").assertIsDisplayed()
+
+        // 换到终点也一样，文案跟着变成「到当前位置」
+        composeTestRule.onNodeWithTag("input_dest").performClick()
+        composeTestRule.onNodeWithTag("tip_my_location").assertIsDisplayed()
+        composeTestRule.onNodeWithText("到当前位置").assertIsDisplayed()
+
+        composeTestRule.onNodeWithTag("tip_my_location").tap()
+        assertEquals(RoutePlanEvent.PickMyLocation(TipsField.Dest), lastAction())
+    }
+
+    @Test
+    fun filledField_doesNotShowMyLocationOption() {
+        setScreen(RoutePlanUiState(originText = "深大北门"))
+        composeTestRule.onNodeWithTag("input_origin").performClick()
+        composeTestRule.onNodeWithTag("tip_my_location").assertDoesNotExist()
     }
 
     @Test
@@ -192,6 +218,8 @@ class RoutePlanScreenTest {
     fun tips_listAndPick_andBackDismissesTips() {
         val tips = listOf(AmapTipItem(name = "西湖站", district = "西湖区"), AmapTipItem(name = "西湖站", address = "同名"))
         setScreen(RoutePlanUiState(destText = "西湖", tipsField = TipsField.Dest, tips = tips))
+        // 提示只给正在编辑的框：先点进终点
+        composeTestRule.onNodeWithTag("input_dest").performClick()
 
         // 重名的提示也能显示（key 带序号）
         composeTestRule.onAllNodesWithText("西湖站").assertCountEquals(2)

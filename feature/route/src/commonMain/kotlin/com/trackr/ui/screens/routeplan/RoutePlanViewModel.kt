@@ -298,6 +298,7 @@ class RoutePlanViewModel(
                 }
             }
             is RoutePlanEvent.PickTip -> pickTip(event.field, event.tip)
+            is RoutePlanEvent.PickMyLocation -> pickTip(event.field, myLocationTip())
             RoutePlanEvent.DismissTips -> dismissTips()
             is RoutePlanEvent.SelectScheme -> selectedTab.value = event.index
             RoutePlanEvent.OpenSaveDialog -> {
@@ -325,12 +326,15 @@ class RoutePlanViewModel(
         if (destText.isBlank()) return
         val state = input.value
         val origin = if (originText.isBlank()) {
-            AmapTipItem(name = MY_LOCATION_NAME, location = "")
+            myLocationTip()
         } else {
             state.selectedOrigin ?: AmapTipItem(name = originText)
         }
         planTransitRoute(origin, state.selectedDest ?: AmapTipItem(name = destText))
     }
+
+    /** 「我的位置」只带名字：算路时再换成实时定位坐标（[resolveMyLocationTip]） */
+    private fun myLocationTip(): AmapTipItem = AmapTipItem(name = MY_LOCATION_NAME, location = "")
 
     /** 点一条提示：填进输入框、收起提示；另一个框也填了就直接算（和原来一样，起点空着时选终点不自动算） */
     private fun pickTip(field: TipsField, tip: AmapTipItem) {
@@ -485,15 +489,19 @@ class RoutePlanViewModel(
             var effectiveDest = destination
 
             // 1. 解析"我的位置"：定位不到就直接提示，不再拿"我的位置"四个字去搜 POI
-            if (isMyLocationTip(effectiveOrigin)) {
+            val originIsMyLocation = isMyLocationTip(effectiveOrigin)
+            val destIsMyLocation = isMyLocationTip(effectiveDest)
+            if (originIsMyLocation || destIsMyLocation) {
                 val resolved = resolveMyLocationTip(city)
                 if (resolved == null) {
-                    _planErrorMessage.value = "定位不可用，无法以【$MY_LOCATION_NAME】作为出发地。请开启定位后重试，或手动输入出发地。"
+                    val role = if (originIsMyLocation) "出发地" else "目的地"
+                    _planErrorMessage.value = "定位不可用，无法以【$MY_LOCATION_NAME】作为$role。请开启定位后重试，或手动输入$role。"
                     _isPlanningRoute.value = false
                     onComplete?.invoke(false)
                     return@launch
                 }
-                effectiveOrigin = resolved
+                if (originIsMyLocation) effectiveOrigin = resolved
+                if (destIsMyLocation) effectiveDest = resolved
             }
 
             // 2. 补全缺少经纬度的起终点坐标（高德 SDK 成功但无结果时同样不再走 Web）

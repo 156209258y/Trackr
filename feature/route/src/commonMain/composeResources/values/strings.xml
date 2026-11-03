@@ -40,8 +40,10 @@
     <string name="route_plan_loading">正在规划公交路线…</string>
     <string name="route_plan_retry">重新规划</string>
     <string name="route_plan_empty">输入起点和终点，看坐哪几路车、在哪换乘</string>
-    <string name="route_plan_from_hint">我的位置 / 输入起点站</string>
+    <string name="route_plan_from_hint">输入起点站</string>
     <string name="route_plan_my_location">我的位置</string>
+    <string name="route_plan_my_location_from">从当前位置出发</string>
+    <string name="route_plan_my_location_to">到当前位置</string>
     <string name="route_plan_clear_from">清空起点</string>
     <string name="route_plan_to_hint">输入目的地、商圈或公交地铁站</string>
     <string name="route_plan_clear_to">清空终点</string>

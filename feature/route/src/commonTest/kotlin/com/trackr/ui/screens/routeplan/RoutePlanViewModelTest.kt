@@ -413,6 +413,67 @@ class RoutePlanViewModelTest {
     }
 
     @Test
+    fun pickMyLocation_asOrigin_plansWithCurrentLocation() = runTest(main.dispatcher) {
+        val gateway = FakeAmapRouteGateway()
+        val viewModel = createViewModelWithGateway(
+            gateway,
+            userLocationStore = FakeUserLocationStore(initial = 30.25 to 120.15)
+        )
+        testScheduler.runCurrent()
+
+        // 终点有字：起点选「我的位置」直接算，起点用实时定位的 GCJ-02 坐标
+        viewModel.onEvent(RoutePlanEvent.DestChanged("西湖"))
+        testScheduler.advanceUntilIdle()
+        viewModel.onEvent(RoutePlanEvent.PickMyLocation(TipsField.Origin))
+        testScheduler.advanceUntilIdle()
+
+        assertEquals(RoutePlanViewModel.MY_LOCATION_NAME, viewModel.originText)
+        val call = gateway.planCalls.single()
+        assertTrue(call.originLngLat.contains(","))
+    }
+
+    @Test
+    fun pickMyLocation_asDest_plansToCurrentLocation() = runTest(main.dispatcher) {
+        val gateway = FakeAmapRouteGateway()
+        val viewModel = createViewModelWithGateway(
+            gateway,
+            userLocationStore = FakeUserLocationStore(initial = 30.25 to 120.15)
+        )
+        testScheduler.runCurrent()
+
+        // 起点先选好一条提示，再把终点设成「我的位置」：同样能算
+        viewModel.onEvent(RoutePlanEvent.OriginChanged("武林"))
+        testScheduler.advanceUntilIdle()
+        viewModel.onEvent(RoutePlanEvent.PickTip(TipsField.Origin, viewModel.uiState.value.tips.first()))
+        testScheduler.advanceUntilIdle()
+        viewModel.onEvent(RoutePlanEvent.PickMyLocation(TipsField.Dest))
+        testScheduler.advanceUntilIdle()
+
+        assertEquals(RoutePlanViewModel.MY_LOCATION_NAME, viewModel.destText)
+        val call = gateway.planCalls.single()
+        assertTrue(call.destLngLat.contains(","))
+    }
+
+    @Test
+    fun pickMyLocation_asDest_withoutLocation_reportsDestinationError() = runTest(main.dispatcher) {
+        val gateway = FakeAmapRouteGateway()
+        val viewModel = createViewModelWithGateway(gateway)
+        testScheduler.runCurrent()
+
+        viewModel.onEvent(RoutePlanEvent.OriginChanged("武林"))
+        testScheduler.advanceUntilIdle()
+        viewModel.onEvent(RoutePlanEvent.PickTip(TipsField.Origin, viewModel.uiState.value.tips.first()))
+        testScheduler.advanceUntilIdle()
+        viewModel.onEvent(RoutePlanEvent.PickMyLocation(TipsField.Dest))
+        testScheduler.advanceUntilIdle()
+
+        val error = viewModel.uiState.value.planError.orEmpty()
+        assertTrue(error.contains("定位不可用"))
+        assertTrue(error.contains("目的地"))
+        assertTrue(gateway.planCalls.isEmpty())
+    }
+
+    @Test
     fun dismissTips_hidesDestFirstThenOrigin() = runTest(main.dispatcher) {
         val viewModel = createViewModelWithGateway(FakeAmapRouteGateway())
         testScheduler.runCurrent()

@@ -58,6 +58,8 @@ sealed interface RoutePlanEvent {
     /** 出错后「重新规划」 */
     data object Retry : RoutePlanEvent
     data class PickTip(val field: TipsField, val tip: AmapTipItem) : RoutePlanEvent
+    /** 空输入框里点「我的位置」选项 */
+    data class PickMyLocation(val field: TipsField) : RoutePlanEvent
     /** 返回键先收起提示 */
     data object DismissTips : RoutePlanEvent
     data class SelectScheme(val index: Int) : RoutePlanEvent
