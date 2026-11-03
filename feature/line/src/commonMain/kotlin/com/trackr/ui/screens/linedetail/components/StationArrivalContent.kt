@@ -22,6 +22,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -30,8 +31,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -48,6 +51,8 @@ import com.trackr.core.model.sanitizePlateOrFleetNo
 import com.trackr.feature.line.resources.Res as LineRes
 import com.trackr.feature.line.resources.line_station_buses_on_line
 import com.trackr.feature.line.resources.line_station_change_stop
+import com.trackr.feature.line.resources.line_station_collapse_card
+import com.trackr.feature.line.resources.line_station_expand_card
 import com.trackr.feature.line.resources.line_station_no_buses
 import com.trackr.feature.line.resources.line_station_order
 import com.trackr.feature.line.resources.line_station_pick_stop
@@ -68,6 +73,8 @@ import org.jetbrains.compose.resources.vectorResource
  *
  * @param onPickStop 点「XX站上车」：滚到走向条上这一站，在那儿换站
  * @param now 判「已过末班」用的本地时刻；默认取这次数据的刷新时刻
+ * @param collapsed 收起主卡：只留一行「候车站 + 到站 + 展开」
+ * @param onToggleCollapsed 收起 / 展开；null = 不显示按钮（长辈版或测试）
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -79,7 +86,9 @@ fun StationArrivalContent(
     onPickStop: () -> Unit,
     onOpenBusList: () -> Unit,
     modifier: Modifier = Modifier,
-    now: LocalTime? = null
+    now: LocalTime? = null,
+    collapsed: Boolean = false,
+    onToggleCollapsed: (() -> Unit)? = null
 ) {
     val currentOrder = selectedStop?.order ?: 1
     val buses = live?.buses.orEmpty()
@@ -102,6 +111,38 @@ fun StationArrivalContent(
         } else {
             ArrivalText.nearestBus(currentOrder, buses - upcomingBus)?.let { following -> followingBusText(currentOrder, following) }
         }
+    }
+
+    // 收起：只留一行「候车站 + 到站」，把高度让给走向条
+    if (collapsed) {
+        Row(
+            modifier = modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            StopPickChip(stop = selectedStop, onClick = onPickStop)
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = arrival.short,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+                color = arrivalToneColor(arrival.tone),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.End,
+                modifier = Modifier.weight(1f)
+            )
+            if (isTrackingActive) {
+                Spacer(modifier = Modifier.width(6.dp))
+                TrackingBadge()
+            }
+            if (onToggleCollapsed != null) {
+                Spacer(modifier = Modifier.width(4.dp))
+                CollapseButton(expanded = false, onClick = onToggleCollapsed)
+            }
+        }
+        return
     }
 
     Column(
@@ -138,6 +179,9 @@ fun StationArrivalContent(
                     fontSize = 12.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+            }
+            if (onToggleCollapsed != null) {
+                CollapseButton(expanded = true, onClick = onToggleCollapsed)
             }
         }
 
@@ -249,6 +293,23 @@ private fun TrackingBadge() {
             fontSize = 12.sp,
             fontWeight = FontWeight.SemiBold,
             color = MaterialTheme.colorScheme.primary
+        )
+    }
+}
+
+/** 收起 / 展开主卡的小三角：展开时朝上（收起），收起时朝下（展开） */
+@Composable
+private fun CollapseButton(expanded: Boolean, onClick: () -> Unit) {
+    IconButton(onClick = onClick, modifier = Modifier.size(32.dp)) {
+        Icon(
+            imageVector = vectorResource(Res.drawable.ic_arrow_drop_down),
+            contentDescription = stringResource(
+                if (expanded) LineRes.string.line_station_collapse_card else LineRes.string.line_station_expand_card
+            ),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier
+                .size(22.dp)
+                .rotate(if (expanded) 180f else 0f)
         )
     }
 }

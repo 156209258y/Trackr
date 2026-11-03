@@ -175,6 +175,8 @@ fun LineDetailScreen(
     // 从某个站点点进来：走向条直接跳到那一站，只跳一次。主卡固定在顶部，不会跟着跳走。
     // 没带站序（搜索、收藏等）就保持从顶部开始；换向、选站、轮询都不会再跳。
     var didJumpToEntryStop by rememberSaveable { mutableStateOf(false) }
+    // 主卡可以收起成一行，把高度让给走向条；收起状态跟着页面保存
+    var cardCollapsed by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(static?.stops, state.entryStopOrder) {
         val stops = static?.stops ?: return@LaunchedEffect
         val order = state.entryStopOrder ?: return@LaunchedEffect
@@ -282,7 +284,9 @@ fun LineDetailScreen(
                                 val index = routeRailItemIndex(static.stops, order)
                                 scope.launch { listState.animateScrollToItem((index - 2).coerceAtLeast(0)) }
                             },
-                            modifier = Modifier.heightIn(max = cardMaxHeight)
+                            modifier = Modifier.heightIn(max = cardMaxHeight),
+                            collapsed = cardCollapsed,
+                            onToggleCollapsed = { cardCollapsed = !cardCollapsed }
                         )
                         LazyColumn(
                             state = listState,
@@ -504,7 +508,9 @@ private fun HeroCard(
     static: LineStatic,
     onEvent: (LineDetailEvent) -> Unit,
     onPickStop: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    collapsed: Boolean = false,
+    onToggleCollapsed: (() -> Unit)? = null
 ) {
     Card(
         shape = RoundedCornerShape(22.dp),
@@ -516,7 +522,7 @@ private fun HeroCard(
             .then(modifier)
     ) {
         AnimatedContent(
-            targetState = state.panelMode,
+            targetState = state.panelMode to collapsed,
             transitionSpec = {
                 fadeIn(animationSpec = tween(durationMillis = 200, delayMillis = 60)) togetherWith
                     fadeOut(animationSpec = tween(durationMillis = 140)) using
@@ -533,7 +539,7 @@ private fun HeroCard(
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(22.dp))
                 .verticalScroll(rememberScrollState())
-        ) { mode ->
+        ) { (mode, isCollapsed) ->
             when (mode) {
                 PanelMode.STATION_CARD -> StationArrivalContent(
                     static = static,
@@ -541,7 +547,9 @@ private fun HeroCard(
                     selectedStop = state.selectedStop,
                     isTrackingActive = state.isTrackingThisStop,
                     onPickStop = onPickStop,
-                    onOpenBusList = { onEvent(LineDetailEvent.OpenBusList) }
+                    onOpenBusList = { onEvent(LineDetailEvent.OpenBusList) },
+                    collapsed = isCollapsed,
+                    onToggleCollapsed = onToggleCollapsed
                 )
 
                 PanelMode.BUS_LIST -> BusListContent(

@@ -100,4 +100,6 @@
     <string name="line_station_pick_stop">选择候车站</string>
     <string name="line_station_change_stop">换上车站</string>
     <string name="line_station_tracking">追踪中</string>
+    <string name="line_station_collapse_card">收起卡片</string>
+    <string name="line_station_expand_card">展开卡片</string>
 </resources>

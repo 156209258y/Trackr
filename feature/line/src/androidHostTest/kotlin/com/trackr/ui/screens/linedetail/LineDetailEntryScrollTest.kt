@@ -2,7 +2,9 @@ package com.trackr.ui.screens.linedetail
 
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
 import com.trackr.core.designsystem.theme.TrackrTheme
 import com.trackr.core.model.BusLineDirection
 import com.trackr.core.model.BusStop
@@ -93,5 +95,25 @@ class LineDetailEntryScrollTest {
         show(state)
 
         composeTestRule.onNodeWithText("沪A1234").assertIsDisplayed()
+    }
+
+    @Test
+    fun collapseButton_shrinksCardToSingleRowAndExpandsBack() {
+        show(stateOf(entryStopOrder = 20))
+
+        // 展开态：详细内容都在
+        composeTestRule.onNodeWithText("第 20 站").assertIsDisplayed()
+
+        composeTestRule.onNodeWithContentDescription("收起卡片").performClick()
+
+        // 收起：详细内容消失，只剩候车站、到站和展开按钮
+        composeTestRule.onNodeWithText("第 20 站").assertDoesNotExist()
+        composeTestRule.onNodeWithText("S20站上车").assertIsDisplayed()
+        composeTestRule.onNodeWithContentDescription("展开卡片").assertIsDisplayed()
+
+        composeTestRule.onNodeWithContentDescription("展开卡片").performClick()
+
+        // 再展开：详细内容回来
+        composeTestRule.onNodeWithText("第 20 站").assertIsDisplayed()
     }
 }
