@@ -38,8 +38,8 @@ android {
 
     defaultConfig {
         applicationId = "com.github.u5151561.trackr"
-        versionCode = 6
-        versionName = "0.1.2"
+        versionCode = 7
+        versionName = "0.1.3"
 
         buildConfigField("String", "AMAP_WEB_KEY", "\"$amapWebServiceKey\"")
         // 第 9 步存储开关 USE_NEW_STORE 的默认值（true = Room + DataStore）；运行时可用 files/store_switch 覆盖，见 StoreSwitch
