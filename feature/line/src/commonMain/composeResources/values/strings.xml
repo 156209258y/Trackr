@@ -92,6 +92,8 @@
     <string name="line_list_passed">已过站</string>
     <string name="line_list_arrive_at">%1$s 到</string>
     <string name="line_list_follow">查看单车跟随</string>
+    <string name="line_distance_to_station">距本站 %1$s</string>
+    <string name="line_distance_to_wait_station">距候车站 %1$s</string>
     <string name="line_group_pick_title">放进哪个分组</string>
     <string name="line_group_current">当前分组</string>
     <string name="line_station_order">第 %1$s 站</string>

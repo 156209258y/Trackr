@@ -45,10 +45,12 @@ import com.trackr.core.designsystem.theme.extendedColors
 import com.trackr.core.domain.arrival.ArrivalDisplay
 import com.trackr.core.domain.arrival.ArrivalState
 import com.trackr.core.domain.arrival.ArrivalText
+import com.trackr.core.domain.math.RouteProjectionMath
 import com.trackr.core.model.BusStop
 import com.trackr.core.model.LiveBus
 import com.trackr.core.model.sanitizePlateOrFleetNo
 import com.trackr.feature.line.resources.Res as LineRes
+import com.trackr.feature.line.resources.line_distance_to_station
 import com.trackr.feature.line.resources.line_station_buses_on_line
 import com.trackr.feature.line.resources.line_station_change_stop
 import com.trackr.feature.line.resources.line_station_collapse_card
@@ -367,12 +369,19 @@ internal fun stationArrivalState(static: LineStatic, live: LineLive?, targetOrde
 internal fun boardingLabel(stopName: String): String =
     if (stopName.endsWith("站")) "$stopName 上车" else "${stopName}站上车"
 
-/** 最近那辆车的车牌、预计到达、车速（拿不到的不显示） */
-private fun busFacts(bus: LiveBus): List<String> = listOfNotNull(
-    sanitizePlateOrFleetNo(bus.plateOrFleetNo).takeIf { it.isNotBlank() },
-    bus.expectedArrivalTimeText?.takeIf { it.isNotBlank() }?.let { "$it 到" },
-    bus.speedKmh.takeIf { it > 0 }?.let { "${it.toInt()} km/h" }
-)
+/** 最近那辆车的车牌、距本站距离、预计到达、车速（拿不到的不显示） */
+@Composable
+private fun busFacts(bus: LiveBus): List<String> {
+    val distanceText = RouteProjectionMath.formatDistanceText(bus.distanceToTargetMeters)
+    return listOfNotNull(
+        sanitizePlateOrFleetNo(bus.plateOrFleetNo).takeIf { it.isNotBlank() },
+        distanceText.takeIf { it.isNotBlank() }?.let {
+            stringResource(LineRes.string.line_distance_to_station, it)
+        },
+        bus.expectedArrivalTimeText?.takeIf { it.isNotBlank() }?.let { "$it 到" },
+        bus.speedKmh.takeIf { it > 0 }?.let { "${it.toInt()} km/h" }
+    )
+}
 
 /** 「下一辆 12 分钟 · 5 站」 */
 internal fun followingBusText(targetOrder: Int, bus: LiveBus): String {

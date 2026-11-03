@@ -86,6 +86,35 @@ class BusFollowContentTest {
     }
 
     @Test
+    fun testBusFollowContent_showsDistanceToWaitStation() {
+        val followedBus = LiveBus(
+            busId = "b1",
+            plateOrFleetNo = "沪A1234",
+            order = 2,
+            etaSeconds = 120,
+            distanceToTargetMeters = 320,
+            isArrived = false
+        )
+        val lineDetail = BusLineDetail(
+            line = lineDirection,
+            stops = stops,
+            buses = listOf(followedBus)
+        )
+
+        composeTestRule.setContent {
+            TrackrTheme {
+                BusFollowContent(
+                    lineDetail = lineDetail,
+                    followedBus = followedBus,
+                    onBack = {}
+                )
+            }
+        }
+
+        composeTestRule.onNodeWithText("距候车站 320米").assertIsDisplayed()
+    }
+
+    @Test
     fun testBusFollowContent_handlesNullBus() {
         val lineDetail = BusLineDetail(
             line = lineDirection,

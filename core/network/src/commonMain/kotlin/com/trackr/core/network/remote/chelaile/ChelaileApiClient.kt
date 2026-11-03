@@ -646,7 +646,7 @@ class ChelaileApiClient(
                     order = busOrder,
                     etaSeconds = travelTime,
                     capacityLevel = b.optInt("capacity", 0),
-                    distanceToTargetMeters = distanceToDest,
+                    distanceToTargetMeters = distanceToDest?.takeIf { it > 0 },
                     isArrived = isArrived
                 )
             )
@@ -831,6 +831,13 @@ class ChelaileApiClient(
                 targetStop = targetStop
             )
 
+            // distanceToWaitStn = 车辆到候车站（targetOrder）的距离；未指定候车站、或车已过站时上游给 -1，都不展示
+            val distanceToWait = if (targetOrder != null && targetOrder > 0 && b.has("distanceToWaitStn")) {
+                b.optInt("distanceToWaitStn", -1).takeIf { it > 0 }
+            } else {
+                null
+            }
+
             liveBuses.add(
                 LiveBus(
                     busId = bId,
@@ -842,7 +849,7 @@ class ChelaileApiClient(
                     wgsLng = bLng,
                     speedKmh = bSpeed,
                     capacityLevel = b.optInt("capacity", 0),
-                    distanceToTargetMeters = if (b.has("distanceToWaitStn")) b.optInt("distanceToWaitStn") else null,
+                    distanceToTargetMeters = distanceToWait,
                     etaSeconds = etaSecs,
                     expectedArrivalTimeText = recommTip ?: (if (etaSecs > 0) RouteProjectionMath.formatEtaText(etaSecs, isArrivedAtTarget) else null),
                     nextStopName = nextStopName

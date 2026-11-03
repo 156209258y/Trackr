@@ -756,11 +756,14 @@ class MygolbsApiClient(
         // 解析逐站到站预测 (routeOnStationRTimeInfoList)
         val onStationArr = realtimeJson.optJSONArray("routeOnStationRTimeInfoList") ?: JSONArray()
         val etaMap = HashMap<String, Double>() // busNumber -> 分钟
+        val distanceMap = HashMap<String, Int>() // busNumber -> 到本站距离（米）
         for (i in 0 until onStationArr.length()) {
             val e = onStationArr.getJSONObject(i)
             val bNum = e.optString("busNumber")
             if (bNum.isNotBlank()) {
                 etaMap[bNum] = e.optDouble("busToStationTime", 0.0)
+                // 上游偶尔给 0；0 米没有展示价值，按缺省处理
+                e.optInt("busToStationDistance", -1).takeIf { it > 0 }?.let { distanceMap[bNum] = it }
             }
         }
 
@@ -807,6 +810,7 @@ class MygolbsApiClient(
                     wgsLng = bLng,
                     speedKmh = 0.0,
                     capacityLevel = -1,
+                    distanceToTargetMeters = distanceMap[busNumber],
                     etaSeconds = etaSeconds,
                     expectedArrivalTimeText = etaText
                 )

@@ -38,6 +38,7 @@ import com.trackr.core.model.LiveBus
 import com.trackr.core.model.sanitizePlateOrFleetNo
 import com.trackr.feature.line.resources.Res as LineRes
 import com.trackr.feature.line.resources.line_arrived
+import com.trackr.feature.line.resources.line_distance_to_station
 import com.trackr.feature.line.resources.line_list_approaching
 import com.trackr.feature.line.resources.line_list_arrive_at
 import com.trackr.feature.line.resources.line_list_back
@@ -211,10 +212,16 @@ fun BusListContent(
                                 horizontalAlignment = Alignment.End,
                                 verticalArrangement = Arrangement.spacedBy(2.dp)
                             ) {
+                                // 没有到站预测时，用上游给的「距本站距离」补位；两者都没有才写「无预测」
+                                val distanceText = RouteProjectionMath.formatDistanceText(
+                                    if (isPassed) null else bus.distanceToTargetMeters
+                                )
                                 val statusText = when {
                                     isPassed -> stringResource(LineRes.string.line_list_passed)
                                     isAtStop -> stringResource(LineRes.string.line_arrived)
                                     bus.etaSeconds > 0 -> RouteProjectionMath.formatEtaText(bus.etaSeconds)
+                                    distanceText.isNotBlank() ->
+                                        stringResource(LineRes.string.line_distance_to_station, distanceText)
                                     else -> stringResource(LineRes.string.line_no_prediction)
                                 }
                                 BusArrivalBadge(

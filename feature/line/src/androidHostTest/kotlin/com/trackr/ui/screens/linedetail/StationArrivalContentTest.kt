@@ -111,6 +111,48 @@ class StationArrivalContentTest {
     }
 
     @Test
+    fun upcomingBus_withDistance_showsDistanceToStation() {
+        val detail = BusLineDetail(
+            line = lineDirection,
+            stops = stops,
+            buses = listOf(
+                LiveBus(
+                    busId = "b1",
+                    plateOrFleetNo = "沪A·D8866",
+                    order = 4,
+                    etaSeconds = 120,
+                    distanceToTargetMeters = 320
+                )
+            ),
+            operatingState = LineOperatingState.RUNNING
+        )
+        setContent(detail, stops[1])
+
+        composeTestRule.onNodeWithText("距本站 320米").assertIsDisplayed()
+    }
+
+    @Test
+    fun upcomingBus_withoutDistance_hidesDistanceFact() {
+        val detail = BusLineDetail(
+            line = lineDirection,
+            stops = stops,
+            buses = listOf(
+                LiveBus(
+                    busId = "b1",
+                    plateOrFleetNo = "沪A·D8866",
+                    order = 4,
+                    etaSeconds = 120,
+                    distanceToTargetMeters = -1
+                )
+            ),
+            operatingState = LineOperatingState.RUNNING
+        )
+        setContent(detail, stops[1])
+
+        composeTestRule.onNodeWithText("距本站", substring = true).assertDoesNotExist()
+    }
+
+    @Test
     fun allBusesPassed_withTimetableFallback_showsStartDepartureTime() {
         val detail = BusLineDetail(
             line = lineDirection,

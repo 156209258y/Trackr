@@ -41,6 +41,7 @@ import com.trackr.core.model.BusLineDetail
 import com.trackr.core.model.LiveBus
 import com.trackr.core.model.sanitizePlateOrFleetNo
 import com.trackr.feature.line.resources.Res as LineRes
+import com.trackr.feature.line.resources.line_distance_to_wait_station
 import com.trackr.feature.line.resources.line_follow_approaching
 import com.trackr.feature.line.resources.line_follow_at_stop
 import com.trackr.feature.line.resources.line_follow_eta
@@ -160,6 +161,16 @@ fun BusFollowContent(
                         )
                     }
                 }
+            }
+
+            val followDistance = RouteProjectionMath.formatDistanceText(followedBus.distanceToTargetMeters)
+            if (followDistance.isNotBlank()) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = stringResource(LineRes.string.line_distance_to_wait_station, followDistance),
+                    fontSize = 13.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
 
             Spacer(modifier = Modifier.height(12.dp))
