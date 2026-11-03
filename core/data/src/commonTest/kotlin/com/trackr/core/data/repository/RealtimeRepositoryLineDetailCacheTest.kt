@@ -6,6 +6,7 @@ import com.trackr.core.model.BusLineDetail
 import com.trackr.core.model.BusLineDirection
 import com.trackr.core.model.BusStop
 import com.trackr.core.model.DataSourceType
+import com.trackr.core.model.FavoriteStationLine
 import com.trackr.core.model.LineTimetable
 import com.trackr.core.model.NearbyStop
 import com.trackr.core.model.TransitCity
@@ -45,6 +46,7 @@ class RealtimeRepositoryLineDetailCacheTest {
         val lineDetailCalls = AtomicInt(0)
         @kotlin.concurrent.Volatile var gate: CompletableDeferred<Unit>? = null
         @kotlin.concurrent.Volatile var failNext: Boolean = false
+        @kotlin.concurrent.Volatile var timetableNextDeparture: String? = null
 
         override fun supportsLine(lineId: String): Boolean = true
         override fun supportsStop(request: StopDetailRequest): Boolean = true
@@ -57,7 +59,11 @@ class RealtimeRepositoryLineDetailCacheTest {
             emptyList<NearbyStop>()
         override suspend fun getStopDetail(city: TransitCity, request: StopDetailRequest) = emptyList<NearbyStop>()
         override suspend fun getTimetable(city: TransitCity, line: BusLineDirection, atTimeHHMM: String?) =
-            LineTimetable(lineId = line.lineId, lineName = line.name)
+            LineTimetable(
+                lineId = line.lineId,
+                lineName = line.name,
+                nextDeparture = timetableNextDeparture
+            )
 
         override suspend fun getLineDetail(city: TransitCity, request: LineDetailRequest): BusLineDetail {
             val n = lineDetailCalls.incrementAndFetch()
@@ -167,5 +173,42 @@ class RealtimeRepositoryLineDetailCacheTest {
 
         assertTrue(b.await().isSuccess)
         assertEquals(1, provider.lineDetailCalls.load())
+    }
+
+    @Test
+    fun favoriteWithoutBuses_fallsBackToTimetableNextDeparture() = runBlocking {
+        provider.timetableNextDeparture = "07:20"
+        val favorites = FakeFavoritesRepository(
+            initialFavorites = listOf(
+                FavoriteStationLine(
+                    id = "fav_1",
+                    cityId = city.cityId,
+                    cityName = city.cityName,
+                    lineId = "line_1",
+                    lineName = "49路",
+                    startStop = "A",
+                    endStop = "B",
+                    targetStopId = "s1",
+                    targetStopName = "A",
+                    targetOrder = 1
+                )
+            )
+        )
+        val repo = DefaultRealtimeRepository(
+            coordinator = TransitProviderCoordinator(
+                chelaileProvider = provider,
+                mygolbsProvider = GatedLineProvider(DataSourceType.MYGOLBS)
+            ),
+            settings = FakeSettingsRepository(),
+            favoritesRepository = favorites,
+            searchHistory = FakeSearchHistoryRepository(),
+            userLocation = { null },
+            clock = MonotonicClock { now },
+            fetchScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        )
+
+        val result = repo.refreshFavoritesRealtime().getOrThrow()
+
+        assertEquals("07:20", result.getValue("fav_1").lines.single().preArrivalTime)
     }
 }

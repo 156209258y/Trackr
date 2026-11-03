@@ -89,6 +89,14 @@ class DefaultRealtimeRepository(
         clock = clock
     )
 
+    /** 收藏卡「没车时下一班」的时刻表短缓存：同一条线 30 秒内只查一次 */
+    private val favoriteTimetableFlights = SingleFlightCache<String, LineTimetable>(
+        ttlMillis = FAVORITE_TIMETABLE_TTL_MS,
+        maxEntries = 64,
+        scope = fetchScope,
+        clock = clock
+    )
+
     /** 最近一次拿到的城市列表（`TransitRepository.setEngineMode` 补掌上公交编码时读） */
     @Volatile
     var cachedCities: List<TransitCity> = emptyList()
@@ -292,6 +300,17 @@ class DefaultRealtimeRepository(
     override fun stopDetailIncludesBuses(source: DataSourceType): Boolean =
         coordinator.providerFor(source)?.stopDetailIncludesBuses() ?: true
 
+    /** 收藏线路没车、线路详情又没给下一班时，用时刻表兜一次（30 秒内同一条线复用） */
+    private suspend fun nextDepartureFromTimetable(city: TransitCity, line: BusLineDirection): String? {
+        val key = "${line.source.name}|${line.lineId}|${line.direction}|${city.cityId}|${city.mygolbsCityCode.orEmpty()}"
+        val timetable = runCatching {
+            favoriteTimetableFlights.get(key) {
+                coordinator.getTimetable(city, line, null, settings.engineMode.value)
+            }
+        }.getOrNull() ?: return null
+        return timetable.nextDeparture
+    }
+
     override suspend fun refreshFavoritesRealtime(): Result<Map<String, NearbyStop>> = runCatching {
         val favs = favoritesRepository.favorites.value
         if (favs.isEmpty()) return@runCatching emptyMap()
@@ -316,13 +335,21 @@ class DefaultRealtimeRepository(
 
                     if (lineRes != null) {
                         val approaching = lineRes.buses.filter { it.order <= fav.targetOrder }
+                        // 车来了的线路详情直接给下一班；掌上公交只有部分城市给 planTime，
+                        // 没车又没给时回落时刻表，收藏卡才不会只剩「暂无在途车辆」。
+                        val nextDeparture = lineRes.nextDepartureFromStart
+                            ?: if (approaching.isEmpty()) {
+                                nextDepartureFromTimetable(city, lineRes.line)
+                            } else {
+                                null
+                            }
                         val lineStatus = NearbyStopLineStatus(
                             line = lineRes.line,
                             targetOrder = fav.targetOrder,
                             targetStopId = fav.targetStopId,
                             targetStopName = fav.targetStopName,
                             statusText = lineRes.statusDescription,
-                            preArrivalTime = lineRes.nextDepartureFromStart,
+                            preArrivalTime = nextDeparture,
                             approachingBuses = approaching
                         )
                         val stop = NearbyStop(
@@ -344,6 +371,9 @@ class DefaultRealtimeRepository(
         /** 线路详情短缓存时长：小于详情页 10 秒轮询周期，保证每轮轮询仍拿到新数据 */
         const val LINE_DETAIL_CACHE_TTL_MS = 6_000L
         const val LINE_DETAIL_CACHE_MAX_ENTRIES = 64
+
+        /** 收藏卡时刻表回落缓存时长 */
+        const val FAVORITE_TIMETABLE_TTL_MS = 30_000L
     }
 }
 
