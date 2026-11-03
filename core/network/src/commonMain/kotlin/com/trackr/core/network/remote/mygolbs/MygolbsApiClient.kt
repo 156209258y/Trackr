@@ -915,15 +915,16 @@ class MygolbsApiClient(
             )
         }
 
-        // 没车时按这个方向的首末班判运营状态：末班之后显示「末班已过」，首班之前显示「等待发车」。
-        // 有车时不动，避免末班刚过、车还在路上却报已结束。
-        val serviceState = if (liveBuses.isEmpty()) {
+        // 候车站前面还有车就不动；车都过了本站才按首末班判运营状态：
+        // 末班之后显示「末班已过」，首班之前显示「等待发车」。
+        val hasUpcomingBus = liveBuses.any { it.order <= effectiveTargetOrder }
+        val serviceState = if (hasUpcomingBus) {
+            ServiceHours.State.UNKNOWN
+        } else {
             ServiceHours.state(
                 nowHHMM = beijingNowHHMM(),
                 windows = listOf(ServiceHours.Window(firstTime, lastTime))
             )
-        } else {
-            ServiceHours.State.UNKNOWN
         }
         val operatingState = when {
             runState == 1 -> LineOperatingState.SUSPENDED
