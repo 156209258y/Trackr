@@ -208,6 +208,13 @@ class LineDetailViewModel(
     @Volatile
     private var lastRefreshAtMillis: Long? = null
 
+    /**
+     * 每条线路方向的时刻表缓存，避免 10 秒轮询时反复拉取。
+     * 必须在 [init] 之前初始化：`viewModelScope.launch` 跑在 `Dispatchers.Main.immediate` 上，
+     * 命中缓存时首次请求会在构造期间同步跑完并读到这里，声明在 init 之后会拿到 null 而崩溃。
+     */
+    private val timetableCache = mutableMapOf<String, LineTimetable>()
+
     // C1：不再每秒倒计时，固定 10 秒一轮；手动刷新 / 选站后用 restart() 从现在起重新计时（e683286）
     internal val pollingCoordinator = PollingCoordinator(
         scope = viewModelScope,
@@ -444,9 +451,6 @@ class LineDetailViewModel(
             lineStopsCache.write(key, static.line, static.reverseDirection, static.stops)
         }
     }
-
-    /** 每条线路方向的时刻表缓存，避免 10 秒轮询时反复拉取 */
-    private val timetableCache = mutableMapOf<String, LineTimetable>()
 
     /**
      * 候车站前方无车且实时接口未给下一班时间时，用时刻表补出下一班始发时间。

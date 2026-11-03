@@ -29,7 +29,10 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.setMain
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
@@ -498,6 +501,48 @@ class LineDetailViewModelTest {
         testScheduler.runCurrent()
 
         assertEquals("21:40", viewModel.uiState.value.live?.fallbackNextDeparture)
+    }
+
+    // 第二次进同一条线路时，实时数据可能一次都不挂起（命中缓存）：请求会在构造函数里同步跑完。
+    // 以前 timetableCache 声明在 init 之后，这里读到的字段还是 null，点几次线路就崩（真机崩溃栈 NPE at :466）。
+    @Test
+    fun construct_whenFirstLoadCompletesSynchronously_doesNotCrashOnTimetableCache() {
+        Dispatchers.setMain(UnconfinedTestDispatcher())
+        try {
+            fakeRepository.lineDetailResult = Result.success(
+                BusLineDetail(
+                    line = forwardDirection,
+                    reverseDirection = reverseDirection,
+                    stops = stops,
+                    // 车都过了候车站（站序 1），实时接口也没给下一班：会去读时刻表缓存
+                    buses = buses,
+                    targetOrder = 1,
+                    nextDepartureFromStart = null
+                )
+            )
+            fakeRepository.timetableResult = Result.success(
+                LineTimetable(lineId = "line_001", lineName = "49路", todayDepartures = listOf("21:00", "21:40"))
+            )
+
+            val viewModel = LineDetailViewModel(
+                cityId = "034",
+                initialLineId = "line_001",
+                initialTargetOrder = 1,
+                settings = fakeRepository.settings,
+                favorites = fakeRepository.favoritesRepo,
+                realtime = fakeRepository.realtime,
+                reminderRepository = FakeScheduledReminderRepository(),
+                trackingRepository = trackingRepository,
+                trackingController = trackingController,
+                enableAutoPolling = false,
+                nowHHmm = { "21:28" }
+            )
+
+            // 读时刻表这一步跑完了：构造函数里的请求没有因为字段还没初始化而中断
+            assertEquals("21:40", viewModel.uiState.value.live?.fallbackNextDeparture)
+        } finally {
+            Dispatchers.resetMain()
+        }
     }
 
     @Test
