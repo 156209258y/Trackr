@@ -1,6 +1,8 @@
 package com.trackr.ui.screens.stopdetail
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -346,7 +348,7 @@ private fun PlatformChips(labels: List<String>, selected: Int, onEvent: (StopDet
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
+@OptIn(ExperimentalLayoutApi::class, ExperimentalFoundationApi::class)
 @Composable
 private fun StopLineRow(
     row: StopLineRowUi,
@@ -360,6 +362,12 @@ private fun StopLineRow(
         row.lineId.isNotBlank() -> ({ onEvent(StopDetailEvent.OpenLine(row)) })
         else -> null
     }
+    // 长按一条线 = 快捷进「选几条一起等」，并把这条勾上
+    val onLongClick: (() -> Unit)? = if (selecting) {
+        null
+    } else {
+        ({ onEvent(StopDetailEvent.StartSelectingWith(row.key)) })
+    }
     Surface(
         shape = MaterialTheme.shapes.medium,
         color = MaterialTheme.colorScheme.surfaceContainerLow,
@@ -368,7 +376,17 @@ private fun StopLineRow(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
+                .then(
+                    if (onClick != null || onLongClick != null) {
+                        Modifier.combinedClickable(
+                            onClick = { onClick?.invoke() },
+                            onLongClickLabel = stringResource(StopRes.string.stop_pick_lines),
+                            onLongClick = onLongClick
+                        )
+                    } else {
+                        Modifier
+                    }
+                )
                 .heightIn(min = 64.dp)
                 .padding(start = 12.dp, end = if (selecting) 14.dp else 4.dp, top = 10.dp, bottom = 10.dp),
             verticalAlignment = Alignment.CenterVertically

@@ -442,6 +442,23 @@ class StopDetailViewModelTest {
     }
 
     @Test
+    fun testStartSelectingWith_checksThatRow() = runTest(main.dispatcher) {
+        val viewModel = createViewModel()
+        testScheduler.runCurrent()
+        val rows = viewModel.uiState.value.rows
+
+        viewModel.onEvent(StopDetailEvent.StartSelectingWith(rows[0].key))
+        assertTrue(viewModel.uiState.value.selecting)
+        assertEquals(setOf(rows[0].key), viewModel.uiState.value.selectedLineKeys)
+
+        // 不能选的行：只进选线模式，不勾
+        viewModel.onEvent(StopDetailEvent.CancelSelecting)
+        viewModel.onEvent(StopDetailEvent.StartSelectingWith(rows[2].key))
+        assertTrue(viewModel.uiState.value.selecting)
+        assertTrue(viewModel.uiState.value.selectedLineKeys.isEmpty())
+    }
+
+    @Test
     fun testSelecting_unselectableRowIgnored_andPlatformChangeClears() = runTest(main.dispatcher) {
         val viewModel = createViewModel()
         testScheduler.runCurrent()

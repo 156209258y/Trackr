@@ -5,8 +5,10 @@ import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.unit.dp
@@ -121,6 +123,13 @@ class StopDetailScreenTest {
         composeTestRule.onNodeWithText("8站 [开往 秀屿区政府]").assertIsDisplayed()
         composeTestRule.onNodeWithText("→ 莆田汽车站").performClick()
         assertEquals(listOf(StopDetailEvent.OpenLine(rowLong)), events)
+    }
+
+    @Test
+    fun longPressRow_startsSelectingWithThatLine() {
+        setContent(base)
+        composeTestRule.onNodeWithText("→ 蛇口港").performTouchInput { longClick() }
+        assertEquals(listOf(StopDetailEvent.StartSelectingWith("r19")), events)
     }
 
     @Test

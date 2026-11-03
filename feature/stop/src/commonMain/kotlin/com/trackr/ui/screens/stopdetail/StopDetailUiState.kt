@@ -128,6 +128,9 @@ sealed interface StopDetailEvent {
     /** 进选线模式（「选几条一起等」） */
     data object StartSelecting : StopDetailEvent
 
+    /** 长按一条线：进选线模式，这条能选就顺手勾上 */
+    data class StartSelectingWith(val rowKey: String) : StopDetailEvent
+
     /** 退出选线模式 */
     data object CancelSelecting : StopDetailEvent
     data class ToggleLine(val rowKey: String) : StopDetailEvent

@@ -142,6 +142,7 @@ class StopDetailViewModel(
             is StopDetailEvent.SelectPlatform -> selectStopIndex(event.index)
             is StopDetailEvent.ToggleFavorite -> toggleFavoriteByKey(event.rowKey)
             StopDetailEvent.StartSelecting -> _uiState.update { it.copy(selecting = true, selectedLineKeys = emptySet()) }
+            is StopDetailEvent.StartSelectingWith -> startSelectingWith(event.rowKey)
             StopDetailEvent.CancelSelecting -> exitSelecting()
             is StopDetailEvent.ToggleLine -> toggleLine(event.rowKey)
             StopDetailEvent.SaveSelectionAsRoute -> saveSelectionAsRoute()
@@ -344,6 +345,17 @@ class StopDetailViewModel(
 
     private fun exitSelecting() {
         _uiState.update { it.copy(selecting = false, selectedLineKeys = emptySet()) }
+    }
+
+    /** 长按一条线进选线模式：这条能选就顺手勾上 */
+    private fun startSelectingWith(rowKey: String) {
+        _uiState.update {
+            val row = it.rows.firstOrNull { r -> r.key == rowKey }
+            it.copy(
+                selecting = true,
+                selectedLineKeys = if (row?.selectable == true) setOf(rowKey) else emptySet()
+            )
+        }
     }
 
     private fun toggleLine(rowKey: String) {
