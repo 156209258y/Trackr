@@ -85,6 +85,24 @@ class LiveUpdatePromotionTest {
     }
 
     @Test
+    fun testBuildNotification_marksNotificationColorizedForPromotion() {
+        val state = TrackingSessionState(
+            isActive = true,
+            lineName = "49路",
+            targetStopName = "上海体育馆",
+            targetOrder = 10,
+            startTrackingOrder = 7,
+            currentBusOrder = 9,
+            currentBusProgress = 0.5f,
+            stopsRemaining = 1
+        )
+
+        val notification = liveNotifier.buildNotification(context, state)
+        // Android 16 的 hasPromotableCharacteristics() 要求 colorized，缺了就不会上岛
+        assertTrue(notification.extras.getBoolean(NotificationCompat.EXTRA_COLORIZED))
+    }
+
+    @Test
     fun testBuildNotification_progressStyleIsSetAsCompatTemplate() {
         val state = TrackingSessionState(
             isActive = true,

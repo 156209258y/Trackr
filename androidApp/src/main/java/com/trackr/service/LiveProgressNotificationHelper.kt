@@ -258,6 +258,9 @@ class LiveProgressNotifier(
         if (isLiveEnabled) {
             builder.setRequestPromotedOngoing(true)
             builder.setShortCriticalText(texts.shortCriticalText)
+            // Android 16 的 hasPromotableCharacteristics() 还要求通知是 colorized；
+            // 缺这一项即使权限全开、系统白名单放行也不会升级成状态栏胶囊
+            builder.setColorized(true)
             if (XiaomiFocusAdapter.isXiaomiRom()) {
                 XiaomiFocusAdapter.attachFocusParams(builder, state, nextLineName)
             }
