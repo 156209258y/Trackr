@@ -9,6 +9,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -17,6 +18,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -24,8 +26,10 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -149,12 +153,9 @@ sealed interface LineDetailEvent {
     data object ReadAloud : LineDetailEvent
 }
 
-/** 走向条之前的列表项数（方向头、主卡；有错误条时多一项） */
-private fun railStartIndex(hasError: Boolean): Int = if (hasError) 3 else 2
-
 /**
  * 线路详情（v3）：顶栏「返回 · 线路名 · 时钟 · ☆」；方向「始发 → 终点」+「换向」、运营信息 +「时刻表 ›」；
- * 主卡；竖向走向条；底栏「主按钮 + 乘车码」；下拉刷新；收藏等一次性提示走提示条。
+ * 主卡固定在顶部；竖向走向条单独滚动；底栏「主按钮 + 乘车码」；下拉刷新；收藏等一次性提示走提示条。
  *
  * 底栏自己让开系统导航栏，列表底部留白 = Scaffold 的 innerPadding（含底栏和导航栏），三键导航下不重叠（issue #2）。
  */
@@ -171,7 +172,7 @@ fun LineDetailScreen(
 
     val static = state.static
 
-    // 从某个站点点进来：整页列表（含走向条）直接跳到那一站，只跳一次。
+    // 从某个站点点进来：走向条直接跳到那一站，只跳一次。主卡固定在顶部，不会跟着跳走。
     // 没带站序（搜索、收藏等）就保持从顶部开始；换向、选站、轮询都不会再跳。
     var didJumpToEntryStop by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(static?.stops, state.entryStopOrder) {
@@ -179,7 +180,7 @@ fun LineDetailScreen(
         val order = state.entryStopOrder ?: return@LaunchedEffect
         if (didJumpToEntryStop || stops.none { it.order == order }) return@LaunchedEffect
         didJumpToEntryStop = true
-        val index = railStartIndex(state.errorMessage != null) + routeRailItemIndex(stops, order)
+        val index = routeRailItemIndex(stops, order)
         listState.scrollToItem((index - 2).coerceAtLeast(0))
     }
 
@@ -253,51 +254,54 @@ fun LineDetailScreen(
                     .fillMaxSize()
                     .padding(top = innerPadding.calculateTopPadding())
             ) {
-                val live = state.live
-                val busesByOrder = remember(live?.buses) { live?.buses.orEmpty().groupBy { it.order } }
-                val hasError = state.errorMessage != null
-                LazyColumn(
-                    state = listState,
-                    // 底部 = 底栏 + 系统导航栏（Scaffold 已算进 innerPadding），不用 consumeWindowInsets，避免被吃成 0（issue #2）
-                    contentPadding = PaddingValues(bottom = innerPadding.calculateBottomPadding() + 16.dp),
-                    modifier = Modifier.fillMaxSize()
-                ) {
-                    item(key = "direction", contentType = "direction") {
+                BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+                    val live = state.live
+                    val busesByOrder = remember(live?.buses) { live?.buses.orEmpty().groupBy { it.order } }
+                    val hasError = state.errorMessage != null
+                    // 主卡最多占六成高度：车辆列表很长时卡里自己滚，走向条始终留一块能看
+                    val cardMaxHeight = maxHeight * 0.6f
+                    Column(modifier = Modifier.fillMaxSize()) {
                         DirectionHeader(
                             static = static,
                             onSwitchDirection = { onEvent(LineDetailEvent.SwitchDirection) },
                             onOpenTimetable = { onEvent(LineDetailEvent.OpenTimetable) }
                         )
-                    }
-                    if (hasError) {
-                        item(key = "error", contentType = "error") {
+                        if (hasError) {
                             ErrorBanner(
                                 text = state.errorMessage.orEmpty(),
                                 onRetry = { onEvent(LineDetailEvent.Refresh(fromPull = false)) }
                             )
                         }
-                    }
-                    item(key = "hero", contentType = "hero") {
+                        // 主卡固定在顶部，不跟走向条一起滚：看卡片和看当前站可以同时
                         HeroCard(
                             state = state,
                             static = static,
                             onEvent = onEvent,
                             onPickStop = {
                                 val order = state.selectedStop?.order ?: return@HeroCard
-                                val index = railStartIndex(hasError) + routeRailItemIndex(static.stops, order)
+                                val index = routeRailItemIndex(static.stops, order)
                                 scope.launch { listState.animateScrollToItem((index - 2).coerceAtLeast(0)) }
-                            }
+                            },
+                            modifier = Modifier.heightIn(max = cardMaxHeight)
                         )
+                        LazyColumn(
+                            state = listState,
+                            // 底部 = 底栏 + 系统导航栏（Scaffold 已算进 innerPadding），不用 consumeWindowInsets，避免被吃成 0（issue #2）
+                            contentPadding = PaddingValues(top = 4.dp, bottom = innerPadding.calculateBottomPadding() + 16.dp),
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxWidth()
+                        ) {
+                            routeRailItems(
+                                stops = static.stops,
+                                busesByOrder = busesByOrder,
+                                selectedOrder = state.selectedStop?.order,
+                                selectedBusId = state.followedBusId,
+                                onSelectStop = { onEvent(LineDetailEvent.SelectStop(it)) },
+                                onSelectBus = { onEvent(LineDetailEvent.FollowBus(it)) }
+                            )
+                        }
                     }
-                    item(key = "rail_gap", contentType = "gap") { Spacer(modifier = Modifier.height(12.dp)) }
-                    routeRailItems(
-                        stops = static.stops,
-                        busesByOrder = busesByOrder,
-                        selectedOrder = state.selectedStop?.order,
-                        selectedBusId = state.followedBusId,
-                        onSelectStop = { onEvent(LineDetailEvent.SelectStop(it)) },
-                        onSelectBus = { onEvent(LineDetailEvent.FollowBus(it)) }
-                    )
                 }
             }
         }
@@ -493,21 +497,23 @@ private fun ErrorBanner(text: String, onRetry: () -> Unit) {
     }
 }
 
-/** 主卡：到站 / 全部车辆 / 单车跟随 三种内容切换 */
+/** 主卡：到站 / 全部车辆 / 单车跟随 三种内容切换；固定在页面顶部，内容超过限高时卡内自己滚 */
 @Composable
 private fun HeroCard(
     state: LineDetailUiState,
     static: LineStatic,
     onEvent: (LineDetailEvent) -> Unit,
-    onPickStop: () -> Unit
+    onPickStop: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     Card(
         shape = RoundedCornerShape(22.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.busColors.stationCardContainer),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 8.dp)
+            .then(modifier)
     ) {
         AnimatedContent(
             targetState = state.panelMode,
@@ -526,6 +532,7 @@ private fun HeroCard(
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(22.dp))
+                .verticalScroll(rememberScrollState())
         ) { mode ->
             when (mode) {
                 PanelMode.STATION_CARD -> StationArrivalContent(

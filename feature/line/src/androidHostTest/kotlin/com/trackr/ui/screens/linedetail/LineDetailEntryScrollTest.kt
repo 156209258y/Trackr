@@ -6,6 +6,7 @@ import androidx.compose.ui.test.onNodeWithText
 import com.trackr.core.designsystem.theme.TrackrTheme
 import com.trackr.core.model.BusLineDirection
 import com.trackr.core.model.BusStop
+import com.trackr.core.model.LiveBus
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -63,10 +64,34 @@ class LineDetailEntryScrollTest {
     }
 
     @Test
+    fun openedFromStation_keepsCardVisibleWhileRailJumps() {
+        show(stateOf(entryStopOrder = 20))
+
+        // 走向条跳到第 20 站，主卡仍在顶上显示这一站的候车信息
+        composeTestRule.onNodeWithText("S20站上车").assertIsDisplayed()
+        composeTestRule.onNodeWithText("S20").assertIsDisplayed()
+        composeTestRule.onNodeWithText("S01").assertDoesNotExist()
+    }
+
+    @Test
     fun openedWithoutStation_startsFromTop() {
         show(stateOf(entryStopOrder = null))
 
         composeTestRule.onNodeWithText("S01").assertIsDisplayed()
         composeTestRule.onNodeWithText("S20").assertDoesNotExist()
+    }
+
+    @Test
+    fun busListMode_stillShowsBusRowsInFixedCard() {
+        // 主卡固定 + 最多六成高：车辆列表在卡内显示，不被裁掉
+        val state = stateOf(entryStopOrder = 20).copy(
+            panelMode = PanelMode.BUS_LIST,
+            live = LineLive(
+                buses = listOf(LiveBus(busId = "b1", plateOrFleetNo = "沪A1234", order = 21, etaSeconds = 120))
+            )
+        )
+        show(state)
+
+        composeTestRule.onNodeWithText("沪A1234").assertIsDisplayed()
     }
 }
