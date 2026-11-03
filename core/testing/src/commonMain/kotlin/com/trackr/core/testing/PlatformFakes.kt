@@ -3,6 +3,7 @@ package com.trackr.core.testing
 import com.trackr.core.data.repository.TrackingRepository
 import com.trackr.core.domain.platform.Announcer
 import com.trackr.core.domain.platform.AppSigningInfo
+import com.trackr.core.domain.platform.AppUpdateInstaller
 import com.trackr.core.domain.platform.LocationSource
 import com.trackr.core.domain.platform.ReminderAlarms
 import com.trackr.core.domain.platform.SpeechInput
@@ -10,11 +11,14 @@ import com.trackr.core.domain.platform.TrackingController
 import com.trackr.core.domain.platform.TransitCodeLauncher
 import com.trackr.core.domain.platform.UpdateChecker
 import com.trackr.core.domain.tracking.LocationCadence
+import com.trackr.core.model.AppUpdateInfo
+import com.trackr.core.model.AppUpdateInstallState
 import com.trackr.core.model.ScheduledReminder
 import com.trackr.core.model.TrackingTarget
 import com.trackr.core.model.TransitCodeProvider
 import com.trackr.core.model.UpdateCheckResult
 import com.trackr.core.model.UserFix
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asFlow
@@ -235,6 +239,52 @@ class FakeUpdateChecker(var result: UpdateCheckResult) : UpdateChecker {
     override suspend fun checkForUpdates(currentVersionCode: Int, currentVersionName: String): UpdateCheckResult {
         checkCount++
         return result
+    }
+}
+
+/**
+ * 记下下载 / 安装调用；结果由测试设定，不碰文件也不碰系统安装器。
+ *
+ * @param progress 每次下载要回调的进度序列，用来验证「下载中」状态
+ */
+class FakeAppUpdateInstaller(
+    var downloadResult: AppUpdateInstallState = AppUpdateInstallState.Launched,
+    var retryResult: AppUpdateInstallState = AppUpdateInstallState.Launched,
+    private val progress: List<Pair<Long, Long>> = emptyList()
+) : AppUpdateInstaller {
+    var downloadCount: Int = 0
+        private set
+    var retryCount: Int = 0
+        private set
+    var discardCount: Int = 0
+        private set
+    var openSettingsCount: Int = 0
+        private set
+
+    /** 设了就卡在下载结束前，用来观察「下载中」的中间状态；测试里 complete 后继续 */
+    var downloadGate: CompletableDeferred<Unit>? = null
+
+    override suspend fun downloadAndInstall(
+        updateInfo: AppUpdateInfo,
+        onProgress: (downloadedBytes: Long, totalBytes: Long) -> Unit
+    ): AppUpdateInstallState {
+        downloadCount++
+        progress.forEach { (downloaded, total) -> onProgress(downloaded, total) }
+        downloadGate?.await()
+        return downloadResult
+    }
+
+    override fun retryPendingInstall(): AppUpdateInstallState {
+        retryCount++
+        return retryResult
+    }
+
+    override fun openInstallPermissionSettings() {
+        openSettingsCount++
+    }
+
+    override fun discardPending() {
+        discardCount++
     }
 }
 

@@ -20,7 +20,16 @@
     <string name="me_about_new_version_name">发现新版本 v%1$s</string>
     <string name="me_about_publish_time">发布时间: %1$s</string>
     <string name="me_about_changelog">更新内容：</string>
-    <string name="me_about_download">前往下载</string>
+    <string name="me_about_download">下载并安装</string>
+    <string name="me_about_downloading">正在下载… %1$d%%</string>
+    <string name="me_about_downloading_bytes">正在下载… %1$d MB</string>
+    <string name="me_about_cancel_download">取消下载</string>
+    <string name="me_about_install_permission">系统还没允许追客安装应用。去设置里打开「允许安装未知应用」，回来会自动继续。</string>
+    <string name="me_about_open_install_settings">去设置</string>
+    <string name="me_about_install_launched">已打开系统安装界面，按提示完成安装。</string>
+    <string name="me_about_install_again">再次安装</string>
+    <string name="me_about_install_retry">重新下载</string>
+    <string name="me_about_open_download_page">到 GitHub 下载</string>
     <string name="me_about_remind_later">稍后提醒</string>
     <string name="me_about_latest">已是最新版本</string>
     <string name="me_about_latest_body">当前安装的版本 v%1$s 已是最新，暂无更新发布。</string>

@@ -39,6 +39,30 @@ data class AppUpdateInfo(
 }
 
 /**
+ * 应用内下载安装的进度（只有 Android 有）
+ */
+sealed interface AppUpdateInstallState {
+    /** 没有在下载，等用户点「下载并安装」 */
+    data object Idle : AppUpdateInstallState
+
+    /**
+     * 正在下载安装包。
+     * @param downloadedBytes 已下载字节数
+     * @param totalBytes 安装包总字节数；服务器没给时为 0
+     */
+    data class Downloading(val downloadedBytes: Long, val totalBytes: Long) : AppUpdateInstallState
+
+    /** 安装包已下载好，但系统还没允许本应用安装应用（Android 8+ 的「安装未知应用」） */
+    data object AwaitingPermission : AppUpdateInstallState
+
+    /** 已调起系统安装界面，等用户在那里确认 */
+    data object Launched : AppUpdateInstallState
+
+    /** 下载或安装失败，[message] 直接展示给用户 */
+    data class Failed(val message: String) : AppUpdateInstallState
+}
+
+/**
  * 版本更新检测结果
  */
 sealed interface UpdateCheckResult {

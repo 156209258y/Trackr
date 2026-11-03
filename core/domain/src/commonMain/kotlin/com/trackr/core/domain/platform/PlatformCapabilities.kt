@@ -1,6 +1,8 @@
 package com.trackr.core.domain.platform
 
 import com.trackr.core.domain.tracking.LocationCadence
+import com.trackr.core.model.AppUpdateInfo
+import com.trackr.core.model.AppUpdateInstallState
 import com.trackr.core.model.ScheduledReminder
 import com.trackr.core.model.TrackingTarget
 import com.trackr.core.model.TransitCodeProvider
@@ -184,6 +186,38 @@ interface UpdateChecker {
         currentVersionCode: Int,
         currentVersionName: String
     ): UpdateCheckResult
+}
+
+/**
+ * 应用内下载并安装新版本（只有 Android 有；iOS 走 App Store）。
+ *
+ * 下载到应用缓存后调系统安装器，不再跳浏览器。第一次安装要先允许「安装未知应用」，
+ * 所以分两步：没有权限时返回 [AppUpdateInstallState.AwaitingPermission]，用户去设置授权回来后
+ * 由页面调 [retryPendingInstall] 接着装，不用重新下载。
+ */
+interface AppUpdateInstaller {
+
+    /**
+     * 下载 [updateInfo] 的安装包，校验包名 / 版本 / 签名后调起系统安装器。
+     *
+     * 下载地址不受信任、网络失败、安装包校验不过时返回 [AppUpdateInstallState.Failed]。
+     * 协程被取消时删除下了一半的文件。
+     *
+     * @param onProgress 下载进度回调，可能在后台线程调用
+     */
+    suspend fun downloadAndInstall(
+        updateInfo: AppUpdateInfo,
+        onProgress: (downloadedBytes: Long, totalBytes: Long) -> Unit = { _, _ -> }
+    ): AppUpdateInstallState
+
+    /** 从系统设置授权回来后重试上次没装成的包；包不在了返回 [AppUpdateInstallState.Failed] */
+    fun retryPendingInstall(): AppUpdateInstallState
+
+    /** 打开系统的「安装未知应用」授权页 */
+    fun openInstallPermissionSettings()
+
+    /** 删掉已下载的安装包（取消下载、离开页面时用） */
+    fun discardPending()
 }
 
 /** 「高德 Key」页显示的应用标识，帮用户在高德控制台绑定 Key */

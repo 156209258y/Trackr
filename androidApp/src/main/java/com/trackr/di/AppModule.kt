@@ -15,6 +15,7 @@ import com.trackr.core.data.repository.SearchHistoryRepository
 import com.trackr.core.data.repository.SettingsRepository
 import com.trackr.core.data.repository.DefaultTrackingRepository
 import com.trackr.core.data.repository.TrackingRepository
+import com.trackr.core.domain.platform.AppUpdateInstaller
 import com.trackr.core.domain.platform.LocationSource
 import com.trackr.core.domain.platform.MonotonicClock
 import com.trackr.core.domain.platform.ReminderAlarms
@@ -32,6 +33,7 @@ import com.trackr.data.local.StorageBackend
 import com.trackr.data.location.AndroidLocationSource
 import com.trackr.data.location.AndroidMonotonicClock
 import com.trackr.data.remote.amap.AmapSdkKeySync
+import com.trackr.data.remote.update.AndroidAppUpdateInstaller
 import com.trackr.data.remote.update.GithubUpdateChecker
 import com.trackr.data.repository.IRouteGroupRepository
 import com.trackr.data.repository.IScheduledReminderRepository
@@ -171,6 +173,10 @@ val appModule: Module = module {
 
     // 原来每个 AboutViewModel 都新建一个检查器，这里保持 factory
     factory<UpdateChecker> { GithubUpdateChecker(get()) }
+    // 应用内更新：下载安装包并调系统安装器，用自己的 HttpClient（不限下载总时长）
+    single<AppUpdateInstaller> { AndroidAppUpdateInstaller(androidContext()) } onClose {
+        (it as? AndroidAppUpdateInstaller)?.close()
+    }
 }
 
 /**

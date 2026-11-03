@@ -40,6 +40,10 @@ val meModule = module {
     viewModel { AmapKeyViewModel(amapKeys = get(), signingInfo = get(), defaults = get(), notices = get()) }
     viewModel {
         val version = getOrNull<AppVersionInfo>() ?: AppVersionInfo(1, "0.0.1")
-        AboutViewModel(updateChecker = getOrNull(), versionProvider = { version.code to version.name })
+        AboutViewModel(
+            updateChecker = getOrNull(),
+            updateInstaller = getOrNull(),
+            versionProvider = { version.code to version.name }
+        )
     }
 }

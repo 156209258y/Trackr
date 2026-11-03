@@ -147,6 +147,12 @@ private fun AboutRoute(viewModel: AboutViewModel, navigator: TrackrNavigator) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val back = dropUnlessResumed { navigator.popChildPage() }
 
+    // 从「安装未知应用」设置页回来：权限给了就接着装已经下好的包，不用重新下载
+    LifecycleResumeEffect(viewModel) {
+        viewModel.onEvent(AboutEvent.ResumeInstall)
+        onPauseOrDispose { }
+    }
+
     AboutScreen(
         state = state,
         onEvent = { event ->

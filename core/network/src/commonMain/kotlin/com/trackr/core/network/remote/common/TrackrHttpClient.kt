@@ -14,6 +14,8 @@ object NetworkTimeouts {
     const val CONNECT_MS = 12_000L
     const val READ_MS = 15_000L
     const val WRITE_MS = 12_000L
+    /** 下载安装包时两次读取之间允许的最长间隔（不限总时长，网慢也能下完） */
+    const val DOWNLOAD_READ_MS = 60_000L
 }
 
 /** 平台的 HTTP 客户端：Android 用 OkHttp 引擎（连接 / 读 / 写超时设在 OkHttp 上），iOS 用 Darwin 引擎 */
