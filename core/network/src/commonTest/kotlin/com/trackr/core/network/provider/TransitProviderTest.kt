@@ -51,6 +51,7 @@ class TransitProviderTest {
         assertFalse(provider.supportsStop(StopDetailRequest(stopId = "mg:s1")))
         assertFalse(provider.supportsStop(StopDetailRequest(physicalStId = "mg:phys1")))
         assertFalse(provider.supportsStop(StopDetailRequest(namesakeStId = "mg:name1")))
+        assertTrue(provider.stopDetailIncludesBuses())
     }
 
     @Test
@@ -545,6 +546,7 @@ class TransitProviderTest {
         assertTrue(provider.supportsStop(StopDetailRequest(physicalStId = "mg:phys")))
         assertTrue(provider.supportsStop(StopDetailRequest(namesakeStId = "mg:name")))
         assertFalse(provider.supportsStop(StopDetailRequest(stopId = "cl_s1")))
+        assertFalse(provider.stopDetailIncludesBuses())
     }
 
     @Test
@@ -632,6 +634,177 @@ class TransitProviderTest {
         )
         val timetable2 = provider.getTimetable(testCity, lineNoTimes)
         assertEquals("该线路暂不提供首站预测时刻表，请参考运营首末班", timetable2.depDesc)
+    }
+
+    @Test
+    fun testMygolbsProvider_stopDetailFillsCoordinatesAndDistance() = runBlocking {
+        val interceptor = MockHandler { request ->
+            mockResponse(
+                request,
+                """
+                {
+                  "status": 1,
+                  "data": [
+                    {"lineName": "1路", "upperOrDown": "1", "from": "A", "to": "B",
+                     "routeBean": {"suTime": "06:30", "euTime": "21:30"}}
+                  ]
+                }
+                """.trimIndent()
+            )
+        }
+
+        val provider = MygolbsTransitProvider(MygolbsApiClient(mockHttpClient(handler = interceptor)))
+        val yulin = TransitCity(cityId = "", cityName = "玉林市", mygolbsCityCode = "450900")
+
+        val res = provider.getStopDetail(
+            yulin,
+            StopDetailRequest(
+                stopName = "市政广场",
+                stationLat = 22.653,
+                stationLng = 110.183,
+                userLat = 22.650,
+                userLng = 110.180
+            )
+        )
+
+        val stop = res.single()
+        assertEquals(22.653, stop.wgsLat, 0.0001)
+        assertEquals(110.183, stop.wgsLng, 0.0001)
+        assertTrue((stop.distanceMeters ?: 0) in 1..2000, "应算出到站的几百米距离")
+    }
+
+    @Test
+    fun testMygolbsProvider_searchStopsFillDistance() = runBlocking {
+        val interceptor = MockHandler { request ->
+            val body = request.body
+            when {
+                body.contains("CMD=114") -> mockResponse(request, """{"status":1,"buslines":[]}""")
+                body.contains("CMD=110") -> mockResponse(
+                    request,
+                    """{"status":1,"busstations":[{"stationName":"市政广场","station_lat":"22.653","station_lon":"110.183"}]}"""
+                )
+                else -> error("unexpected request: ${body.take(30)}")
+            }
+        }
+
+        val provider = MygolbsTransitProvider(MygolbsApiClient(mockHttpClient(handler = interceptor)))
+        val yulin = TransitCity(cityId = "", cityName = "玉林市", mygolbsCityCode = "450900")
+
+        val result = provider.search(yulin, "市政", userLat = 22.650, userLng = 110.180)
+
+        val stop = result.stops.single()
+        assertTrue((stop.distanceMeters ?: 0) in 1..2000, "搜索结果也要带距离")
+    }
+
+    @Test
+    fun testMygolbsClient_timetableFromCmd207() = runBlocking {
+        var captured207 = ""
+        val interceptor = MockHandler { request ->
+            val body = request.body
+            when {
+                body.contains("CMD=103") -> mockResponse(
+                    request,
+                    """{"status":1,"routeId":702,"firstLast":[{"first":"07:43","last":"19:41"}],"data":[]}"""
+                )
+                body.contains("CMD=207") -> {
+                    captured207 = body
+                    mockResponse(
+                        request,
+                        """
+                        {
+                          "status": 1,
+                          "special": "0",
+                          "nextTime": "16:06",
+                          "list": [
+                            {"group": "07:43~10:00", "peak": 1, "times": [
+                              {"time": "07:43", "isDelete": 0},
+                              {"time": "7:58", "isDelete": 0},
+                              {"time": "08:27", "isDelete": 1}
+                            ]},
+                            {"group": "16:00~19:41", "peak": 0, "times": [
+                              {"time": "16:06", "isDelete": 0}
+                            ]}
+                          ]
+                        }
+                        """.trimIndent()
+                    )
+                }
+                else -> error("unexpected request: ${body.take(30)}")
+            }
+        }
+
+        val client = MygolbsApiClient(mockHttpClient(handler = interceptor))
+        val line = BusLineDirection(
+            lineId = "mg:450900:玉林市:1路:1",
+            name = "1路",
+            startStop = "A",
+            endStop = "B",
+            source = DataSourceType.MYGOLBS
+        )
+
+        val timetable = client.getTimetable("450900", "玉林市", line, atTimeHHMM = "15:00")
+
+        assertTrue(captured207.contains("ROUTEID=702"), "207 必须带 103 返回的 routeId")
+        assertEquals(listOf("07:43", "07:58", "16:06"), timetable.todayDepartures)
+        assertEquals("16:06", timetable.nextDeparture)
+        assertEquals("历史推算班次", timetable.nextDepartureSource)
+        assertEquals(2, timetable.segments.size)
+        assertEquals("07:43", timetable.segments[0].fromTime)
+        assertEquals("10:00", timetable.segments[0].toTime)
+        assertEquals("早高峰", timetable.segments[0].intervalTips)
+        assertTrue(timetable.depDesc.contains("历史数据"))
+    }
+
+    @Test
+    fun testMygolbsClient_lineDetailReadsPlanTimeAndNextStop() = runBlocking {
+        val interceptor = MockHandler { request ->
+            val body = request.body
+            when {
+                body.contains("CMD=103") -> mockResponse(
+                    request,
+                    """
+                    {
+                      "status": 1,
+                      "routeId": 17,
+                      "firstLast": [{"first": "06:40", "last": "22:00"}],
+                      "commonts": "票价2元",
+                      "data": [
+                        {"stationName": "A站", "stationOrder": 1, "station_lat": 22.0, "station_lng": 110.0, "stationsStatus": 1},
+                        {"stationName": "B站", "stationOrder": 2, "station_lat": 22.001, "station_lng": 110.001, "stationsStatus": 1}
+                      ]
+                    }
+                    """.trimIndent()
+                )
+                body.contains("CMD=104") -> mockResponse(
+                    request,
+                    """
+                    {
+                      "status": 1,
+                      "runState": 0,
+                      "hasReal": 1,
+                      "planTime": "07:20",
+                      "list": [
+                        {"busNumber": "b1", "index": 1, "statusType": "2",
+                         "bus_lat": 22.0005, "bus_lng": 110.0005, "stationName": "B站"}
+                      ],
+                      "routeOnStationRTimeInfoList": [
+                        {"busNumber": "b1", "busToStationTime": 3.0, "busToStationDistance": 500}
+                      ]
+                    }
+                    """.trimIndent()
+                )
+                else -> error("unexpected request: ${body.take(30)}")
+            }
+        }
+
+        val client = MygolbsApiClient(mockHttpClient(handler = interceptor))
+        val detail = client.getLineDetail("mg:450900:玉林市:1路:1", targetOrder = 2)
+
+        assertEquals("07:20", detail.nextDepartureFromStart)
+        val bus = detail.buses.single()
+        assertEquals("B站", bus.nextStopName)
+        assertEquals(180, bus.etaSeconds)
+        assertEquals(500, bus.distanceToTargetMeters)
     }
 
     @Test

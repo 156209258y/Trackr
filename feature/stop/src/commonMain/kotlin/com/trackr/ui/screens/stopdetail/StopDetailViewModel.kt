@@ -238,10 +238,11 @@ class StopDetailViewModel(
             )
 
             result.onSuccess { rawStopList ->
-                // 若站点缺少 distanceMeters，且用户位置已知，计算实际测地距离
+                // 若站点缺少 distanceMeters，且用户位置和站点坐标都已知，计算实际测地距离。
+                // 坐标 0,0 是「没给」，不能拿去算：否则会算出上万公里。
                 val stopList = if (userLoc != null) {
                     rawStopList.map { s ->
-                        if ((s.distanceMeters ?: 0) <= 0) {
+                        if ((s.distanceMeters ?: 0) <= 0 && s.wgsLat > 0.0 && s.wgsLng > 0.0) {
                             val dist = RouteProjectionMath.calculateDistanceMeters(
                                 userLoc.first, userLoc.second, s.wgsLat, s.wgsLng
                             )

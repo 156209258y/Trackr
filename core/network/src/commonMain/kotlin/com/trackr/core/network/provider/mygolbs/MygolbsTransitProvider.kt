@@ -1,49 +1,43 @@
 package com.trackr.core.network.provider.mygolbs
 
+import com.trackr.core.domain.math.RouteProjectionMath
 import com.trackr.core.model.BusLineDetail
 import com.trackr.core.model.BusLineDirection
 import com.trackr.core.model.DataSourceType
 import com.trackr.core.model.LineTimetable
 import com.trackr.core.model.NearbyStop
-import com.trackr.core.model.ProvinceCityCatalog
 import com.trackr.core.model.TransitCity
 import com.trackr.core.model.TransitSearchResult
 import com.trackr.core.model.isPureSubwayStation
-import com.trackr.core.network.provider.ITransitProvider
+import com.trackr.core.network.provider.BaseTransitProvider
 import com.trackr.core.network.provider.model.LineDetailRequest
 import com.trackr.core.network.provider.model.StopDetailRequest
 import com.trackr.core.network.remote.mygolbs.MygolbsApiClient
+import com.trackr.core.network.remote.mygolbs.MygolbsIds
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 
 /**
  * 掌上公交（Mygolbs）数据源 Provider
- * 内聚 mg: 协议识别、站名清洗、并发检索与时刻表友好提示
+ * 内聚 mg: 协议识别、站名清洗、并发检索、站点坐标/距离补齐与发车时刻表
  */
 class MygolbsTransitProvider(
     private val mygolbsClient: MygolbsApiClient
-) : ITransitProvider {
+) : BaseTransitProvider() {
 
     override val sourceType: DataSourceType = DataSourceType.MYGOLBS
 
-    override fun supportsLine(lineId: String): Boolean = lineId.startsWith("mg:")
+    override fun ownsId(id: String): Boolean = MygolbsIds.isMygolbsId(id)
 
-    override fun supportsStop(request: StopDetailRequest): Boolean {
-        return request.stopId?.startsWith("mg:") == true ||
-                request.physicalStId?.startsWith("mg:") == true ||
-                request.namesakeStId?.startsWith("mg:") == true
-    }
+    /** 站点接口只给「x 站」文字，不带给车辆站序，一起等要按线路补查 */
+    override fun stopDetailIncludesBuses(): Boolean = false
 
-    override fun supportsLocationRadar(): Boolean = true
-
-    override suspend fun getSupportedCities(): List<TransitCity> {
-        val cityMap = mygolbsClient.getCities()
-        return cityMap.map { (name, code) ->
+    override suspend fun loadSupportedCities(): List<TransitCity> {
+        return mygolbsClient.getCities().map { (name, code) ->
             TransitCity(
                 cityId = "",
                 cityName = name,
-                mygolbsCityCode = code,
-                province = ProvinceCityCatalog.inferProvince(name)
+                mygolbsCityCode = code
             )
         }
     }
@@ -77,10 +71,14 @@ class MygolbsTransitProvider(
             }.getOrDefault(emptyList())
         }
 
+        // 车来了搜索会给站点距离，掌上公交以前不给；搜索结果右侧的距离因此只有车来了能显示
+        val stops = stopsDeferred.await().map { stop ->
+            withDistance(stop, userLat, userLng)
+        }
         TransitSearchResult(
             keyword = keyword,
             lines = linesDeferred.await(),
-            stops = stopsDeferred.await()
+            stops = stops
         )
     }
 
@@ -98,19 +96,12 @@ class MygolbsTransitProvider(
         request: StopDetailRequest
     ): List<NearbyStop> {
         val rawName = request.stopName
-            ?: request.stopId?.removePrefix("mg:")?.split(":")?.lastOrNull()
-            ?: request.physicalStId?.removePrefix("mg:")?.split(":")?.lastOrNull()
-            ?: request.namesakeStId?.removePrefix("mg:")?.split(":")?.lastOrNull()
+            ?: MygolbsIds.stopNameOf(request.stopId)
+            ?: MygolbsIds.stopNameOf(request.physicalStId)
+            ?: MygolbsIds.stopNameOf(request.namesakeStId)
             ?: ""
 
-        val cleanName = rawName
-            .removeSuffix(" (掌上公交)")
-            .removeSuffix("(掌上公交)")
-            .removeSuffix("（掌上公交）")
-            .removeSuffix(" [掌上公交]")
-            .removeSuffix("[掌上公交]")
-            .trim()
-
+        val cleanName = MygolbsIds.cleanStationName(rawName)
         if (cleanName.isBlank()) {
             return emptyList()
         }
@@ -119,11 +110,27 @@ class MygolbsTransitProvider(
             mygolbsClient.getStopLines(city.cityName, cleanName)
         }.getOrNull()
 
-        return if (stop != null && !stop.isPureSubwayStation) {
-            listOf(stop)
-        } else {
-            emptyList()
+        if (stop == null || stop.isPureSubwayStation) {
+            return emptyList()
         }
+
+        // 掌上公交的站点接口不带站点坐标；调用方本来就把坐标传进来了，直接用，
+        // 并顺手按用户位置算距离。以前这里返回 0,0，页面会显示到几内亚湾的「上万公里」。
+        val stationLat = request.stationLat?.takeIf { it > 0.0 } ?: stop.wgsLat
+        val stationLng = request.stationLng?.takeIf { it > 0.0 } ?: stop.wgsLng
+        return listOf(
+            stop.copy(
+                wgsLat = stationLat,
+                wgsLng = stationLng,
+                distanceMeters = resolveDistance(
+                    serverDistance = stop.distanceMeters,
+                    userLat = request.userLat,
+                    userLng = request.userLng,
+                    stationLat = stationLat,
+                    stationLng = stationLng
+                )
+            )
+        )
     }
 
     override suspend fun getLineDetail(
@@ -138,15 +145,35 @@ class MygolbsTransitProvider(
         line: BusLineDirection,
         atTimeHHMM: String?
     ): LineTimetable {
-        val desc = if (line.firstTime.isNotBlank() || line.lastTime.isNotBlank()) {
-            "该线路暂不提供首站预测时刻表，请参考运营首末班：${line.firstTime} - ${line.lastTime}"
-        } else {
-            "该线路暂不提供首站预测时刻表，请参考运营首末班"
-        }
-        return LineTimetable(
-            lineId = line.lineId,
-            lineName = line.name,
-            depDesc = desc
+        return mygolbsClient.getTimetable(
+            cityCode = city.mygolbsCityCode.orEmpty(),
+            cityName = city.cityName,
+            line = line,
+            atTimeHHMM = atTimeHHMM
         )
+    }
+
+    private fun withDistance(stop: NearbyStop, userLat: Double?, userLng: Double?): NearbyStop {
+        val distance = resolveDistance(
+            serverDistance = stop.distanceMeters,
+            userLat = userLat,
+            userLng = userLng,
+            stationLat = stop.wgsLat,
+            stationLng = stop.wgsLng
+        )
+        return if (distance == stop.distanceMeters) stop else stop.copy(distanceMeters = distance)
+    }
+
+    private fun resolveDistance(
+        serverDistance: Int?,
+        userLat: Double?,
+        userLng: Double?,
+        stationLat: Double,
+        stationLng: Double
+    ): Int? {
+        if (serverDistance != null && serverDistance > 0) return serverDistance
+        if (userLat == null || userLng == null) return null
+        if (userLat <= 0.0 || userLng <= 0.0 || stationLat <= 0.0 || stationLng <= 0.0) return null
+        return RouteProjectionMath.calculateDistanceMeters(userLat, userLng, stationLat, stationLng)
     }
 }
