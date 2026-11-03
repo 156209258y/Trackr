@@ -6,8 +6,10 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.CircularProgressIndicator
@@ -32,8 +34,8 @@ import com.trackr.feature.bus.resources.bus_nearby_empty
 import com.trackr.feature.bus.resources.bus_nearby_loading
 import com.trackr.feature.bus.resources.bus_nearby_stop_detail
 import com.trackr.feature.bus.resources.bus_nearby_title
-import com.trackr.ui.components.arrival.ArrivalTrailing
 import com.trackr.ui.components.arrival.LineBadge
+import com.trackr.ui.components.arrival.arrivalToneColor
 import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.resources.vectorResource
 
@@ -130,27 +132,48 @@ private fun NearbyStopCard(
     }
 }
 
-/** 「325 | → 科技园 | 4 分钟 / 2 站」 */
+/** 上下两行：「325 → 科技园」一行，「4 分钟 · 2 站」一行。
+ *  线路名可能很长（如「盘龙大观园河西旅游专线」），挤一行会把终点方向压没；
+ *  名字在自己的格子里省略，终点和到站信息都留得住。 */
 @Composable
 private fun NearbyLineRow(line: NearbyLineUi, onClick: () -> Unit) {
     val dimens = TrackrTheme.dimens
-    Row(
+    Column(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(horizontal = dimens.cardPadding, vertical = dimens.spaceS),
-        verticalAlignment = Alignment.CenterVertically
+            .padding(horizontal = dimens.cardPadding, vertical = dimens.spaceS)
     ) {
-        LineBadge(name = line.lineName)
-        Spacer(modifier = Modifier.width(dimens.spaceM))
-        Text(
-            text = line.direction,
-            style = MaterialTheme.typography.bodyMedium,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f)
-        )
-        Spacer(modifier = Modifier.width(dimens.spaceS))
-        ArrivalTrailing(arrival = line.arrival)
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            LineBadge(name = line.lineName, modifier = Modifier.widthIn(max = 200.dp))
+            Spacer(modifier = Modifier.width(dimens.spaceS))
+            Text(
+                text = line.direction,
+                style = MaterialTheme.typography.bodyMedium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f)
+            )
+        }
+        Spacer(modifier = Modifier.height(dimens.spaceXs))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = line.arrival.big,
+                style = MaterialTheme.typography.item,
+                color = arrivalToneColor(line.arrival.tone),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            if (line.arrival.small.isNotBlank()) {
+                Spacer(modifier = Modifier.width(dimens.spaceS))
+                Text(
+                    text = line.arrival.small,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
     }
 }

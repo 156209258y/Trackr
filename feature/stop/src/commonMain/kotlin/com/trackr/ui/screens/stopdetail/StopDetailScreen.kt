@@ -7,8 +7,6 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -348,7 +346,7 @@ private fun PlatformChips(labels: List<String>, selected: Int, onEvent: (StopDet
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class, ExperimentalFoundationApi::class)
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun StopLineRow(
     row: StopLineRowUi,
@@ -400,22 +398,22 @@ private fun StopLineRow(
                 Spacer(Modifier.width(4.dp))
             }
             /* 上下两行：第一行线路号 + 终点，第二行运营时间 + 到站。
-               线路名可能很长（如「351路（临时改道）」），到站也可能是整句状态文字（掌上公交），
-               挤在一行里会把中间压成 0 宽、时间竖着排。文字都限一行 + 省略，行高就不会跟着内容炸开。 */
+               线路名可能很长（如「盘龙大观园河西旅游专线」），到站也可能是整句状态文字（掌上公交），
+               挤在一行里会把中间压成 0 宽、时间竖着排。第一行只放名字和线路，
+               名字过长时在自己的格子里省略，不再把终点挤走；文字都限一行。 */
             Column(modifier = Modifier.weight(1f)) {
-                // 线路名和终点放不下时终点整段换到下一行，不会被挤成「→ …」
-                FlowRow(
+                Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(2.dp),
-                    itemVerticalAlignment = Alignment.CenterVertically
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    LineBadge(row.lineName)
+                    LineBadge(row.lineName, modifier = Modifier.widthIn(max = 200.dp))
+                    Spacer(Modifier.width(8.dp))
                     Text(
                         text = if (row.endStop.isNotBlank()) "→ ${row.endStop}" else row.lineName,
                         style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Medium),
                         maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f)
                     )
                 }
                 Spacer(Modifier.height(2.dp))
@@ -549,18 +547,20 @@ private fun WatchLineRow(line: WatchLineUi) {
 
 // ------------------------------------------------------------------ 小件
 
-/** 线路号徽标 */
+/** 线路号徽标；名字过长时按调用方给的最大宽度省略，不把同一行的终点挤走 */
 @Composable
-internal fun LineBadge(name: String) {
+internal fun LineBadge(name: String, modifier: Modifier = Modifier) {
     Surface(
         shape = MaterialTheme.shapes.small,
         color = MaterialTheme.colorScheme.primaryContainer,
-        contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+        modifier = modifier
     ) {
         Text(
             text = name,
             style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
             maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
             modifier = Modifier.widthIn(min = 40.dp).padding(horizontal = 8.dp, vertical = 4.dp)
         )
     }

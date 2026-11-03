@@ -62,6 +62,20 @@ class StopDetailScreenTest {
         source = DataSourceType.MYGOLBS
     )
 
+    /** 十几字的线路名（截图里「盘龙大观园河西旅游专线」这种） */
+    private val rowVeryLong = row325.copy(
+        key = "rTour",
+        lineId = "LTOUR",
+        lineName = "盘龙大观园河西旅游专线",
+        endStop = "河西公交总站",
+        hours = "09:40–18:00",
+        arrival = arrival("今日不运营", null, "", ArrivalTone.Mute),
+        isFavorite = false,
+        selectable = false,
+        targetOrder = 0,
+        stopId = "st_tour"
+    )
+
     private val base = StopDetailUiState(
         isLoading = false,
         stopName = "科技园站",
@@ -123,6 +137,20 @@ class StopDetailScreenTest {
         composeTestRule.onNodeWithText("8站 [开往 秀屿区政府]").assertIsDisplayed()
         composeTestRule.onNodeWithText("→ 莆田汽车站").performClick()
         assertEquals(listOf(StopDetailEvent.OpenLine(rowLong)), events)
+    }
+
+    @GraphicsMode(GraphicsMode.Mode.NATIVE)
+    @Test
+    fun veryLongLineName_keepsEndStopAndHoursOnTheirLines() {
+        // 名字和线路一行、运营时间和到站一行：长名字只在自己格子里省略，不能把终点和时间挤没
+        setContent(base.copy(rows = listOf(rowVeryLong)))
+        val end = composeTestRule.onNodeWithText("→ 河西公交总站").assertIsDisplayed().fetchSemanticsNode()
+        val endWidth = with(composeTestRule.density) { end.boundsInRoot.width.toDp() }
+        assertTrue("终点被线路名挤没了：$endWidth", endWidth > 60.dp)
+        val hours = composeTestRule.onNodeWithText("09:40–18:00", useUnmergedTree = true).assertIsDisplayed().fetchSemanticsNode()
+        val hoursHeight = with(composeTestRule.density) { hours.size.height.toDp() }
+        assertTrue("运营时间被挤成竖排：$hoursHeight", hoursHeight < 40.dp)
+        composeTestRule.onNodeWithText("今日不运营").assertIsDisplayed()
     }
 
     @Test

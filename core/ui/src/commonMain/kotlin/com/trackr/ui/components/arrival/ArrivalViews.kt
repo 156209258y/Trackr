@@ -85,6 +85,7 @@ fun LineBadge(name: String, modifier: Modifier = Modifier) {
             text = name,
             style = MaterialTheme.typography.labelLarge,
             maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
         )
     }

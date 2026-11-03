@@ -6,6 +6,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.test.hasText
 import com.trackr.core.designsystem.theme.TrackrTheme
 import com.trackr.core.model.BusLineDirection
@@ -73,7 +74,8 @@ class BusHomeScreenTest {
     private fun stateOf(
         session: TrackingSession? = null,
         withFavorites: Boolean = true,
-        groups: List<FavoriteGroup> = emptyList()
+        groups: List<FavoriteGroup> = emptyList(),
+        nearbyLineName: String = "19"
     ): BusHomeUiState {
         val nearby = NearbyStop(
             stopId = "n1",
@@ -81,7 +83,7 @@ class BusHomeScreenTest {
             distanceMeters = 120,
             lines = listOf(
                 NearbyStopLineStatus(
-                    line = BusLineDirection(lineId = "l19", name = "19", startStop = "西丽", endStop = "蛇口港"),
+                    line = BusLineDirection(lineId = "l19", name = nearbyLineName, startStop = "西丽", endStop = "蛇口港"),
                     targetOrder = 6,
                     targetStopId = "n1",
                     targetStopName = "高新园站",
@@ -188,6 +190,18 @@ class BusHomeScreenTest {
 
         composeTestRule.onNodeWithText("一起等 2 条 · 科技园站").assertIsDisplayed()
         composeTestRule.onNodeWithTag(BusHomeTags.WATCH_MORE).assertDoesNotExist()
+    }
+
+    @Test
+    fun nearbyStop_longLineName_keepsDirectionAndArrival() {
+        // 长线路名占满自己那一行后省略，不能把终点方向压没；到站信息在第二行
+        setContent(stateOf(nearbyLineName = "盘龙大观园河西旅游专线"))
+
+        composeTestRule.onNodeWithTag(BusHomeTags.LIST).performScrollToNode(hasText("→ 蛇口港"))
+        val direction = composeTestRule.onNodeWithText("→ 蛇口港").assertIsDisplayed().fetchSemanticsNode()
+        val directionWidth = with(composeTestRule.density) { direction.boundsInRoot.width.toDp() }
+        assertTrue("终点方向被线路名挤没了：$directionWidth", directionWidth > 60.dp)
+        composeTestRule.onNodeWithText("盘龙大观园河西旅游专线").assertIsDisplayed()
     }
 
     @Test
