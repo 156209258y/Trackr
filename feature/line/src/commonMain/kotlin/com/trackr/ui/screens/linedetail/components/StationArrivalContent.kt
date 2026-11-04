@@ -33,6 +33,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -52,7 +53,6 @@ import com.trackr.core.model.sanitizePlateOrFleetNo
 import com.trackr.feature.line.resources.Res as LineRes
 import com.trackr.feature.line.resources.line_distance_to_station
 import com.trackr.feature.line.resources.line_station_buses_on_line
-import com.trackr.feature.line.resources.line_station_change_stop
 import com.trackr.feature.line.resources.line_station_collapse_card
 import com.trackr.feature.line.resources.line_station_expand_card
 import com.trackr.feature.line.resources.line_station_no_buses
@@ -66,10 +66,15 @@ import kotlinx.datetime.LocalTime
 import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.resources.vectorResource
 
+/** 主卡内的测试标签 */
+internal object StationArrivalTags {
+    const val PICK_STOP = "line_stop_pick_chip"
+}
+
 /**
  * 主卡：站点到站（v3「线路详情」hero）。
  *
- * 「XX站上车 ▾」→ 大字（[ArrivalText] 8 种状态）→ 小字 + 车牌 / 预计到达 / 车速 → 分隔线 →「下一辆 …」+「全线 N 辆车在途 · 查看」。
+ * 「XX站上车」→ 大字（[ArrivalText] 8 种状态）→ 小字 + 车牌 / 预计到达 / 车速 → 分隔线 →「下一辆 …」+「全线 N 辆车在途 · 查看」。
  * 全部车过站时只给下一班始发发车时间，不估到站；实时没给下一班就用时刻表补的 [LineLive.fallbackNextDeparture]。
  * 实时还没回来（[live] 为 null，站表来自缓存）时显示「正在查车…」。
  *
@@ -251,32 +256,24 @@ fun StationArrivalContent(
     }
 }
 
-/** 「XX站上车 ▾」 */
+/** 「XX站上车」 */
 @Composable
 private fun StopPickChip(stop: BusStop?, onClick: () -> Unit) {
     Surface(
         onClick = onClick,
         shape = MaterialTheme.shapes.small,
         color = MaterialTheme.colorScheme.primaryContainer,
-        contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+        modifier = Modifier.testTag(StationArrivalTags.PICK_STOP)
     ) {
-        Row(
-            modifier = Modifier.padding(start = 10.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = stop?.let { boardingLabel(it.name) } ?: stringResource(LineRes.string.line_station_pick_stop),
-                fontSize = 15.sp,
-                fontWeight = FontWeight.Bold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            Icon(
-                imageVector = vectorResource(Res.drawable.ic_arrow_drop_down),
-                contentDescription = stringResource(LineRes.string.line_station_change_stop),
-                modifier = Modifier.size(20.dp)
-            )
-        }
+        Text(
+            text = stop?.let { boardingLabel(it.name) } ?: stringResource(LineRes.string.line_station_pick_stop),
+            fontSize = 15.sp,
+            fontWeight = FontWeight.Bold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+        )
     }
 }
 

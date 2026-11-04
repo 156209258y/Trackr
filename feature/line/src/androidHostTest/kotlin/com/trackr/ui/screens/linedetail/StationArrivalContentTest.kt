@@ -2,9 +2,9 @@ package com.trackr.ui.screens.linedetail
 
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
-import androidx.compose.ui.test.onNodeWithContentDescription
 import com.trackr.core.designsystem.theme.TrackrTheme
 import com.trackr.core.model.BusLineDetail
 import com.trackr.core.model.BusLineDirection
@@ -13,6 +13,7 @@ import com.trackr.core.model.DataSourceType
 import com.trackr.core.model.LineOperatingState
 import com.trackr.core.model.LiveBus
 import com.trackr.ui.screens.linedetail.components.StationArrivalContent
+import com.trackr.ui.screens.linedetail.components.StationArrivalTags
 import kotlinx.datetime.LocalTime
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -327,7 +328,7 @@ class StationArrivalContentTest {
         setContent(detail, stops[1], onOpenBusList = { openedList++ }, onPickStop = { picked++ })
 
         composeTestRule.onNodeWithText("全线 1 辆车在途 · 查看").performClick()
-        composeTestRule.onNodeWithContentDescription("换上车站", useUnmergedTree = true).performClick()
+        composeTestRule.onNodeWithTag(StationArrivalTags.PICK_STOP).performClick()
         assertEquals(1, openedList)
         assertTrue(picked >= 1)
     }
