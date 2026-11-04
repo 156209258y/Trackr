@@ -20,6 +20,7 @@ import com.trackr.core.model.TrackingTarget
 import com.trackr.core.model.TransitCity
 import com.trackr.core.model.TransitCodeProvider
 import com.trackr.core.model.WatchLine
+import com.trackr.core.model.displayLineName
 import com.trackr.ui.util.FixedDelayPollingStrategy
 import com.trackr.ui.util.PollingCoordinator
 import kotlinx.coroutines.CancellationException
@@ -321,7 +322,8 @@ class StopDetailViewModel(
                 cityId = cityId,
                 cityName = cityName,
                 lineId = lineStatus.line.lineId,
-                lineName = lineStatus.line.name,
+                // 数据源偶尔只给线路号不给名字：收藏里存兜底后的名字，首页徽标才不会空白（issue #20）
+                lineName = lineStatus.line.displayLineName,
                 lineNo = lineStatus.line.lineNo,
                 direction = lineStatus.line.direction,
                 startStop = lineStatus.line.startStop,
@@ -388,7 +390,7 @@ class StopDetailViewModel(
             lines = statuses.map { s ->
                 WatchLine(
                     lineId = s.line.lineId,
-                    lineName = s.line.name,
+                    lineName = s.line.displayLineName,
                     stopOrder = s.targetOrder,
                     endStopName = s.line.endStop,
                     direction = s.line.direction,

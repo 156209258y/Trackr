@@ -94,6 +94,7 @@ import com.trackr.core.model.LineOperatingState
 import com.trackr.core.model.LiveBus
 import com.trackr.core.model.RailMode
 import com.trackr.core.model.TransitCodeProvider
+import com.trackr.core.model.displayLineName
 import com.trackr.feature.line.resources.Res as LineRes
 import com.trackr.feature.line.resources.line_detail_error
 import com.trackr.feature.line.resources.line_detail_fare
@@ -232,7 +233,7 @@ fun LineDetailScreen(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             LineTopBar(
-                title = static?.line?.name ?: state.lineNameHint,
+                title = static?.line?.displayLineName?.takeIf { it.isNotBlank() } ?: state.lineNameHint,
                 source = static?.line?.source,
                 isFavorite = state.isFavorite,
                 actionsEnabled = static != null && state.selectedStop != null,

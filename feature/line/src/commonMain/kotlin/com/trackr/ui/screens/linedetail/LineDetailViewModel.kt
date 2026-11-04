@@ -29,6 +29,7 @@ import com.trackr.core.model.ScheduledReminder
 import com.trackr.core.model.TrackingSessionState
 import com.trackr.core.model.TrackingTarget
 import com.trackr.core.model.TransitCodeProvider
+import com.trackr.core.model.displayLineName
 import com.trackr.data.repository.IScheduledReminderRepository
 import com.trackr.ui.components.elder.TTS_UNAVAILABLE_MESSAGE
 import com.trackr.ui.screens.linedetail.components.stationArrivalState
@@ -307,7 +308,7 @@ class LineDetailViewModel(
         TrackingTarget.SingleLine(
             cityId = cityId,
             lineId = line.lineId,
-            lineName = line.name,
+            lineName = line.displayLineName,
             lineNo = line.lineNo,
             endStopName = line.endStop,
             targetStopId = targetStop.stopId,
@@ -688,7 +689,8 @@ class LineDetailViewModel(
             cityId = city.cityId,
             cityName = city.cityName,
             lineId = line.lineId,
-            lineName = line.name,
+            // 数据源偶尔只给线路号不给名字：收藏里存兜底后的名字，首页徽标才不会空白（issue #20）
+            lineName = line.displayLineName,
             lineNo = line.lineNo,
             direction = line.direction,
             startStop = line.startStop,

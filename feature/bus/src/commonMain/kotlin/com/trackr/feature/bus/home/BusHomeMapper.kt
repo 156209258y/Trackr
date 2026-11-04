@@ -13,6 +13,7 @@ import com.trackr.core.model.NearbyStopLineStatus
 import com.trackr.core.model.TrackingSession
 import com.trackr.core.model.TransitGroup
 import com.trackr.core.model.WatchedLine
+import com.trackr.core.model.displayLineName
 import com.trackr.ui.components.arrival.ArrivalUi
 
 /**
@@ -162,24 +163,27 @@ internal object BusHomeMapper {
     private fun stopRow(item: FavoriteItem.Stop, realtime: NearbyStop?): FavoriteRowUi.Stop {
         val fav = item.stop
         val status = realtime?.lines?.firstOrNull { it.line.lineId == fav.lineId } ?: realtime?.lines?.firstOrNull()
+        // 收藏里可能没存到名字（数据源给了空名字、或者是旧版本存的）：先用实时数据里这条线的名字补，
+        // 再退回线路号，免得首页只剩一个空徽标（issue #20）
+        val lineName = fav.displayLineName.ifBlank { status?.line?.displayLineName.orEmpty() }
         val display = if (status == null) {
-            ArrivalText.format(ArrivalState.Loading, lineName = fav.lineName, stopName = fav.targetStopName, towards = fav.endStop)
+            ArrivalText.format(ArrivalState.Loading, lineName = lineName, stopName = fav.targetStopName, towards = fav.endStop)
         } else {
             arrivalDisplayFor(
                 status,
                 nextDepartureIsFromStart = true,
-                lineName = fav.lineName,
+                lineName = lineName,
                 stopName = fav.targetStopName,
                 towards = fav.endStop
             )
         }
         return FavoriteRowUi.Stop(
             key = item.key,
-            lineName = fav.lineName,
+            lineName = lineName,
             boardText = "${fav.targetStopName}上车",
             direction = terminalText(fav.endStop, fav.startStop),
             arrival = ArrivalUi.of(display),
-            open = lineTargetOf(fav),
+            open = lineTargetOf(fav, lineName),
             spoken = display.spoken
         )
     }
@@ -205,13 +209,13 @@ internal object BusHomeMapper {
         return route.name.trim().ifBlank { ends }
     }
 
-    fun lineTargetOf(fav: FavoriteStationLine): LineTarget = LineTarget(
+    fun lineTargetOf(fav: FavoriteStationLine, lineName: String = fav.displayLineName): LineTarget = LineTarget(
         cityId = fav.cityId,
         lineId = fav.lineId,
         targetOrder = fav.targetOrder,
         stopId = fav.targetStopId,
         source = fav.source,
-        lineName = fav.lineName
+        lineName = lineName
     )
 
     // ---- 附近 ----
@@ -230,7 +234,7 @@ internal object BusHomeMapper {
                 lines = stop.lines.mapIndexed { index, status ->
                     NearbyLineUi(
                         key = "${status.line.lineId}_${status.targetOrder}_$index",
-                        lineName = status.line.name,
+                        lineName = status.line.displayLineName,
                         direction = terminalText(status.line.endStop, status.line.startStop),
                         arrival = arrivalFor(status, nextDepartureIsFromStart = false),
                         open = LineTarget(
@@ -239,7 +243,7 @@ internal object BusHomeMapper {
                             targetOrder = status.targetOrder,
                             stopId = stop.stopId,
                             source = status.line.source,
-                            lineName = status.line.name
+                            lineName = status.line.displayLineName
                         )
                     )
                 },

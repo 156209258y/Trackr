@@ -90,6 +90,7 @@ import com.trackr.core.designsystem.resources.ic_route
 import com.trackr.core.model.FavoriteGroup
 import com.trackr.core.model.FavoriteItem
 import com.trackr.core.model.TransitGroup
+import com.trackr.core.model.displayLineName
 import com.trackr.core.navigation.TrackrNavigator
 import com.trackr.feature.favorites.resources.Res as FavoritesRes
 import com.trackr.feature.favorites.resources.fav_edit_create
@@ -461,7 +462,8 @@ private fun FavoriteRow(
         DragHandle(handle)
         Spacer(modifier = Modifier.width(8.dp))
         when (item) {
-            is FavoriteItem.Stop -> LineBadge(name = item.stop.lineName)
+            // 老收藏里可能没存到名字：退回线路号，避免只剩一个空徽标（issue #20）
+            is FavoriteItem.Stop -> LineBadge(name = item.stop.displayLineName)
             is FavoriteItem.Route -> Icon(
                 imageVector = vectorResource(Res.drawable.ic_route),
                 contentDescription = null,

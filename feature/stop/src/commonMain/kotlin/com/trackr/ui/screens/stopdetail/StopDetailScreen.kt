@@ -547,9 +547,10 @@ private fun WatchLineRow(line: WatchLineUi) {
 
 // ------------------------------------------------------------------ 小件
 
-/** 线路号徽标；名字过长时按调用方给的最大宽度省略，不把同一行的终点挤走 */
+/** 线路号徽标；名字过长时按调用方给的最大宽度省略，不把同一行的终点挤走；名字为空时不画空壳（issue #20） */
 @Composable
 internal fun LineBadge(name: String, modifier: Modifier = Modifier) {
+    if (name.isBlank()) return
     Surface(
         shape = MaterialTheme.shapes.small,
         color = MaterialTheme.colorScheme.primaryContainer,

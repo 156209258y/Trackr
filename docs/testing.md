@@ -35,19 +35,19 @@
 
 ## 3. 测试目录与套件清单
 
-`./gradlew test` 共跑 91 个测试类、XXX 个用例：
+`./gradlew test` 共跑 93 个测试类、XXX 个用例：
 
 | 模块 | 测试类 | 模块 | 测试类 |
 | :--- | :--- | :--- | :--- |
 | `:androidApp` | 26 | `:core:ui` | 4 |
-| `:composeApp` | 2 | `:feature:bus` | 3 |
+| `:composeApp` | 2 | `:feature:bus` | 4 |
 | `:core:data` | 12 | `:feature:favorites` | 3 |
 | `:core:database` | 1 | `:feature:line` | 6 |
 | `:core:datastore` | 1 | `:feature:me` | 2 |
 | `:core:designsystem` | 2 | `:feature:route` | 5 |
 | `:core:domain` | 4 | `:feature:search` | 3 |
 | `:core:navigation` | 5 | `:feature:stop` | 4 |
-| `:core:network` | 12 | `:core:testing` | 1 |
+| `:core:network` | 13 | `:core:testing` | 1 |
 
 `:core:model` 没有测试。KMP 模块的 `test` 由约定插件 `trackr.kmp.library` 补上，只跑 Android 主机测试（`testAndroidHostTest`）；iOS 另跑 `./gradlew :core:domain:iosSimulatorArm64Test`（`:core:network`、`:core:data` 同理，需要 Xcode 和 iOS 模拟器运行时），`:core:database` 的 DAO 测试同样在 iOS 模拟器上跑（`./gradlew :core:database:iosSimulatorArm64Test`，用 BundledSQLiteDriver），设计系统只做编译检查 `./gradlew :core:designsystem:compileKotlinIosSimulatorArm64`，导航做编译检查加测试链接 `./gradlew :core:navigation:linkDebugTestIosSimulatorArm64`。各 `:feature:*`、`:composeApp`、`:core:ui` 在 iOS 上也只做这两步：`./gradlew :feature:bus:compileKotlinIosSimulatorArm64`、`./gradlew :feature:bus:linkDebugTestIosSimulatorArm64`（其他模块换模块名）。
 
@@ -108,6 +108,7 @@ Koin 由 `TrackrApp.onCreate` 启动，Robolectric 用例里每个用例都会�
 | `:core:ui` `ui/screens/favoritesgroup` | `LegTextsTest` | 规划页、路线详情还在用的纯函数：线路 id 是合成的算站数没对齐、跟车阶段标签、点线路进详情用上车站序号、到站分钟（先用 ETA，没有就按站数估） | commonTest（JVM） |
 | `:feature:bus` `feature/bus/home` | `BusHomeViewModelTest` | 公交首页（第 19 步由 `HomeViewModelTest` 改名，原用例全部保留）：初始加载已选城市、切城市、城市汉字与拼音过滤、按数据源过滤城市、收藏监听；切数据源立即刷新附近站、附近站固定 6 个（「附近站数」设置不再影响首页）；启动定位（没存城市切到定位城市、存过就保留、离开已存城市回到城市中心）、下拉刷新保留城市、城市选择器里重新定位；结束追踪（追踪卡消失、路线状态清掉）；轮询暂停恢复，`setPollingActive` 恢复时离上次刷新 ≥15 秒立即补刷、不到不补；没可用定位时报错并保留位置；收藏合一（车和路线一个列表、分组 chips 筛选、分组删了回到「全部」）、没车时写下一班发车时间、数据没变沿用旧实例；乘车码（选了平台直接开、「每次询问」弹选择、勾「以后都用这个」才记成默认）；附近站请求失败发一次性消息 | commonTest（JVM；iOS 未验） |
 | `:feature:bus` `feature/bus/home` | `BusHomeScreenTest` | 无状态 `BusHomeScreen`：标题是城市名、没有乘车码卡、悬浮按钮发事件；收藏行写上车站和「始发 → 终点」、点开线路页、「编辑」；有分组才显示 chips；没收藏一句话、没有「编辑」；一起等卡最先到的放大、多于 3 条折叠成「还有 N 条」点开展开、「结束」；附近站线路行进线路页、站名进站点页 | Robolectric Compose UI |
+| `:feature:bus` `feature/bus/home` | `BusHomeMapperFavoriteNameTest` | 收藏卡线路号兜底（issue #20）：收藏里没存名字时显示线路号、名字和线路号都空时用实时数据里的名字、有名字时保持不动 | commonTest（JVM；iOS 未验） |
 | `:feature:bus` `feature/bus/citypicker` | `CityPickerItemRowTest` | 城市选择列表项渲染与点击、没省份标签时不显示省份 | Robolectric Compose UI |
 | `:feature:search` `ui/screens/search` | `SearchViewModelTest` | 搜索（第 17 步从首页拆出来）：搜索历史加入去重排序、删一条、清空、容量上限；输入防抖 300 ms 后只搜一次、关键字去首尾空格、防抖内换词取消旧的、新词取消进行中的请求、「搜索中」状态；空查询清结果并取消待发的搜索；换城市清结果保留查询词、换数据源有词才重搜；用选中城市和首页当前坐标搜（拆分前读首页的 currentLat / currentLng，经 `HomeCoordinates` 传过来），没有首页坐标时用 GPS、再没有用城市中心；输入写进 `SavedStateHandle`，带着词重建时显示并只搜一次（第 23 步） | commonTest（JVM；iOS 只编译和链接测试，不跑） |
 |  | `SearchRowsTest` | 搜索结果摊成列表行（第 23 步）：每个方向一行「始发 → 终点」、小字只写已知的（地铁 · 运营时间 · 票价）、缺站名的退路、车站行途经线去重 / 退回地铁线名、距离、段内首中末位置、先线路后车站、重复线路 / 站 key 也唯一 | commonTest（JVM；iOS 只编译和链接测试，不跑） |
@@ -159,6 +160,7 @@ Koin 由 `TrackrApp.onCreate` 启动，Robolectric 用例里每个用例都会�
 |  | `AmapFormatJvmTest` | 换德语 Locale 后坐标仍用 `.`；定点格式化逐个对比 `String.format(Locale.ROOT, "%.6f")`、表单编码逐个对比 `URLEncoder` | androidHostTest（只 JVM） |
 | `:core:network` `remote/chelaile` | `ChelaileCryptoTest` | 签名官方测试向量、信封截取（含字符串里的括号）、固定密文解密、H5 备用密钥回退、非 JSON 明文报错、带换行的 Base64 | commonTest（JVM + iOS 模拟器） |
 |  | `ChelaileCryptoJvmTest` | javax.crypto 加密 → common 解密 200 组往返；签名对比 `MessageDigest` | androidHostTest（只 JVM） |
+|  | `ChelaileLineNameFallbackTest` | 上游只给 `lineNo`、`name` 是空串时（站点详情 / 线路详情）线路名退回线路号，不再画成空白线路号徽标（issue #20） | commonTest（JVM + iOS 模拟器） |
 | `:core:network` `provider` | `TransitProviderTest` | 车来了 Provider 多物理站台并发补全、附近站过滤与站点状态映射；掌上公交站点详情、搜索、附近站、城市列表 | commonTest（JVM + iOS 模拟器） |
 |  | `TransitProviderCacheTest` | Provider 层省请求：车来了附近站补全短缓存、其他站台只在首次加载补全、空主查询下次跳过；掌上公交 cmd103 缓存只轮询 cmd104、搜索回退结果线路与站点共用、附近站短缓存、反向地理编码空结果短缓存 | commonTest（JVM + iOS 模拟器） |
 |  | `RecordedResponsesTest` | 录好的真实响应（`RecordedResponses`，车来了 5 个接口、掌上公交 4 个 CMD）走一遍客户端和解析，并核对发出去的请求头和表单 | commonTest（JVM + iOS 模拟器） |
