@@ -164,7 +164,9 @@ class FakeFavoritesRepository(
                     is FavoriteStationLine -> FavoriteItem.Stop(value, groupOf[key], index)
                     else -> {
                         val route = value as TransitGroup
-                        FavoriteItem.Route(route.copy(customGroupId = groupOf[key] ?: route.customGroupId), groupOf[key] ?: route.customGroupId, index)
+                        // 显式设成 null（拖到「不分组」）要盖掉路线自己的 customGroupId
+                        val groupId = if (groupOf.containsKey(key)) groupOf[key] else route.customGroupId
+                        FavoriteItem.Route(route.copy(customGroupId = groupId), groupId, index)
                     }
                 }
             }

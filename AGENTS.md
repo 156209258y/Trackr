@@ -46,7 +46,7 @@
   - `:feature:stop`：站点详情（`StopDetailViewModel`）。第 21 步起页面全在 commonMain：`StopDetailRoute` + 无状态 `StopDetailScreen(state, onEvent)`；选几条一起等、存成 1 程路线（`:core:domain` 的 `WatchTogetherRoute`）、一起等进行中视图、「上了哪辆？」导航弹层（`ScreenKey.ChooseBoardedBus` + `ChooseBoardedBusViewModel`，通知链接 `trackr://tracking/board` 和站点页遇到待选都打开它）。
   - `:feature:line`：线路详情（`LineDetailViewModel`）、时刻表、走向条、定时提醒入口、乘车码弹层（`androidMain/res` 中英文案）。
   - `:feature:route`：路线规划（`RoutePlanViewModel`）、路线详情（`RouteDetailViewModel`，第 22 步起页面在 commonMain：每程候选线勾选、追踪、改名 / 改分组 / 生成返程 / 删除）；高德 Android SDK 封装（`AmapSdkManager`、`AmapSdkKeyApplier`、`AndroidAmapRouteGateway`、地图会话）放 `androidMain`，Koin 在 `routeAndroidModule`。另依赖 `:core:network`。
-  - `:feature:favorites`：编辑收藏（`FavoritesEditViewModel`，第 22 步起页面在 commonMain：分组和收藏路线拖动排序、改名、删除）；旧收藏页的卡片、分组弹窗组件暂留 `androidMain`，第 29 步清理。
+  - `:feature:favorites`：编辑收藏（`FavoritesEditViewModel`，第 22 步起页面在 commonMain）。第 33 步起读收藏合一仓库的 `FavoritesRepository.favoriteItems`（车 + 路线同一列，和首页「收藏」同一份数据）：拖动排序走 `move(keys)`、点一条改分组走 `setGroup`、删除按 key 分 `removeFavorite` / `removeRoute`，分组计数按 `groupId` 统计。旧收藏页的卡片、分组弹窗组件暂留 `androidMain`，第 29 步清理。
   - `:feature:me`：我的、定时提醒编辑、高德 Key、关于（`MeViewModel`、`ReminderEditViewModel`、`AmapKeyViewModel`、`AboutViewModel`）；页面都在 commonMain。
   - 源集规则：ViewModel、UiState、Koin 模块 `xxxModule`、`expect fun xxxEntries(navigator)` 放 `commonMain`；旧 Screen 原样放 `androidMain`，`actual xxxEntries` 在 `androidMain` 接旧页面、`iosMain` 先放空壳（阶段 D 逐页重写进 `commonMain`）。`commonMain` 不写 `android.*`，要平台能力就经接口注入（`UserLocationStore`、`LiveUpdateSettings`、`MapSdkInitializer`、`AmapSdkKeyApplier`、`AppVersionInfo`）。
   - 依赖规则：feature 只依赖 `:core:*`，feature 之间不互相依赖。两个 feature 都要的东西下沉到 `:core:ui` 或 `:core:data`；同时用两个 feature 的页面放 `:composeApp`。

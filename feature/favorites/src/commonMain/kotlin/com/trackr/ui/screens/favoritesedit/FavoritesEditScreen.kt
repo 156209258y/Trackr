@@ -2,8 +2,12 @@
 
 package com.trackr.ui.screens.favoritesedit
 
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,6 +24,10 @@ import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -35,25 +43,32 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.compose.dropUnlessResumed
 import com.trackr.core.designsystem.resources.Res
@@ -64,15 +79,16 @@ import com.trackr.core.designsystem.resources.action_done
 import com.trackr.core.designsystem.resources.action_save
 import com.trackr.core.designsystem.resources.group_none
 import com.trackr.core.designsystem.resources.ic_back
+import com.trackr.core.designsystem.resources.ic_check
 import com.trackr.core.designsystem.resources.ic_delete
 import com.trackr.core.designsystem.resources.ic_drag
 import com.trackr.core.designsystem.resources.ic_edit
 import com.trackr.core.designsystem.resources.ic_plus
 import com.trackr.core.designsystem.resources.ic_route
 import com.trackr.core.model.FavoriteGroup
+import com.trackr.core.model.FavoriteItem
 import com.trackr.core.model.TransitGroup
 import com.trackr.core.navigation.TrackrNavigator
-import com.trackr.core.navigation.ScreenKey
 import com.trackr.feature.favorites.resources.Res as FavoritesRes
 import com.trackr.feature.favorites.resources.fav_edit_create
 import com.trackr.feature.favorites.resources.fav_edit_delete_favorite
@@ -88,6 +104,7 @@ import com.trackr.feature.favorites.resources.fav_edit_group_actions
 import com.trackr.feature.favorites.resources.fav_edit_group_dialog_title
 import com.trackr.feature.favorites.resources.fav_edit_group_name
 import com.trackr.feature.favorites.resources.fav_edit_group_name_hint
+import com.trackr.feature.favorites.resources.fav_edit_group_picker_title
 import com.trackr.feature.favorites.resources.fav_edit_hint
 import com.trackr.feature.favorites.resources.fav_edit_new_group
 import com.trackr.feature.favorites.resources.fav_edit_no_routes
@@ -95,36 +112,55 @@ import com.trackr.feature.favorites.resources.fav_edit_route_count
 import com.trackr.feature.favorites.resources.fav_edit_section_favorites
 import com.trackr.feature.favorites.resources.fav_edit_section_groups
 import com.trackr.feature.favorites.resources.fav_edit_title
+import com.trackr.ui.components.arrival.LineBadge
 import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.resources.vectorResource
+import kotlin.math.roundToInt
 
 /** 编辑收藏页的动作 */
 sealed interface FavoritesEditEvent {
     data object Back : FavoritesEditEvent
     data object Done : FavoritesEditEvent
-    data class OpenRoute(val groupId: String) : FavoritesEditEvent
     data class CreateGroup(val name: String) : FavoritesEditEvent
     data class RenameGroup(val groupId: String, val name: String) : FavoritesEditEvent
     data class DeleteGroup(val groupId: String) : FavoritesEditEvent
     data class ReorderGroups(val ids: List<String>) : FavoritesEditEvent
-    data class DeleteRoute(val groupId: String) : FavoritesEditEvent
-    data class ReorderRoutes(val ids: List<String>) : FavoritesEditEvent
+
+    /** 把一条收藏（车或路线）移到 [groupId]；null = 不分组 */
+    data class SetGroup(val key: String, val groupId: String?) : FavoritesEditEvent
+
+    /** 删掉一条收藏，[key] 是 [FavoriteItem.key] */
+    data class DeleteItem(val key: String) : FavoritesEditEvent
+
+    /** 拖动排序，[keys] 是这一列的新先后 */
+    data class MoveItems(val keys: List<String>) : FavoritesEditEvent
 }
 
 /**
- * 编辑收藏（v3 第 22 步）：分组和收藏的路线都在这一页管，拖动排序、改名、删除。
- * 删分组时里面的路线变成「不分组」。点一条路线进路线详情。
+ * 编辑收藏（v3 第 22 步，第 33 步修正）：分组和收藏都在这一页管，拖动排序、改名、删除、改分组。
+ *
+ * 收藏区是首页「收藏」的同一份合一列表：车（线路 + 候车站）和路线排在一起，顺序也一致。
+ * 删分组时里面的收藏变成「不分组」；点一条收藏改分组。
  */
 @Composable
 fun FavoritesEditScreen(
-    groups: List<TransitGroup>,
+    items: List<FavoriteItem>,
     favoriteGroups: List<FavoriteGroup>,
     onEvent: (FavoritesEditEvent) -> Unit,
     modifier: Modifier = Modifier
 ) {
     var showCreateGroup by remember { mutableStateOf(false) }
     var editingGroup by remember { mutableStateOf<FavoriteGroup?>(null) }
-    var deletingRoute by remember { mutableStateOf<TransitGroup?>(null) }
+    var deletingKey by remember { mutableStateOf<String?>(null) }
+    var groupingKey by remember { mutableStateOf<String?>(null) }
+
+    val groupNames = remember(favoriteGroups) { favoriteGroups.associate { it.id to it.name } }
+    val itemByKey = remember(items) { items.associate { it.key to it } }
+
+    // 拖动到屏幕上下边缘时自动翻页（收藏多的时候能一路拖下去）
+    val listState = rememberLazyListState()
+    val autoScroll = rememberEdgeAutoScroller(listState)
+    var viewport by remember { mutableStateOf(Rect.Zero) }
 
     Scaffold(
         modifier = modifier,
@@ -152,7 +188,11 @@ fun FavoritesEditScreen(
         }
     ) { innerPadding ->
         LazyColumn(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier
+                .fillMaxSize()
+                // 视口边界：判断手指是不是拖到了上下边缘
+                .onGloballyPositioned { viewport = it.boundsInWindow() },
+            state = listState,
             contentPadding = PaddingValues(
                 start = 16.dp,
                 top = innerPadding.calculateTopPadding() + 8.dp,
@@ -175,12 +215,14 @@ fun FavoritesEditScreen(
                     Column {
                         ReorderableColumn(
                             ids = favoriteGroups.map { it.id },
-                            onReorder = { onEvent(FavoritesEditEvent.ReorderGroups(it)) }
+                            onReorder = { onEvent(FavoritesEditEvent.ReorderGroups(it)) },
+                            autoScroll = autoScroll,
+                            viewport = viewport
                         ) { id, handle ->
                             val group = favoriteGroups.firstOrNull { it.id == id } ?: return@ReorderableColumn
                             GroupRow(
                                 group = group,
-                                count = groups.count { it.customGroupId == group.id },
+                                count = items.count { it.groupId == group.id },
                                 handle = handle,
                                 onEdit = { editingGroup = group }
                             )
@@ -219,11 +261,11 @@ fun FavoritesEditScreen(
                 }
             }
 
-            item(key = "routes_title") {
+            item(key = "favorites_title") {
                 SectionTitle(stringResource(FavoritesRes.string.fav_edit_section_favorites))
             }
 
-            if (groups.isEmpty()) {
+            if (items.isEmpty()) {
                 item(key = "empty") {
                     Text(
                         text = stringResource(FavoritesRes.string.fav_edit_empty),
@@ -233,7 +275,7 @@ fun FavoritesEditScreen(
                     )
                 }
             } else {
-                item(key = "routes_card") {
+                item(key = "favorites_card") {
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         colors = CardDefaults.cardColors(
@@ -241,16 +283,18 @@ fun FavoritesEditScreen(
                         )
                     ) {
                         ReorderableColumn(
-                            ids = groups.map { it.id },
-                            onReorder = { onEvent(FavoritesEditEvent.ReorderRoutes(it)) }
-                        ) { id, handle ->
-                            val group = groups.firstOrNull { it.id == id } ?: return@ReorderableColumn
-                            RouteRow(
-                                group = group,
-                                groupName = favoriteGroups.firstOrNull { it.id == group.customGroupId }?.name,
+                            ids = items.map { it.key },
+                            onReorder = { onEvent(FavoritesEditEvent.MoveItems(it)) },
+                            autoScroll = autoScroll,
+                            viewport = viewport
+                        ) { key, handle ->
+                            val item = itemByKey[key] ?: return@ReorderableColumn
+                            FavoriteRow(
+                                item = item,
+                                groupName = groupNames[item.groupId],
                                 handle = handle,
-                                onClick = { onEvent(FavoritesEditEvent.OpenRoute(group.id)) },
-                                onDelete = { deletingRoute = group }
+                                onClick = { groupingKey = key },
+                                onDelete = { deletingKey = key }
                             )
                         }
                     }
@@ -284,7 +328,7 @@ fun FavoritesEditScreen(
     editingGroup?.let { group ->
         EditGroupDialog(
             group = group,
-            count = groups.count { it.customGroupId == group.id },
+            count = items.count { it.groupId == group.id },
             onDismiss = { editingGroup = null },
             onRename = { name ->
                 editingGroup = null
@@ -297,25 +341,48 @@ fun FavoritesEditScreen(
         )
     }
 
-    deletingRoute?.let { group ->
+    val groupingItem = groupingKey?.let(itemByKey::get)
+    if (groupingItem != null) {
+        GroupPickerDialog(
+            currentGroupId = groupingItem.groupId,
+            groups = favoriteGroups,
+            onDismiss = { groupingKey = null },
+            onPick = { groupId ->
+                groupingKey = null
+                onEvent(FavoritesEditEvent.SetGroup(groupingItem.key, groupId))
+            }
+        )
+    }
+
+    val deletingItem = deletingKey?.let(itemByKey::get)
+    if (deletingItem != null) {
         AlertDialog(
-            onDismissRequest = { deletingRoute = null },
+            onDismissRequest = { deletingKey = null },
             title = { Text(stringResource(FavoritesRes.string.fav_edit_delete_route_title)) },
-            text = { Text(stringResource(FavoritesRes.string.fav_edit_delete_route_body, group.name)) },
+            text = { Text(stringResource(FavoritesRes.string.fav_edit_delete_route_body, deletingItem.title())) },
             confirmButton = {
                 TextButton(onClick = {
-                    deletingRoute = null
-                    onEvent(FavoritesEditEvent.DeleteRoute(group.id))
+                    deletingKey = null
+                    onEvent(FavoritesEditEvent.DeleteItem(deletingItem.key))
                 }) {
                     Text(stringResource(Res.string.action_delete), color = MaterialTheme.colorScheme.error)
                 }
             },
             dismissButton = {
-                TextButton(onClick = { deletingRoute = null }) { Text(stringResource(Res.string.action_cancel)) }
+                TextButton(onClick = { deletingKey = null }) { Text(stringResource(Res.string.action_cancel)) }
             }
         )
     }
 }
+
+/** 一条收藏在列表里的主文案：车是「科技园站上车」，路线是名字（没名字时用起终点） */
+private fun FavoriteItem.title(): String = when (this) {
+    is FavoriteItem.Stop -> "${stop.targetStopName}上车"
+    is FavoriteItem.Route -> route.title()
+}
+
+private fun TransitGroup.title(): String =
+    name.trim().ifBlank { "$originStopName → $destinationStopName" }
 
 @Composable
 private fun SectionTitle(text: String) {
@@ -348,7 +415,10 @@ private fun GroupRow(
             Text(
                 text = group.name,
                 style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurface
+                color = MaterialTheme.colorScheme.onSurface,
+                // 名字长也不换行：拖动排序按「第一行高度」算，行高得一致
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
             Text(
                 text = if (count == 0) stringResource(FavoritesRes.string.fav_edit_no_routes) else stringResource(FavoritesRes.string.fav_edit_route_count, count),
@@ -367,9 +437,10 @@ private fun GroupRow(
     }
 }
 
+/** 一行收藏：把手 | 线路号（车）或路线图标 | 主副文案 | 删除 */
 @Composable
-private fun RouteRow(
-    group: TransitGroup,
+private fun FavoriteRow(
+    item: FavoriteItem,
     groupName: String?,
     handle: Modifier,
     onClick: () -> Unit,
@@ -381,36 +452,44 @@ private fun RouteRow(
             .clickable(onClick = onClick)
             .heightIn(min = 56.dp)
             .padding(horizontal = 12.dp, vertical = 8.dp)
-            .testTag("route_row_${group.id}"),
+            .testTag("favorite_row_${item.key}"),
         verticalAlignment = Alignment.CenterVertically
     ) {
         DragHandle(handle)
         Spacer(modifier = Modifier.width(8.dp))
-        Icon(
-            imageVector = vectorResource(Res.drawable.ic_route),
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.size(20.dp)
-        )
+        when (item) {
+            is FavoriteItem.Stop -> LineBadge(name = item.stop.lineName)
+            is FavoriteItem.Route -> Icon(
+                imageVector = vectorResource(Res.drawable.ic_route),
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(20.dp)
+            )
+        }
         Spacer(modifier = Modifier.width(10.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = group.name,
+                text = item.title(),
                 style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurface
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
             Text(
                 text = buildString {
-                    append("${group.originStopName} → ${group.destinationStopName}")
-                    append(" · ")
+                    if (item is FavoriteItem.Route) {
+                        append("${item.route.originStopName} → ${item.route.destinationStopName}")
+                        append(" · ")
+                    }
                     append(groupName ?: stringResource(Res.string.group_none))
                 },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
         }
-        IconButton(onClick = onDelete, modifier = Modifier.testTag("btn_delete_route_${group.id}")) {
+        IconButton(onClick = onDelete, modifier = Modifier.testTag("btn_delete_favorite_${item.key}")) {
             Icon(
                 imageVector = vectorResource(Res.drawable.ic_delete),
                 contentDescription = stringResource(FavoritesRes.string.fav_edit_delete_favorite),
@@ -421,71 +500,381 @@ private fun RouteRow(
     }
 }
 
-/** 拖动把手：长按后上下拖，松手时换算成目标位置 */
+/** 拖动把手：长按后上下拖。热区 36dp，比图标本身宽一点，好按 */
 @Composable
 private fun DragHandle(modifier: Modifier) {
-    Icon(
-        imageVector = vectorResource(Res.drawable.ic_drag),
-        contentDescription = stringResource(FavoritesRes.string.fav_edit_drag),
-        tint = MaterialTheme.colorScheme.outlineVariant,
-        modifier = modifier
-            .size(28.dp)
-            .alpha(0.9f)
-    )
+    Box(modifier = modifier.size(36.dp), contentAlignment = Alignment.Center) {
+        Icon(
+            imageVector = vectorResource(Res.drawable.ic_drag),
+            contentDescription = stringResource(FavoritesRes.string.fav_edit_drag),
+            // 拖拽是这一页唯一的排序入口，别用 outlineVariant（浅到看不见）
+            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+            modifier = Modifier
+                .size(20.dp)
+                .alpha(0.9f)
+        )
+    }
+}
+
+/** 拖动中的一次手势：从 [fromIndex] 抓起，手指走到 [offsetPx] */
+private data class DragSession(
+    val id: String,
+    val fromIndex: Int,
+    val offsetPx: Float,
+    val rowHeightPx: Float,
+    val lastIndex: Int
+) {
+    /** 夹在列表范围内：拖到第一行 / 最后一行就不动了，别整行飞出卡片 */
+    private val clampedOffsetPx: Float
+        get() = offsetPx.coerceIn(-fromIndex * rowHeightPx, (lastIndex - fromIndex) * rowHeightPx)
+
+    /** 现在松手会落在哪一行 */
+    val targetIndex: Int
+        get() = (fromIndex + (clampedOffsetPx / rowHeightPx).roundToInt()).coerceIn(0, lastIndex)
+
+    /** 被拖那一行画在哪：跟手指走（夹过边界） */
+    val visualOffsetPx: Float
+        get() = clampedOffsetPx
+}
+
+/** 松手后、仓库把顺序换成 [order] 之前的这一小段：视觉先按新顺序落位，别闪回原位 */
+private data class PendingReorder(
+    /** 松手前的顺序，用来确认「现在画的还是旧列表」 */
+    val before: List<String>,
+    val order: List<String>,
+    val fromIndex: Int,
+    val toIndex: Int
+)
+
+/**
+ * 一行在拖动中要往哪挪（px）。
+ *
+ * 被拖的那行跟手指走；夹在起止之间的行各让出一格，看着就是「实时插进去」。
+ * 行高取第一行的高度（这一页的行都是单行 / 两行小字，高度一致）。
+ */
+internal fun dragShiftPx(
+    index: Int,
+    fromIndex: Int,
+    toIndex: Int,
+    dragging: Boolean,
+    dragOffsetPx: Float,
+    rowHeightPx: Float
+): Float = when {
+    dragging -> dragOffsetPx
+    fromIndex < index && index <= toIndex -> -rowHeightPx
+    toIndex <= index && index < fromIndex -> rowHeightPx
+    else -> 0f
+}
+
+/** 松手后还没等到数据时，按「已经落位」画：被拖那行停在 [toIndex]，中间的行保持让位 */
+internal fun settledShiftPx(index: Int, fromIndex: Int, toIndex: Int, rowHeightPx: Float): Float = when {
+    index == fromIndex -> (toIndex - fromIndex) * rowHeightPx
+    fromIndex < index && index <= toIndex -> -rowHeightPx
+    toIndex <= index && index < fromIndex -> rowHeightPx
+    else -> 0f
+}
+
+/** 让位 / 落位的动画时长：短一点才跟得上手指 */
+private const val REORDER_ANIM_MS = 130
+
+/** 离边缘多近开始自动翻页，以及最慢 / 最快每帧滚多少（以 dp 给，按屏幕密度换算） */
+private val AUTO_SCROLL_EDGE = 72.dp
+private val AUTO_SCROLL_MAX_STEP = 15.dp
+
+/**
+ * 手指离视口上下边缘有多近 → 这一帧该滚多少（px，正 = 往下翻）。
+ * 越靠边越快，中间是 0；[viewportBottom] 不合法时（还没布局）不动。
+ */
+internal fun edgeScrollStepPx(
+    pointerY: Float,
+    viewportTop: Float,
+    viewportBottom: Float,
+    edgePx: Float,
+    maxStepPx: Float
+): Float {
+    if (viewportBottom <= viewportTop || edgePx <= 0f) return 0f
+    val topZoneEnd = viewportTop + edgePx
+    val bottomZoneStart = viewportBottom - edgePx
+    return when {
+        pointerY < topZoneEnd ->
+            -maxStepPx * ((topZoneEnd - pointerY) / edgePx).coerceIn(0f, 1f)
+        pointerY > bottomZoneStart ->
+            maxStepPx * ((pointerY - bottomZoneStart) / edgePx).coerceIn(0f, 1f)
+        else -> 0f
+    }
 }
 
 /**
- * 一列可拖动排序的行。拖动时只移动被拖的那一行，松手后回调新顺序。
- * 行高取第一行的高度（这一页的行都是单行 / 两行小字，高度一致）。
+ * 拖动时的边缘自动翻页：按速度逐帧 [LazyListState.scrollBy]，再把**实际滚了多少**回调出去。
+ *
+ * 回调很重要：列表往上滚了 5px，被拖的那行在内容里也要往下挪 5px，不然就从手指底下溜走了。
+ *
+ * [stepPx] 为 0 时外面不会起这个循环（空闲时一帧都不占）：拖到列表头尾滚不动了也会自己停下。
+ */
+@Stable
+private class EdgeAutoScroller(private val listState: LazyListState) {
+
+    /** 每帧滚多少 px（正 = 往下翻），拖动时按手指离边缘的远近算出来 */
+    var stepPx by mutableStateOf(0f)
+        private set
+
+    /** 实际滚了多远（px），拖动那边拿去补 offset */
+    var onScrolled: ((Float) -> Unit)? = null
+
+    fun drive(step: Float) {
+        if (stepPx != step) stepPx = step
+    }
+
+    fun stop() {
+        if (stepPx != 0f) stepPx = 0f
+    }
+
+    suspend fun run() {
+        var lastFrameNanos = 0L
+        while (stepPx != 0f) {
+            val now = withFrameNanos { it }
+            val step = stepPx
+            if (step == 0f) break
+            // 按真实帧间隔折算，掉帧时不会滚得忽快忽慢
+            val dtMs = if (lastFrameNanos == 0L) 16f else ((now - lastFrameNanos) / 1_000_000f).coerceIn(1f, 32f)
+            lastFrameNanos = now
+            val consumed = listState.scrollBy(step * dtMs / 16f)
+            // 已经到顶 / 到底：别再空转
+            if (consumed == 0f) {
+                stop()
+                break
+            }
+            onScrolled?.invoke(consumed)
+        }
+    }
+}
+
+@Composable
+private fun rememberEdgeAutoScroller(listState: LazyListState): EdgeAutoScroller {
+    val scroller = remember(listState) { EdgeAutoScroller(listState) }
+    // 只有真的要滚的时候才起循环：平时（包括空闲的编辑页）不占帧
+    val running = scroller.stepPx != 0f
+    LaunchedEffect(scroller, running) {
+        if (running) scroller.run()
+    }
+    return scroller
+}
+
+/**
+ * 一列可拖动排序的行（v3 编辑收藏、第 33 步改成实时让位）。
+ *
+ * 拖动时只有被拖的那行跟手指走，其余行立刻挪开一格（带 130ms 动画），松手才把新顺序交出去；
+ * 交出去后先按新顺序画着，等仓库把数据换过来再清掉位移 —— 中间不会闪回原位。
  */
 @Composable
 private fun ReorderableColumn(
     ids: List<String>,
     onReorder: (List<String>) -> Unit,
+    autoScroll: EdgeAutoScroller,
+    viewport: Rect,
     row: @Composable (id: String, handle: Modifier) -> Unit
 ) {
     val density = LocalDensity.current
-    var draggingId by remember { mutableStateOf<String?>(null) }
-    var offset by remember { mutableFloatStateOf(0f) }
     var rowHeightPx by remember { mutableFloatStateOf(with(density) { 56.dp.toPx() }) }
+    var drag by remember { mutableStateOf<DragSession?>(null) }
+    var pending by remember { mutableStateOf<PendingReorder?>(null) }
+    // 拖动把手的节点坐标：手指位置换成窗口坐标，才知道离屏幕上下边还有多远
+    var handleCoords by remember { mutableStateOf<LayoutCoordinates?>(null) }
+    val edgePx = with(density) { AUTO_SCROLL_EDGE.toPx() }
+    val maxStepPx = with(density) { AUTO_SCROLL_MAX_STEP.toPx() }
+
+    // 数据已经换了（新顺序，或者别处删了东西）：落位位移没用了
+    LaunchedEffect(ids) {
+        if (pending?.before != ids) pending = null
+    }
 
     Column(modifier = Modifier.fillMaxWidth()) {
+        // 只有还画着旧顺序时才需要「先落位」，换成新顺序后各行的位置本来就对
+        val settled = pending?.takeIf { it.before == ids }
+
         ids.forEachIndexed { index, id ->
+            val session = drag
+            val dragging = session?.id == id
+            val shift = when {
+                session != null -> dragShiftPx(
+                    index = index,
+                    fromIndex = session.fromIndex,
+                    toIndex = session.targetIndex,
+                    dragging = dragging,
+                    dragOffsetPx = session.visualOffsetPx,
+                    rowHeightPx = rowHeightPx
+                )
+                settled != null -> settledShiftPx(
+                    index = index,
+                    fromIndex = settled.fromIndex,
+                    toIndex = settled.toIndex,
+                    rowHeightPx = rowHeightPx
+                )
+                else -> 0f
+            }
+            // 被拖那行必须跟手，不能走动画；其余行用动画平滑让位
+            val animatedShift by animateFloatAsState(
+                targetValue = shift,
+                animationSpec = tween(durationMillis = REORDER_ANIM_MS),
+                label = "reorderShift"
+            )
+            val dragElevation = with(density) { 6.dp.toPx() }
+
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .onSizeChanged {
                         if (index == 0 && it.height > 0) rowHeightPx = it.height.toFloat()
                     }
-                    .graphicsLayer { translationY = if (draggingId == id) offset else 0f }
-                    .zIndex(if (draggingId == id) 1f else 0f)
+                    .zIndex(if (dragging) 1f else 0f)
+                    // graphicsLayer 要在 background 外面：拖动时底色和内容一起走
+                    .graphicsLayer {
+                        translationY = if (dragging) shift else animatedShift
+                        if (dragging) shadowElevation = dragElevation
+                    }
+                    .background(
+                        if (dragging) MaterialTheme.colorScheme.surfaceContainerHigh else Color.Transparent
+                    )
             ) {
                 row(
                     id,
-                    Modifier.pointerInput(ids) {
-                        detectDragGesturesAfterLongPress(
-                            onDragStart = { draggingId = id; offset = 0f },
-                            onDragEnd = {
-                                val from = ids.indexOf(id)
-                                val deltaRows = (offset / rowHeightPx).toInt()
-                                val to = (from + deltaRows).coerceIn(0, ids.lastIndex)
-                                if (from != to && from >= 0) {
-                                    val next = ids.toMutableList()
-                                    next.add(to, next.removeAt(from))
-                                    onReorder(next)
+                    Modifier
+                        .onGloballyPositioned { handleCoords = it }
+                        .pointerInput(ids) {
+                            detectDragGesturesAfterLongPress(
+                                onDragStart = {
+                                    // 上一次的落位状态作废，按当前顺序重新算
+                                    pending = null
+                                    drag = DragSession(
+                                        id = id,
+                                        fromIndex = index,
+                                        offsetPx = 0f,
+                                        rowHeightPx = rowHeightPx,
+                                        lastIndex = ids.lastIndex
+                                    )
+                                    autoScroll.stop()
+                                    // 滚了多少就给被拖那行补多少，别让它从手指底下溜走
+                                    autoScroll.onScrolled = { consumed ->
+                                        drag = drag?.let { it.copy(offsetPx = it.offsetPx + consumed) }
+                                    }
+                                },
+                                onDrag = { change, dragAmount: Offset ->
+                                    change.consume()
+                                    drag = drag?.let { it.copy(offsetPx = it.offsetPx + dragAmount.y) }
+                                    // 靠近上下边缘就开着自动翻页，越靠边越快
+                                    val y = handleCoords?.localToWindow(change.position)?.y
+                                    autoScroll.drive(
+                                        if (y == null) {
+                                            0f
+                                        } else {
+                                            edgeScrollStepPx(
+                                                pointerY = y,
+                                                viewportTop = viewport.top,
+                                                viewportBottom = viewport.bottom,
+                                                edgePx = edgePx,
+                                                maxStepPx = maxStepPx
+                                            )
+                                        }
+                                    )
+                                },
+                                onDragEnd = {
+                                    autoScroll.stop()
+                                    autoScroll.onScrolled = null
+                                    val session = drag
+                                    drag = null
+                                    if (session == null) return@detectDragGesturesAfterLongPress
+                                    val to = session.targetIndex
+                                    if (to != session.fromIndex) {
+                                        val next = ids.toMutableList().apply { add(to, removeAt(session.fromIndex)) }
+                                        // 先按落位画着，等仓库把顺序换过来
+                                        pending = PendingReorder(
+                                            before = ids,
+                                            order = next,
+                                            fromIndex = session.fromIndex,
+                                            toIndex = to
+                                        )
+                                        onReorder(next)
+                                    }
+                                },
+                                onDragCancel = {
+                                    autoScroll.stop()
+                                    autoScroll.onScrolled = null
+                                    drag = null
                                 }
-                                draggingId = null
-                                offset = 0f
-                            },
-                            onDragCancel = { draggingId = null; offset = 0f },
-                            onDrag = { change, dragAmount: Offset ->
-                                change.consume()
-                                offset += dragAmount.y
-                            }
-                        )
-                    }
-                )
+                            )
+                        }
+                    )
             }
+        }
+    }
+}
+
+/** 改分组：不分组 + 各个分组，当前那个打勾 */
+@Composable
+private fun GroupPickerDialog(
+    currentGroupId: String?,
+    groups: List<FavoriteGroup>,
+    onDismiss: () -> Unit,
+    onPick: (String?) -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(FavoritesRes.string.fav_edit_group_picker_title)) },
+        text = {
+            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                GroupOption(
+                    name = stringResource(Res.string.group_none),
+                    selected = currentGroupId == null,
+                    testTag = "group_option_none",
+                    onClick = { onPick(null) }
+                )
+                groups.forEach { group ->
+                    GroupOption(
+                        name = group.name,
+                        selected = currentGroupId == group.id,
+                        testTag = "group_option_${group.id}",
+                        onClick = { onPick(group.id) }
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(Res.string.action_cancel)) }
+        }
+    )
+}
+
+@Composable
+private fun GroupOption(
+    name: String,
+    selected: Boolean,
+    testTag: String,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .heightIn(min = 48.dp)
+            .padding(horizontal = 4.dp)
+            .testTag(testTag),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = name,
+            style = MaterialTheme.typography.bodyLarge,
+            color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f)
+        )
+        if (selected) {
+            Icon(
+                imageVector = vectorResource(Res.drawable.ic_check),
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(18.dp)
+            )
         }
     }
 }
@@ -586,36 +975,30 @@ private fun EditGroupDialog(
     }
 }
 
-/** 编辑收藏 Route：读状态、翻译事件、跳路线详情 */
+/** 编辑收藏 Route：读状态、翻译事件 */
 @Composable
 fun FavoritesEditRoute(
     viewModel: FavoritesEditViewModel,
     navigator: TrackrNavigator,
     modifier: Modifier = Modifier
 ) {
-    val groups by viewModel.groups.collectAsStateWithLifecycle()
+    val items by viewModel.items.collectAsStateWithLifecycle()
     val favoriteGroups by viewModel.favoriteGroups.collectAsStateWithLifecycle()
     val back = dropUnlessResumed { navigator.popChildPage() }
-    val lifecycleOwner = LocalLifecycleOwner.current
-    val openRoute: (String) -> Unit = { id ->
-        if (lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) {
-            navigator.open(ScreenKey.RouteDetail(id))
-        }
-    }
 
     FavoritesEditScreen(
-        groups = groups,
+        items = items,
         favoriteGroups = favoriteGroups,
         onEvent = { event ->
             when (event) {
                 FavoritesEditEvent.Back, FavoritesEditEvent.Done -> back()
-                is FavoritesEditEvent.OpenRoute -> openRoute(event.groupId)
                 is FavoritesEditEvent.CreateGroup -> viewModel.createFavoriteGroup(event.name)
                 is FavoritesEditEvent.RenameGroup -> viewModel.renameFavoriteGroup(event.groupId, event.name)
                 is FavoritesEditEvent.DeleteGroup -> viewModel.deleteFavoriteGroup(event.groupId)
                 is FavoritesEditEvent.ReorderGroups -> viewModel.reorderFavoriteGroups(event.ids)
-                is FavoritesEditEvent.DeleteRoute -> viewModel.deleteGroup(event.groupId)
-                is FavoritesEditEvent.ReorderRoutes -> viewModel.reorderGroups(event.ids)
+                is FavoritesEditEvent.SetGroup -> viewModel.setItemGroup(event.key, event.groupId)
+                is FavoritesEditEvent.DeleteItem -> viewModel.removeItem(event.key)
+                is FavoritesEditEvent.MoveItems -> viewModel.moveItems(event.keys)
             }
         },
         modifier = modifier
