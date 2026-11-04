@@ -133,6 +133,14 @@ class RouteDetailViewModel(
         _trackingMessage.value = null
     }
 
+    /**
+     * 收藏分组（详情页「改分组」和「收藏」弹层用）。
+     *
+     * 必须在 [init] 之前初始化：`viewModelScope.launch` 跑在 `Dispatchers.Main.immediate` 上，
+     * 构造期间就可能同步跑到用它（同 issue #20 线路页那次 NPE）。
+     */
+    val favoriteGroups: StateFlow<List<FavoriteGroup>> = groupRepository.favoriteGroups
+
     init {
         if (enableAutoRefresh) {
             viewModelScope.launch {
@@ -254,9 +262,6 @@ class RouteDetailViewModel(
     }
 
     // ---- 路线详情页（第 22 步）：改名、改分组、生成返程、删除、临时方案存成收藏 ----
-
-    /** 收藏分组（详情页「改分组」和「收藏」弹层用） */
-    val favoriteGroups: StateFlow<List<FavoriteGroup>> = groupRepository.favoriteGroups
 
     /** 改路线名 */
     fun renameGroup(groupId: String, name: String) {
