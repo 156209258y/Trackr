@@ -73,19 +73,29 @@ private val RailChipWidth = 46.dp
 private val RailChipHeight = 18.dp
 private val RailNameLineHeight = 14.sp
 private val RailCardVerticalPadding = 16.dp
-private const val RailMaxNameLines = 8
+/** 站名层固定多出来的部分：末行与「响应」之间的 3dp + 条件站「响应」一行 18dp */
+private val RailNameExtraHeight = 21.dp
+/** 没有站（还在加载）时按几行估高度 */
+private const val RailDefaultNameLines = 5
 private const val RailColumnWidthValue = 56f
 private const val RailChipWidthValue = 46f
+
+/**
+ * 站名竖排几行：全线最长站名的字数，不截断。
+ *
+ * 站名一个字一行，所以行数就是最长的那个站名。以前封在 8 行，超过 8 个字的站名被省略号吃掉；
+ * 现在卡片高度跟着它走，多长的站名都给完整显示。
+ */
+internal fun railNameLines(stops: List<BusStop>): Int =
+    stops.maxOfOrNull { it.name.length }?.coerceAtLeast(1) ?: RailDefaultNameLines
 
 /**
  * 横排走向条的卡片高度：车标层 + 轨道层 + 竖排站名 + 条件站「响应」和留白 + 卡片上下内边距。
  *
  * @param charHeight 一行站名的实际高度（14.sp 按当前字体缩放换算成 dp）
  */
-fun horizontalRailCardHeight(stops: List<BusStop>, charHeight: Dp): Dp {
-    val chars = stops.maxOfOrNull { it.name.length }?.coerceIn(1, RailMaxNameLines) ?: 5
-    return RailBusLaneHeight + RailTrackHeight + charHeight * chars + 3.dp + 18.dp + RailCardVerticalPadding
-}
+fun horizontalRailCardHeight(stops: List<BusStop>, charHeight: Dp): Dp =
+    RailBusLaneHeight + RailTrackHeight + charHeight * railNameLines(stops) + RailNameExtraHeight + RailCardVerticalPadding
 
 /** 按当前字体缩放算卡片高度，页面限高和组件本身都用这一个 */
 @Composable
@@ -123,6 +133,7 @@ fun HorizontalRouteRail(
 
     val cardHeight = horizontalRailCardHeight(stops)
     val stripHeight = cardHeight - RailCardVerticalPadding
+    val nameLines = railNameLines(stops)
     val contentWidth = RailSidePadding * 2 + RailColumnWidth * stops.size
     val selectedOrder = selectedStop?.order ?: 1
     val busColors = MaterialTheme.busColors
@@ -191,6 +202,7 @@ fun HorizontalRouteRail(
                         stops.forEach { stop ->
                             RailStopColumn(
                                 stop = stop,
+                                nameLines = nameLines,
                                 isSelected = stop.order == selectedStop?.order,
                                 isPassed = stop.order < selectedOrder,
                                 onSelect = { onSelectStop(stop) },
@@ -222,6 +234,7 @@ fun HorizontalRouteRail(
 @Composable
 private fun RailStopColumn(
     stop: BusStop,
+    nameLines: Int,
     isSelected: Boolean,
     isPassed: Boolean,
     onSelect: () -> Unit,
@@ -257,7 +270,7 @@ private fun RailStopColumn(
             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
             color = nameColor,
             textAlign = TextAlign.Center,
-            maxLines = RailMaxNameLines,
+            maxLines = nameLines,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.fillMaxWidth()
         )

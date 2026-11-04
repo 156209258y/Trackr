@@ -1,15 +1,20 @@
 package com.trackr.ui.components
 
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.unit.dp
 import com.trackr.core.designsystem.theme.TrackrTheme
 import com.trackr.core.model.BusStop
 import com.trackr.core.model.LiveBus
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -111,5 +116,52 @@ class HorizontalRouteRailUiTest {
         }
 
         composeTestRule.onNodeWithContentDescription("汉口路").assertDoesNotExist()
+    }
+
+    @Test
+    fun longStopName_getsFullHeightWithoutEllipsis() {
+        val longName = "浦东国际机场T2航站楼"
+        composeTestRule.setContent {
+            TrackrTheme {
+                HorizontalRouteRail(
+                    stops = listOf(BusStop(stopId = "1", name = longName, order = 1)),
+                    buses = emptyList(),
+                    selectedStop = null,
+                    selectedBusId = null,
+                    scrollState = rememberScrollState(),
+                    onSelectStop = {},
+                    onSelectBus = {}
+                )
+            }
+        }
+
+        // 站名一个字一行，逐行读：字数全部渲染出来，最后一行没有省略号
+        val vertical = longName.map { it.toString() }.joinToString("\n")
+        val results = mutableListOf<TextLayoutResult>()
+        composeTestRule.onNodeWithText(vertical, useUnmergedTree = true)
+            .fetchSemanticsNode()
+            .config.getOrNull(SemanticsActions.GetTextLayoutResult)
+            ?.action
+            ?.invoke(results)
+
+        val layout = results.single()
+        assertEquals(longName.length, layout.lineCount)
+        assertFalse("站名高度被裁", layout.didOverflowHeight)
+        assertFalse("站名被省略号截断", layout.isLineEllipsized(layout.lineCount - 1))
+    }
+
+    @Test
+    fun cardHeight_followsLongestStopName() {
+        val short = listOf(BusStop(stopId = "1", name = "汉口路", order = 1))
+        val long = listOf(BusStop(stopId = "2", name = "浦东国际机场T2航站楼", order = 1))
+
+        assertEquals(3, railNameLines(short))
+        assertEquals(11, railNameLines(long))
+
+        val lineHeight = 14.dp
+        assertEquals(
+            horizontalRailCardHeight(short, lineHeight) + lineHeight * (11 - 3),
+            horizontalRailCardHeight(long, lineHeight)
+        )
     }
 }
