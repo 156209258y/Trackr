@@ -36,9 +36,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -62,8 +59,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.trackr.core.designsystem.resources.Res
 import com.trackr.core.designsystem.resources.action_cancel
-import com.trackr.core.designsystem.resources.data_source_chelaile
-import com.trackr.core.designsystem.resources.data_source_mygolbs
 import com.trackr.core.designsystem.resources.ic_chevron_right
 import com.trackr.core.designsystem.resources.ic_clock
 import com.trackr.core.designsystem.resources.transit_code
@@ -121,6 +116,7 @@ fun MeScreen(
     var showTransitCodeDialog by rememberSaveable { mutableStateOf(false) }
     var showAlertThresholdDialog by rememberSaveable { mutableStateOf(false) }
     var showRailModeDialog by rememberSaveable { mutableStateOf(false) }
+    var showEngineModeDialog by rememberSaveable { mutableStateOf(false) }
     var showRemindersSheet by rememberSaveable { mutableStateOf(false) }
 
 
@@ -175,9 +171,10 @@ fun MeScreen(
 
             item(key = "group_trip", contentType = "settings_group") {
                 SettingsGroup(title = stringResource(MeRes.string.me_group_travel)) {
-                    EngineModeRow(
-                        selected = state.engineMode,
-                        onSelect = { onEvent(MeEvent.SetEngineMode(it)) }
+                    SettingRow(
+                        title = stringResource(MeRes.string.me_data_source),
+                        value = engineModeLabel(state.engineMode),
+                        onClick = { showEngineModeDialog = true }
                     )
                     GroupDivider()
                     SwitchRow(
@@ -319,6 +316,20 @@ fun MeScreen(
         )
     }
 
+    if (showEngineModeDialog) {
+        ChoiceDialog(
+            title = stringResource(MeRes.string.me_data_source),
+            options = EngineMode.entries,
+            selected = state.engineMode,
+            label = ::engineModeLabel,
+            onSelect = {
+                onEvent(MeEvent.SetEngineMode(it))
+                showEngineModeDialog = false
+            },
+            onDismiss = { showEngineModeDialog = false }
+        )
+    }
+
     if (showRemindersSheet) {
         RemindersSheet(
             reminders = state.reminders,
@@ -344,6 +355,8 @@ private fun railModeLabel(mode: RailMode): String = when (mode) {
     RailMode.Horizontal -> "横排"
     RailMode.Vertical -> "竖排"
 }
+
+private fun engineModeLabel(mode: EngineMode): String = mode.displayName
 
 /** 一组设置：小号主色组标题 + 圆角卡片；行之间由调用方放 [GroupDivider] */
 @Composable
@@ -465,36 +478,6 @@ private fun SwitchRow(
         RowTexts(title = title, subtitle = subtitle, modifier = Modifier.weight(1f))
         Spacer(Modifier.width(12.dp))
         Switch(checked = checked, onCheckedChange = null)
-    }
-}
-
-/** 「数据来源」：车来了 / 掌上公交 两段 */
-@Composable
-private fun EngineModeRow(
-    selected: EngineMode,
-    onSelect: (EngineMode) -> Unit
-) {
-    val options = listOf(EngineMode.CHELAILE to stringResource(Res.string.data_source_chelaile), EngineMode.MYGOLBS to stringResource(Res.string.data_source_mygolbs))
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .heightIn(min = 56.dp)
-            .padding(horizontal = 16.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        RowTexts(title = stringResource(MeRes.string.me_data_source), subtitle = null, modifier = Modifier.weight(1f))
-        Spacer(Modifier.width(12.dp))
-        SingleChoiceSegmentedButtonRow {
-            options.forEachIndexed { index, (mode, label) ->
-                SegmentedButton(
-                    selected = selected == mode,
-                    onClick = { onSelect(mode) },
-                    shape = SegmentedButtonDefaults.itemShape(index = index, count = options.size),
-                    icon = {},
-                    label = { Text(text = label, style = MaterialTheme.typography.labelMedium) }
-                )
-            }
-        }
     }
 }
 
