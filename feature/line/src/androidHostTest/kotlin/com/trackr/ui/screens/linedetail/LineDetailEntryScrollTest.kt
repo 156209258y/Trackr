@@ -4,13 +4,16 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import com.trackr.core.designsystem.theme.TrackrTheme
 import com.trackr.core.model.BusLineDirection
 import com.trackr.core.model.BusStop
 import com.trackr.core.model.LiveBus
 import com.trackr.core.model.RailMode
+import com.trackr.ui.components.HorizontalRailTags
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -107,6 +110,27 @@ class LineDetailEntryScrollTest {
         show(state)
 
         composeTestRule.onNodeWithText("沪A1234").assertIsDisplayed()
+    }
+
+    @Test
+    fun horizontalMode_tallCardScrollsWholePageDownToRail() {
+        // 横排整页一起滚、主卡不限高：30 辆车把主卡撑高，走向条被推到首屏之外
+        val buses = (1..30).map { index ->
+            LiveBus(busId = "b$index", plateOrFleetNo = "沪A" + index.toString().padStart(4, '0'), order = index)
+        }
+        show(
+            stateOf(entryStopOrder = 20).copy(
+                panelMode = PanelMode.BUS_LIST,
+                live = LineLive(buses = buses)
+            )
+        )
+
+        composeTestRule.onNodeWithContentDescription("S20").assertIsNotDisplayed()
+
+        // 滚下去能看到横条：主卡没被限高裁成卡内滚动
+        // （先滚横条整体；横条自己的横向滚动带不动纵向位置）
+        composeTestRule.onNodeWithTag(HorizontalRailTags.ROOT).performScrollTo().assertIsDisplayed()
+        composeTestRule.onNodeWithContentDescription("S20").assertIsDisplayed()
     }
 
     @Test

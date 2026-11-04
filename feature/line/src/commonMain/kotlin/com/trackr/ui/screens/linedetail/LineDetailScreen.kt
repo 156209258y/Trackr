@@ -9,6 +9,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -61,6 +62,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
@@ -117,7 +119,6 @@ import com.trackr.ui.components.HorizontalRailColumnWidth
 import com.trackr.ui.components.HorizontalRouteRail
 import com.trackr.ui.components.ScheduledReminderDialog
 import com.trackr.ui.components.TransitCodeBottomSheet
-import com.trackr.ui.components.horizontalRailCardHeight
 import com.trackr.ui.components.routeRailItemIndex
 import com.trackr.ui.components.routeRailItems
 import com.trackr.ui.components.timetable.TimetableBottomSheet
@@ -195,7 +196,6 @@ fun LineDetailScreen(
     var didJumpToEntryStop by rememberSaveable { mutableStateOf(false) }
     // 主卡可以收起成一行，把高度让给走向条；收起状态跟着页面保存
     var cardCollapsed by rememberSaveable { mutableStateOf(false) }
-    val railCardHeight = horizontalRailCardHeight(static?.stops.orEmpty())
 
     LaunchedEffect(static?.stops, state.entryStopOrder) {
         val stops = static?.stops ?: return@LaunchedEffect
@@ -320,20 +320,15 @@ fun LineDetailScreen(
                     .padding(top = innerPadding.calculateTopPadding())
             ) {
                 BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+                    val viewportHeight = maxHeight
                     val live = state.live
                     val busesByOrder = remember(live?.buses) { live?.buses.orEmpty().groupBy { it.order } }
                     val hasError = state.errorMessage != null
-                    // 主卡最多占六成；横排时再给横条和底栏让位，保证横线整个露出来
-                    val cardMaxHeight = if (isHorizontalRail) {
-                        val reserved = 120.dp + innerPadding.calculateBottomPadding() +
-                            if (hasError) 48.dp else 0.dp
-                        (maxHeight - reserved - railCardHeight - 16.dp)
-                            .coerceAtLeast(64.dp)
-                            .coerceAtMost(maxHeight * 0.6f)
-                    } else {
-                        maxHeight * 0.6f
-                    }
-                    // 横排没有可上下滚的列表；加一层纵向滚动，下拉刷新才收得到手势
+                    // 竖排：主卡固定在顶部、最多占六成，剩下的给站点列表，内容多在卡内滚。
+                    // 横排：整页一起滚，主卡按内容自然高（能完整展开），不再给它限高。
+                    val cardMaxHeight = viewportHeight * 0.6f
+                    // 横排没有可上下滚的列表；加一层纵向滚动，下拉刷新才收得到手势，
+                    // 主卡展开后超过一屏也能滚下去看走向条
                     val contentModifier = if (isHorizontalRail) {
                         Modifier
                             .fillMaxSize()
@@ -343,53 +338,74 @@ fun LineDetailScreen(
                         Modifier.fillMaxSize()
                     }
                     Column(modifier = contentModifier) {
-                        DirectionHeader(
-                            static = static,
-                            onOpenTimetable = { onEvent(LineDetailEvent.OpenTimetable) }
-                        )
-                        if (hasError) {
-                            ErrorBanner(
-                                text = state.errorMessage.orEmpty(),
-                                onRetry = { onEvent(LineDetailEvent.Refresh(fromPull = false)) }
+                        // 横排要算横条还有多少剩余空间，先量出方向头 + 主卡的高度
+                        var topBlockHeightPx by remember { mutableStateOf(0) }
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .onGloballyPositioned { topBlockHeightPx = it.size.height }
+                        ) {
+                            DirectionHeader(
+                                static = static,
+                                onOpenTimetable = { onEvent(LineDetailEvent.OpenTimetable) }
+                            )
+                            if (hasError) {
+                                ErrorBanner(
+                                    text = state.errorMessage.orEmpty(),
+                                    onRetry = { onEvent(LineDetailEvent.Refresh(fromPull = false)) }
+                                )
+                            }
+                            // 主卡：竖排固定在顶部，不跟站点列表一起滚；横排整页一起滚
+                            HeroCard(
+                                state = state,
+                                static = static,
+                                onEvent = onEvent,
+                                onPickStop = {
+                                    val order = state.selectedStop?.order ?: return@HeroCard
+                                    val index = routeRailItemIndex(static.stops, order)
+                                    val target = (index - 2).coerceAtLeast(0)
+                                    scope.launch {
+                                        if (isHorizontalRail) {
+                                            stripScrollState.animateScrollTo(
+                                                with(density) { (HorizontalRailColumnWidth * target).roundToPx() }
+                                            )
+                                        } else {
+                                            listState.animateScrollToItem(target)
+                                        }
+                                    }
+                                },
+                                modifier = if (isHorizontalRail) Modifier else Modifier.heightIn(max = cardMaxHeight),
+                                // 横排整页一起滚：主卡不限高，卡内也不再滚一层，否则手势被主卡吃掉、页面滚不动
+                                scrollable = !isHorizontalRail,
+                                collapsed = cardCollapsed,
+                                onToggleCollapsed = { cardCollapsed = !cardCollapsed }
                             )
                         }
-                        // 主卡固定在顶部，不跟走向条一起滚：看卡片和看当前站可以同时
-                        HeroCard(
-                            state = state,
-                            static = static,
-                            onEvent = onEvent,
-                            onPickStop = {
-                                val order = state.selectedStop?.order ?: return@HeroCard
-                                val index = routeRailItemIndex(static.stops, order)
-                                val target = (index - 2).coerceAtLeast(0)
-                                scope.launch {
-                                    if (isHorizontalRail) {
-                                        stripScrollState.animateScrollTo(
-                                            with(density) { (HorizontalRailColumnWidth * target).roundToPx() }
-                                        )
-                                    } else {
-                                        listState.animateScrollToItem(target)
-                                    }
-                                }
-                            },
-                            modifier = Modifier.heightIn(max = cardMaxHeight),
-                            collapsed = cardCollapsed,
-                            onToggleCollapsed = { cardCollapsed = !cardCollapsed }
-                        )
                         if (isHorizontalRail) {
-                            // 横排只有一条横线，没有竖排站点列表；卡片就贴在主卡下面，剩下的留给页面底色
-                            HorizontalRouteRail(
-                                stops = static.stops,
-                                buses = live?.buses.orEmpty(),
-                                selectedStop = state.selectedStop,
-                                selectedBusId = state.followedBusId,
-                                scrollState = stripScrollState,
-                                onSelectStop = { onEvent(LineDetailEvent.SelectStop(it)) },
-                                onSelectBus = { onEvent(LineDetailEvent.FollowBus(it)) },
+                            // 横排只有一条横线，没有竖排站点列表；不给卡片外壳，直接铺在页面背景上，
+                            // 左右贴满整宽（轨道自身左右留 16dp）。
+                            // 位置：主卡到页面底部的剩余空间里垂直居中（设计稿 §3）；主卡内容多、超过一屏时
+                            // 这块区域只按横条自身高度排，整页一起上下滚
+                            val remainingHeight = with(density) {
+                                viewportHeight - topBlockHeightPx.toDp() - innerPadding.calculateBottomPadding()
+                            }
+                            Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(horizontal = 12.dp, vertical = 8.dp)
-                            )
+                                    .heightIn(min = remainingHeight.coerceAtLeast(0.dp)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                HorizontalRouteRail(
+                                    stops = static.stops,
+                                    buses = live?.buses.orEmpty(),
+                                    selectedStop = state.selectedStop,
+                                    selectedBusId = state.followedBusId,
+                                    scrollState = stripScrollState,
+                                    onSelectStop = { onEvent(LineDetailEvent.SelectStop(it)) },
+                                    onSelectBus = { onEvent(LineDetailEvent.FollowBus(it)) },
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            }
                         } else {
                             LazyColumn(
                                 state = listState,
@@ -581,7 +597,12 @@ private fun ErrorBanner(text: String, onRetry: () -> Unit) {
     }
 }
 
-/** 主卡：到站 / 全部车辆 / 单车跟随 三种内容切换；固定在页面顶部，内容超过限高时卡内自己滚 */
+/**
+ * 主卡：到站 / 全部车辆 / 单车跟随 三种内容切换；固定在页面顶部。
+ *
+ * @param scrollable 内容超过限高时卡内自己滚（竖排：主卡限高、页面不滚）；
+ *   横排整页一起滚，传 false，不然卡内滚和外层滚抢手势
+ */
 @Composable
 private fun HeroCard(
     state: LineDetailUiState,
@@ -589,9 +610,11 @@ private fun HeroCard(
     onEvent: (LineDetailEvent) -> Unit,
     onPickStop: () -> Unit,
     modifier: Modifier = Modifier,
+    scrollable: Boolean = true,
     collapsed: Boolean = false,
     onToggleCollapsed: (() -> Unit)? = null
 ) {
+    val innerScrollState = rememberScrollState()
     Card(
         shape = RoundedCornerShape(22.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.busColors.stationCardContainer),
@@ -618,7 +641,7 @@ private fun HeroCard(
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(22.dp))
-                .verticalScroll(rememberScrollState())
+                .then(if (scrollable) Modifier.verticalScroll(innerScrollState) else Modifier)
         ) { (mode, isCollapsed) ->
             when (mode) {
                 PanelMode.STATION_CARD -> StationArrivalContent(

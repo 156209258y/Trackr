@@ -4,8 +4,10 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.text.TextLayoutResult
@@ -151,7 +153,28 @@ class HorizontalRouteRailUiTest {
     }
 
     @Test
-    fun cardHeight_followsLongestStopName() {
+    fun rail_fillsFullWidthWithoutCard() {
+        composeTestRule.setContent {
+            TrackrTheme {
+                HorizontalRouteRail(
+                    stops = stops,
+                    buses = emptyList(),
+                    selectedStop = stops[1],
+                    selectedBusId = null,
+                    scrollState = rememberScrollState(),
+                    onSelectStop = {},
+                    onSelectBus = {}
+                )
+            }
+        }
+
+        // 没有卡片外壳：贴满整宽，左右不再留页面边距（轨道自己留 16dp）
+        val bounds = composeTestRule.onNodeWithTag(HorizontalRailTags.ROOT).getUnclippedBoundsInRoot()
+        assertEquals(360f, (bounds.right - bounds.left).value, 0.5f)
+    }
+
+    @Test
+    fun railHeight_followsLongestStopName() {
         val short = listOf(BusStop(stopId = "1", name = "汉口路", order = 1))
         val long = listOf(BusStop(stopId = "2", name = "浦东国际机场T2航站楼", order = 1))
 
@@ -160,8 +183,8 @@ class HorizontalRouteRailUiTest {
 
         val lineHeight = 14.dp
         assertEquals(
-            horizontalRailCardHeight(short, lineHeight) + lineHeight * (11 - 3),
-            horizontalRailCardHeight(long, lineHeight)
+            horizontalRailHeight(short, lineHeight) + lineHeight * (11 - 3),
+            horizontalRailHeight(long, lineHeight)
         )
     }
 }

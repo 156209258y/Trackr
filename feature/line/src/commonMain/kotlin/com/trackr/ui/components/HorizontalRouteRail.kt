@@ -35,6 +35,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -61,7 +62,7 @@ import org.jetbrains.compose.resources.vectorResource
 /**
  * 横排走向条（横排模式）：一条从左到右的轨道，站名竖排在线下方，车标按 [LiveBus.segmentProgress] 在站间走。
  *
- * 卡片高度按全线最长站名算，见 [horizontalRailCardHeight]；外面没有竖排站点列表。
+ * 没有卡片外壳，和竖排走向条一样直接铺在页面背景上；高度按全线最长站名算，见 [horizontalRailHeight]。
  * 点整列 = 选这个站，点车标 = 跟随这辆车。
  */
 val HorizontalRailColumnWidth = 56.dp
@@ -72,7 +73,8 @@ private val RailTrackHeight = 24.dp
 private val RailChipWidth = 46.dp
 private val RailChipHeight = 18.dp
 private val RailNameLineHeight = 14.sp
-private val RailCardVerticalPadding = 16.dp
+/** 轨道上下各留一点，不贴着主卡和页面底部 */
+private val RailVerticalPadding = 16.dp
 /** 站名层固定多出来的部分：末行与「响应」之间的 3dp + 条件站「响应」一行 18dp */
 private val RailNameExtraHeight = 21.dp
 /** 没有站（还在加载）时按几行估高度 */
@@ -80,28 +82,33 @@ private const val RailDefaultNameLines = 5
 private const val RailColumnWidthValue = 56f
 private const val RailChipWidthValue = 46f
 
+/** 测试用的 tag */
+internal object HorizontalRailTags {
+    const val ROOT = "horizontal_rail"
+}
+
 /**
  * 站名竖排几行：全线最长站名的字数，不截断。
  *
  * 站名一个字一行，所以行数就是最长的那个站名。以前封在 8 行，超过 8 个字的站名被省略号吃掉；
- * 现在卡片高度跟着它走，多长的站名都给完整显示。
+ * 现在高度跟着它走，多长的站名都给完整显示。
  */
 internal fun railNameLines(stops: List<BusStop>): Int =
     stops.maxOfOrNull { it.name.length }?.coerceAtLeast(1) ?: RailDefaultNameLines
 
 /**
- * 横排走向条的卡片高度：车标层 + 轨道层 + 竖排站名 + 条件站「响应」和留白 + 卡片上下内边距。
+ * 横排走向条的高度：车标层 + 轨道层 + 竖排站名 + 条件站「响应」和上下留白。
  *
  * @param charHeight 一行站名的实际高度（14.sp 按当前字体缩放换算成 dp）
  */
-fun horizontalRailCardHeight(stops: List<BusStop>, charHeight: Dp): Dp =
-    RailBusLaneHeight + RailTrackHeight + charHeight * railNameLines(stops) + RailNameExtraHeight + RailCardVerticalPadding
+fun horizontalRailHeight(stops: List<BusStop>, charHeight: Dp): Dp =
+    RailBusLaneHeight + RailTrackHeight + charHeight * railNameLines(stops) + RailNameExtraHeight + RailVerticalPadding
 
-/** 按当前字体缩放算卡片高度，页面限高和组件本身都用这一个 */
+/** 按当前字体缩放算高度，页面外层留白和组件本身都用这一个 */
 @Composable
-fun horizontalRailCardHeight(stops: List<BusStop>): Dp {
+fun horizontalRailHeight(stops: List<BusStop>): Dp {
     val charHeight = with(LocalDensity.current) { RailNameLineHeight.toDp() }
-    return horizontalRailCardHeight(stops, charHeight)
+    return horizontalRailHeight(stops, charHeight)
 }
 
 /**
@@ -131,98 +138,99 @@ fun HorizontalRouteRail(
 ) {
     if (stops.isEmpty()) return
 
-    val cardHeight = horizontalRailCardHeight(stops)
-    val stripHeight = cardHeight - RailCardVerticalPadding
+    val railHeight = horizontalRailHeight(stops)
+    val stripHeight = railHeight - RailVerticalPadding
     val nameLines = railNameLines(stops)
     val contentWidth = RailSidePadding * 2 + RailColumnWidth * stops.size
     val selectedOrder = selectedStop?.order ?: 1
     val busColors = MaterialTheme.busColors
     val placements = remember(stops, buses) { placeBuses(stops, buses) }
 
-    Surface(
-        shape = RoundedCornerShape(18.dp),
-        color = MaterialTheme.colorScheme.surface,
-        modifier = modifier.height(cardHeight)
+    // 没有卡片：轨道和站名直接铺在页面背景上，和竖排走向条一致；左右贴满整宽，组件内留 16dp
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(railHeight)
+            .testTag(HorizontalRailTags.ROOT),
+        contentAlignment = Alignment.Center
     ) {
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(stripHeight)
-                    .horizontalScroll(scrollState)
-            ) {
-                Box(Modifier.width(contentWidth).height(stripHeight)) {
-                    Spacer(
-                        Modifier
-                            .matchParentSize()
-                            .drawWithCache {
-                                val arrowPath = Path()
-                                val arrowStroke = Stroke(
-                                    width = 2.dp.toPx(),
-                                    cap = StrokeCap.Round,
-                                    join = StrokeJoin.Round
-                                )
-                                val trackStroke = 3.dp.toPx()
-                                val arrowGap = 4.dp.toPx()
-                                val arrowArm = 3.dp.toPx()
-                                val arrowSpread = 3.5.dp.toPx()
-                                onDrawBehind {
-                                    val y = (RailBusLaneHeight + RailTrackHeight / 2).toPx()
-                                    for (i in 0 until stops.size - 1) {
-                                        val startX = (RailSidePadding + RailColumnWidth * i + RailColumnWidth / 2).toPx()
-                                        val endX = (RailSidePadding + RailColumnWidth * (i + 1) + RailColumnWidth / 2).toPx()
-                                        drawHorizontalTrackSegment(
-                                            startX = startX,
-                                            endX = endX,
-                                            y = y,
-                                            color = getRouteSegmentColor(
-                                                fromOrder = stops[i].order,
-                                                toOrder = stops[i + 1].order,
-                                                currentSelectedOrder = selectedOrder,
-                                                busColors = busColors
-                                            ),
-                                            strokeWidth = trackStroke,
-                                            hasArrow = i % 3 == 0,
-                                            arrowPath = arrowPath,
-                                            arrowStroke = arrowStroke,
-                                            arrowGap = arrowGap,
-                                            arrowArm = arrowArm,
-                                            arrowSpread = arrowSpread
-                                        )
-                                    }
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(stripHeight)
+                .horizontalScroll(scrollState)
+        ) {
+            Box(Modifier.width(contentWidth).height(stripHeight)) {
+                Spacer(
+                    Modifier
+                        .matchParentSize()
+                        .drawWithCache {
+                            val arrowPath = Path()
+                            val arrowStroke = Stroke(
+                                width = 2.dp.toPx(),
+                                cap = StrokeCap.Round,
+                                join = StrokeJoin.Round
+                            )
+                            val trackStroke = 3.dp.toPx()
+                            val arrowGap = 4.dp.toPx()
+                            val arrowArm = 3.dp.toPx()
+                            val arrowSpread = 3.5.dp.toPx()
+                            onDrawBehind {
+                                val y = (RailBusLaneHeight + RailTrackHeight / 2).toPx()
+                                for (i in 0 until stops.size - 1) {
+                                    val startX = (RailSidePadding + RailColumnWidth * i + RailColumnWidth / 2).toPx()
+                                    val endX = (RailSidePadding + RailColumnWidth * (i + 1) + RailColumnWidth / 2).toPx()
+                                    drawHorizontalTrackSegment(
+                                        startX = startX,
+                                        endX = endX,
+                                        y = y,
+                                        color = getRouteSegmentColor(
+                                            fromOrder = stops[i].order,
+                                            toOrder = stops[i + 1].order,
+                                            currentSelectedOrder = selectedOrder,
+                                            busColors = busColors
+                                        ),
+                                        strokeWidth = trackStroke,
+                                        hasArrow = i % 3 == 0,
+                                        arrowPath = arrowPath,
+                                        arrowStroke = arrowStroke,
+                                        arrowGap = arrowGap,
+                                        arrowArm = arrowArm,
+                                        arrowSpread = arrowSpread
+                                    )
                                 }
                             }
-                    )
-
-                    Row(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(horizontal = RailSidePadding)
-                    ) {
-                        stops.forEach { stop ->
-                            RailStopColumn(
-                                stop = stop,
-                                nameLines = nameLines,
-                                isSelected = stop.order == selectedStop?.order,
-                                isPassed = stop.order < selectedOrder,
-                                onSelect = { onSelectStop(stop) },
-                                modifier = Modifier
-                                    .width(RailColumnWidth)
-                                    .height(stripHeight)
-                            )
                         }
+                )
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = RailSidePadding)
+                ) {
+                    stops.forEach { stop ->
+                        RailStopColumn(
+                            stop = stop,
+                            nameLines = nameLines,
+                            isSelected = stop.order == selectedStop?.order,
+                            isPassed = stop.order < selectedOrder,
+                            onSelect = { onSelectStop(stop) },
+                            modifier = Modifier
+                                .width(RailColumnWidth)
+                                .height(stripHeight)
+                        )
                     }
+                }
 
-                    placements.forEach { placement ->
-                        key(placement.bus.busId) {
-                            RailBusChip(
-                                bus = placement.bus,
-                                position = placement.position,
-                                tier = placement.tier,
-                                isSelected = placement.bus.busId == selectedBusId,
-                                onClick = { onSelectBus(placement.bus) }
-                            )
-                        }
+                placements.forEach { placement ->
+                    key(placement.bus.busId) {
+                        RailBusChip(
+                            bus = placement.bus,
+                            position = placement.position,
+                            tier = placement.tier,
+                            isSelected = placement.bus.busId == selectedBusId,
+                            onClick = { onSelectBus(placement.bus) }
+                        )
                     }
                 }
             }
