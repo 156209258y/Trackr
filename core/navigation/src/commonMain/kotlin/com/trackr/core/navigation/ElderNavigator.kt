@@ -131,7 +131,7 @@ class ElderNavigator(private val stack: NavBackStack<NavKey>) : TrackrNavigator 
 }
 
 /**
- * 记住长辈版那条栈（跨配置变更和进程重建恢复，§3.8）。存档 key 固定，不和标准版的页签栈混。
+ * 记住长辈版那条栈（跨配置变更和进程重建恢复，§3.8）。这条栈的槽位跟调用位置走，不和标准版的页签栈混。
  * 恢复出来的栈底不是首页、或含长辈版不支持的页面（旧存档）就丢掉，从首页重来。
  */
 @Composable
@@ -139,7 +139,7 @@ fun rememberElderBackStack(
     configuration: SavedStateConfiguration = TrackrSavedStateConfiguration,
 ): NavBackStack<NavKey> {
     val saver = remember(configuration) { navBackStackSaver(configuration) }
-    val stack = rememberSaveable(saver = saver, key = "trackr.elderStack") { NavBackStack<NavKey>(ElderRoutes.root) }
+    val stack = rememberSaveable(saver = saver) { NavBackStack<NavKey>(ElderRoutes.root) }
     remember(stack) {
         val valid = stack.firstOrNull() == ElderRoutes.root &&
             stack.all { it is ScreenKey && ElderRoutes.isSupported(it) }
