@@ -48,6 +48,8 @@ data class BusHomeUiState(
     val engineMode: EngineMode = EngineMode.CHELAILE,
     /** 「每次询问」时点乘车码弹出的平台选择 */
     val isTransitCodeSheetOpen: Boolean = false,
+    /** 右下角「乘车码」悬浮按钮显不显示（「我的」里可以关掉，用 NFC 的嫌它挡列表） */
+    val showTransitCodeButton: Boolean = true,
     /** 一次性消息（重构计划 §2.1 UDF）：页面显示后回调 [BusHomeEvent.MessageShown] */
     val userMessages: List<UserMessage> = emptyList(),
 

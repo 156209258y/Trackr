@@ -106,14 +106,17 @@ fun BusHomeScreen(
             )
         },
         floatingActionButton = {
-            TransitCodeFab(
-                expanded = fabState.expanded,
-                onClick = { onEvent(BusHomeEvent.TransitCodeClicked) },
-                // 底栏（页签）盖在页面上面，按钮要让开它；底栏收起时再把它挪到系统导航栏上方
-                modifier = Modifier
-                    .padding(bottom = BOTTOM_BAR_HEIGHT)
-                    .offset { IntOffset(0, bottomBarCollapseOffset().roundToInt()) }
-            )
+            // 「我的」里关掉了就不显示（用 NFC 刷卡的人嫌它挡住列表最后几条）
+            if (state.showTransitCodeButton) {
+                TransitCodeFab(
+                    expanded = fabState.expanded,
+                    onClick = { onEvent(BusHomeEvent.TransitCodeClicked) },
+                    // 底栏（页签）盖在页面上面，按钮要让开它；底栏收起时再把它挪到系统导航栏上方
+                    modifier = Modifier
+                        .padding(bottom = BOTTOM_BAR_HEIGHT)
+                        .offset { IntOffset(0, bottomBarCollapseOffset().roundToInt()) }
+                )
+            }
         },
         // 一次性消息：一条一条显示，显示完回报
         snackbarHost = {
@@ -149,8 +152,9 @@ fun BusHomeScreen(
                     start = innerPadding.calculateStartPadding(layoutDirection),
                     end = innerPadding.calculateEndPadding(layoutDirection),
                     top = innerPadding.calculateTopPadding(),
-                    // 留出底栏和悬浮按钮的高度，最后一个站不被挡住
-                    bottom = innerPadding.calculateBottomPadding() + BOTTOM_BAR_HEIGHT + FAB_CLEARANCE
+                    // 留出底栏和悬浮按钮的高度，最后一个站不被挡住（按钮关掉了就不用留）
+                    bottom = innerPadding.calculateBottomPadding() + BOTTOM_BAR_HEIGHT +
+                        if (state.showTransitCodeButton) FAB_CLEARANCE else 0.dp
                 ),
                 verticalArrangement = Arrangement.spacedBy(TrackrTheme.dimens.spaceS)
             ) {

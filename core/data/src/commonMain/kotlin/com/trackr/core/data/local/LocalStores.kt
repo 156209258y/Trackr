@@ -32,6 +32,8 @@ data class TransitLocalSnapshot(
     /** 数据源（`EngineMode` 的名字）；旧的聚合配置在读出时已换成主数据源 */
     val engineMode: String? = null,
     val transitCodeProvider: String? = null,
+    /** 首页「乘车码」悬浮按钮显不显示；没存过为 null，按显示 */
+    val showTransitCodeButton: Boolean? = null,
     val nearbyStopsCount: Int? = null,
     val liveNotificationEnabled: Boolean? = null,
     val showOnLockScreen: Boolean? = null,
@@ -51,6 +53,7 @@ interface TransitLocalStore {
     suspend fun saveSelectedCityJson(json: String)
     suspend fun saveEngineMode(name: String)
     suspend fun saveTransitCodeProvider(id: String)
+    suspend fun saveShowTransitCodeButton(enabled: Boolean)
     suspend fun saveNearbyStopsCount(count: Int)
     suspend fun saveLiveNotificationEnabled(enabled: Boolean)
     suspend fun saveShowOnLockScreen(enabled: Boolean)

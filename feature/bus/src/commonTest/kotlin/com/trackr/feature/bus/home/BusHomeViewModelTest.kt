@@ -212,6 +212,22 @@ class BusHomeViewModelTest {
     }
 
     @Test
+    fun testTransitCodeButtonVisibility_followsSetting() = runTest(main.dispatcher) {
+        val viewModel = createViewModel()
+        testScheduler.runCurrent()
+        // 默认显示
+        assertTrue(viewModel.uiState.value.showTransitCodeButton)
+
+        fakeRepository.settings.setShowTransitCodeButton(false)
+        testScheduler.runCurrent()
+        assertFalse(viewModel.uiState.value.showTransitCodeButton)
+
+        fakeRepository.settings.setShowTransitCodeButton(true)
+        testScheduler.runCurrent()
+        assertTrue(viewModel.uiState.value.showTransitCodeButton)
+    }
+
+    @Test
     fun testEngineModeSwitching() = runTest(main.dispatcher) {
         val viewModel = createViewModel()
         testScheduler.runCurrent()

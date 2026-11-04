@@ -39,6 +39,9 @@ object SettingsKeys {
     val SELECTED_CITY_JSON = stringPreferencesKey("selected_city_json")
     val ENGINE_MODE = stringPreferencesKey("engine_mode")
     val PREFERRED_TRANSIT_CODE_PROVIDER = stringPreferencesKey("preferred_transit_code_provider")
+
+    /** 首页右下角的「乘车码」悬浮按钮（用 NFC 刷卡的关掉，免得挡住列表）；没有 = 显示 */
+    val SHOW_TRANSIT_CODE_BUTTON = booleanPreferencesKey("show_transit_code_button")
     val NEARBY_STOPS_COUNT = intPreferencesKey("nearby_stops_count")
     val LIVE_NOTIFICATION_ENABLED = booleanPreferencesKey("is_live_notification_enabled")
 

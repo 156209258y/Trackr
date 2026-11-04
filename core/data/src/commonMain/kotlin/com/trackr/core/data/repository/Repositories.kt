@@ -45,6 +45,12 @@ interface SettingsRepository {
     /** 实时数据源，二选一（D1） */
     val engineMode: StateFlow<EngineMode>
     val preferredTransitCodeProvider: StateFlow<TransitCodeProvider>
+
+    /**
+     * 首页右下角的「乘车码」悬浮按钮显不显示，默认显示。
+     * 用 NFC 刷卡的人用不到它，开着反而挡住列表最后几条，所以可以在「我的」里关掉。
+     */
+    val showTransitCodeButton: StateFlow<Boolean>
     val nearbyStopsCount: StateFlow<Int>
     val isLiveNotificationEnabled: StateFlow<Boolean>
 
@@ -78,6 +84,7 @@ interface SettingsRepository {
     fun dismissFontScalePrompt()
     suspend fun selectCity(city: TransitCity)
     suspend fun setPreferredTransitCodeProvider(provider: TransitCodeProvider)
+    fun setShowTransitCodeButton(enabled: Boolean)
 }
 
 /**

@@ -203,6 +203,13 @@ class BusHomeViewModel(
             }
         }
 
+        // 首页右下角的「乘车码」按钮显不显示（「我的」里的开关）
+        viewModelScope.launch {
+            settings.showTransitCodeButton.collect { visible ->
+                edit { it.copy(showTransitCodeButton = visible) }
+            }
+        }
+
         // 初始化加载支持的城市
         loadSupportedCities()
 

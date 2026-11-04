@@ -133,6 +133,16 @@ class BusHomeScreenTest {
     }
 
     @Test
+    fun transitCodeButton_hiddenWhenTurnedOff() {
+        setContent(stateOf().copy(showTransitCodeButton = false))
+
+        composeTestRule.onNodeWithTag(TRANSIT_CODE_FAB_TAG).assertDoesNotExist()
+        // 其他内容照常：城市名、收藏都在
+        composeTestRule.onNodeWithText("深圳").assertIsDisplayed()
+        composeTestRule.onNodeWithText("科技园站上车").assertIsDisplayed()
+    }
+
+    @Test
     fun favoriteRow_showsBoardStopAndDirection_clickOpensLine_editOpensEditor() {
         setContent(stateOf())
 

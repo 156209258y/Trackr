@@ -60,6 +60,9 @@ class FakeSettingsRepository(
     private val _preferredTransitCodeProvider = MutableStateFlow(initialTransitCodeProvider)
     override val preferredTransitCodeProvider: StateFlow<TransitCodeProvider> = _preferredTransitCodeProvider.asStateFlow()
 
+    private val _showTransitCodeButton = MutableStateFlow(true)
+    override val showTransitCodeButton: StateFlow<Boolean> = _showTransitCodeButton.asStateFlow()
+
     private val _nearbyStopsCount = MutableStateFlow(4)
     override val nearbyStopsCount: StateFlow<Int> = _nearbyStopsCount.asStateFlow()
 
@@ -107,6 +110,10 @@ class FakeSettingsRepository(
 
     override fun setShowOnLockScreen(enabled: Boolean) {
         _showOnLockScreen.value = enabled
+    }
+
+    override fun setShowTransitCodeButton(enabled: Boolean) {
+        _showTransitCodeButton.value = enabled
     }
 
     override fun setAlertThresholdStops(stops: Int) {
