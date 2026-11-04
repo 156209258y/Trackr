@@ -75,8 +75,6 @@ import androidx.compose.ui.unit.sp
 import androidx.navigationevent.NavigationEventInfo
 import androidx.navigationevent.compose.NavigationBackHandler
 import androidx.navigationevent.compose.rememberNavigationEventState
-import com.trackr.core.designsystem.component.DataSourceBadge
-import com.trackr.core.designsystem.component.DataSourceBadgeStyle
 import com.trackr.core.designsystem.component.FullscreenErrorView
 import com.trackr.core.designsystem.component.FullscreenLoadingView
 import com.trackr.core.designsystem.resources.Res
@@ -96,7 +94,6 @@ import com.trackr.core.designsystem.resources.transit_code
 import com.trackr.core.designsystem.theme.busColors
 import com.trackr.core.model.BusLineDetail
 import com.trackr.core.model.BusStop
-import com.trackr.core.model.DataSourceType
 import com.trackr.core.model.LineOperatingState
 import com.trackr.core.model.LiveBus
 import com.trackr.core.model.RailMode
@@ -258,7 +255,6 @@ fun LineDetailScreen(
         topBar = {
             LineTopBar(
                 title = static?.line?.displayLineName?.takeIf { it.isNotBlank() } ?: state.lineNameHint,
-                source = static?.line?.source,
                 isFavorite = state.isFavorite,
                 actionsEnabled = static != null && state.selectedStop != null,
                 onBack = { onEvent(LineDetailEvent.Back) },
@@ -480,7 +476,6 @@ fun LineDetailScreen(
 @Composable
 private fun LineTopBar(
     title: String,
-    source: DataSourceType?,
     isFavorite: Boolean,
     actionsEnabled: Boolean,
     onBack: () -> Unit,
@@ -489,26 +484,13 @@ private fun LineTopBar(
 ) {
     TopAppBar(
         title = {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = title,
-                    fontSize = 22.sp,
-                    fontWeight = FontWeight.Black,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f, fill = false)
-                )
-                if (source != null) {
-                    Spacer(modifier = Modifier.width(8.dp))
-                    DataSourceBadge(
-                        style = when (source) {
-                            DataSourceType.CHELAILE -> DataSourceBadgeStyle.CHELAILE
-                            DataSourceType.MYGOLBS -> DataSourceBadgeStyle.MYGOLBS
-                        },
-                        text = source.displayName
-                    )
-                }
-            }
+            Text(
+                text = title,
+                fontSize = 22.sp,
+                fontWeight = FontWeight.Black,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
         },
         navigationIcon = {
             IconButton(onClick = onBack) {
