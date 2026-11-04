@@ -4,6 +4,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performTouchInput
 import com.trackr.core.designsystem.theme.TrackrTheme
 import com.trackr.core.model.FavoriteGroup
@@ -84,6 +85,65 @@ class FavoritesEditDragTest {
 
         assertEquals(listOf("stop_b", "stop_a", "stop_c"), current.value.map { it.key })
     }
+
+    /**
+     * 落位的位移只该作用在被拖那行上：让过位的行静态位置已经到了落点，仓库回写后不该再动一丝。
+     * 前一版把残留的位移继续套在「第几行」上、再补间回 0，真机上看着就是松手后又插了一次。
+     */
+    @Test
+    fun releasedRowsDoNotMoveAgainWhenTheRepositoryWritesBack() {
+        val items = listOf(stop("a", "325", "科技园站"), stop("b", "M194", "深大北门"), stop("c", "19", "高新园"))
+        val byKey = items.associateBy { it.key }
+        val current = mutableStateOf(items)
+        rule.setContent {
+            TrackrTheme {
+                FavoritesEditScreen(
+                    items = current.value,
+                    favoriteGroups = listOf(group),
+                    onEvent = { event ->
+                        // 真仓库也是这样：松手后几乎立刻回写
+                        if (event is FavoritesEditEvent.MoveItems) {
+                            current.value = event.keys.mapNotNull { byKey[it] }
+                        }
+                    }
+                )
+            }
+        }
+
+        val handle = rule.onAllNodesWithContentDescription("拖动排序", useUnmergedTree = true)[1]
+
+        rule.mainClock.autoAdvance = false
+        handle.performTouchInput { down(center) }
+        rule.mainClock.advanceTimeBy(1_000)
+        handle.performTouchInput { moveBy(Offset(0f, 100f)) }
+        rule.mainClock.advanceTimeBy(250)
+        handle.performTouchInput { up() }
+        rule.mainClock.advanceTimeBy(32)
+
+        assertEquals(listOf("stop_b", "stop_a", "stop_c"), current.value.map { it.key })
+
+        // 回写之后让过位的这两行就该定住了（落位动画只该作用在被拖那行上）
+        val rightAfterWriteBack = listOf("stop_b", "stop_c").associateWith { rowTop(it) }
+        rule.mainClock.advanceTimeBy(300)
+        listOf("stop_b", "stop_c").forEach { key ->
+            assertEquals(
+                "仓库回写后 $key 又动了一下：回写时 ${rightAfterWriteBack.getValue(key)}，之后 ${rowTop(key)}",
+                rightAfterWriteBack.getValue(key),
+                rowTop(key),
+                2f
+            )
+        }
+
+        rule.mainClock.autoAdvance = true
+        rule.waitForIdle()
+
+        // 被拖的那行最终停在 b 下面
+        assertTrue("落位后 a 应该在 b 下面", rowTop("stop_a") > rowTop("stop_b"))
+    }
+
+    /** 一行在屏幕上的上沿（含拖动位移） */
+    private fun rowTop(key: String): Float =
+        rule.onNodeWithTag("favorite_row_$key").fetchSemanticsNode().boundsInRoot.top
 
     @Test
     fun draggingToTheBottomEdge_scrollsTheListOnItsOwn() {
