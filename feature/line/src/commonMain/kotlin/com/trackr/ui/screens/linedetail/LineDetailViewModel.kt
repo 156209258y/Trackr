@@ -115,6 +115,8 @@ data class LineDetailUiState(
     val isRefreshing: Boolean = false,
     /** 用户下拉触发的刷新还没完成（只有它画下拉圈） */
     val isPullRefreshing: Boolean = false,
+    /** 换向请求进行中：底栏换向钮转圈并禁用，避免连点改两次线路 */
+    val isSwitchingDirection: Boolean = false,
     val static: LineStatic? = null,
     val live: LineLive? = null,
     val selectedStop: BusStop? = null,
@@ -626,44 +628,62 @@ class LineDetailViewModel(
     }
 
     /**
-     * 换向：用 RouteProjectionMath.findOppositeStop 找反向线路上的同名候车站。
+     * 换向（底栏圆钮）：用 RouteProjectionMath.findOppositeStop 找反向线路上的同名候车站。
+     * 反向线没有同名站时退回默认候车站并提示，免得用户以为点错了。
      */
     fun switchOppositeDirection() {
+        val state = _uiState.value
+        if (state.isSwitchingDirection) return
         val detail = currentDetail ?: return
-        val reverse = detail.reverseDirection ?: return
-        val currentStop = _uiState.value.selectedStop ?: return
+        // lineId 为空的反向（旧缓存里可能有）请求不出去，直接当没有
+        val reverse = detail.reverseDirection?.takeIf { it.lineId.isNotBlank() } ?: return
+        val currentStop = state.selectedStop ?: return
+
+        // 换向换掉了线路方向，原来追的「本站」就不成立了：先结束追踪，别让后台继续追旧方向
+        val wasTracking = state.isTrackingThisStop
+        if (wasTracking) trackingController.stopTracking()
 
         viewModelScope.launch {
-            _uiState.update { it.copy(isLoading = true) }
+            _uiState.update { it.copy(isSwitchingDirection = true, isLoading = true) }
+            try {
+                currentLineId = reverse.lineId
+                currentSource = reverse.source
 
-            currentLineId = reverse.lineId
-            currentSource = reverse.source
+                val currentCity = settings.selectedCity.value
+                val reverseResult = realtime.getLineDetail(
+                    city = currentCity,
+                    lineId = reverse.lineId,
+                    source = reverse.source,
+                    lineNameHint = reverse.name
+                )
 
-            val currentCity = settings.selectedCity.value
-            val reverseResult = realtime.getLineDetail(
-                city = currentCity,
-                lineId = reverse.lineId,
-                source = reverse.source,
-                lineNameHint = reverse.name
-            )
+                reverseResult.onSuccess { revDetail ->
+                    val oppositeStop = RouteProjectionMath.findOppositeStop(
+                        currentStop = currentStop,
+                        reverseStops = revDetail.stops
+                    )
+                    val targetStop = oppositeStop ?: calculateDefaultStop(revDetail)
 
-            reverseResult.onSuccess { revDetail ->
-                val oppositeStop = RouteProjectionMath.findOppositeStop(
-                    currentStop = currentStop,
-                    reverseStops = revDetail.stops
-                ) ?: calculateDefaultStop(revDetail)
+                    applyDetail(revDetail, targetStop)
+                    _uiState.update { it.copy(panelMode = PanelMode.STATION_CARD, followedBusId = null) }
 
-                applyDetail(revDetail, oppositeStop)
-                _uiState.update { it.copy(panelMode = PanelMode.STATION_CARD, followedBusId = null) }
+                    if (oppositeStop == null && targetStop != null) {
+                        postMessage("反向线路没有「${currentStop.name}」，已选 ${targetStop.name}")
+                    }
+                    if (wasTracking) postMessage("已结束追踪")
 
-                // 若找到了对应站，立即拉取到该站的精确 ETA
-                if (oppositeStop != null) {
-                    loadLineDetail(isInitial = false, targetOrderOverride = oppositeStop.order)
+                    // 若找到了对应站，立即拉取到该站的精确 ETA
+                    if (targetStop != null) {
+                        loadLineDetail(isInitial = false, targetOrderOverride = targetStop.order)
+                    }
+                }.onFailure {
+                    // 线路 id 已经换成反向，回滚掉，否则接下来的轮询会一直请求错的方向
+                    currentLineId = detail.line.lineId
+                    currentSource = detail.line.source
+                    _uiState.update { it.copy(isLoading = false, errorMessage = "换向失败，请稍后重试") }
                 }
-            }.onFailure { ex ->
-                _uiState.update {
-                    it.copy(isLoading = false, errorMessage = "切换反向线路失败：${ex.message ?: "网络错误"}")
-                }
+            } finally {
+                _uiState.update { it.copy(isSwitchingDirection = false) }
             }
         }
     }

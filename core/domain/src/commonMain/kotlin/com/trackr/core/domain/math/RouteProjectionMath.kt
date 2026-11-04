@@ -57,16 +57,15 @@ object RouteProjectionMath {
     /**
      * 在反向线路站表中查找与当前选中站对应的同名候车站：
      * 1. 优先精确匹配全站名
-     * 2. 次选匹配剥离括号后的核心站名（唯一命中时采用）
-     * 3. 兜底返回按比例对称的站点或首站
+     * 2. 次选匹配剥离括号后的核心站名
+     *
+     * 找不到就返回 null，由调用方决定退到哪个默认站（换向要据此告诉用户「站变了」）。
      */
     fun findOppositeStop(currentStop: BusStop, reverseStops: List<BusStop>): BusStop? {
         if (reverseStops.isEmpty()) return null
         reverseStops.firstOrNull { it.name == currentStop.name }?.let { return it }
         val core = coreStopName(currentStop.name)
-        val coreMatches = reverseStops.filter { coreStopName(it.name) == core }
-        if (coreMatches.size == 1) return coreMatches.first()
-        return coreMatches.firstOrNull() ?: reverseStops.firstOrNull()
+        return reverseStops.firstOrNull { coreStopName(it.name) == core }
     }
 
     /**

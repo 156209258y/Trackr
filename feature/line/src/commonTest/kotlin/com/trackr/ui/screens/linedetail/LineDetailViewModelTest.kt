@@ -63,6 +63,7 @@ private class CountingLineRepository(
     private val delegate: FakeRealtimeRepository
 ) : RealtimeRepository by delegate {
     val lineDetailTargetOrders = mutableListOf<Int?>()
+    val lineIds = mutableListOf<String>()
     var gate: CompletableDeferred<Unit>? = null
 
     override suspend fun getLineDetail(
@@ -77,6 +78,7 @@ private class CountingLineRepository(
         directionHint: Int
     ): Result<BusLineDetail> {
         lineDetailTargetOrders += targetOrder
+        lineIds += lineId
         gate?.await()
         return delegate.getLineDetail(city, lineId, targetOrder, stationId, wgsLat, wgsLng, source, lineNameHint, directionHint)
     }
@@ -1066,5 +1068,128 @@ class LineDetailViewModelTest {
         assertEquals("line_002", state.static?.line?.lineId)
         assertEquals("人民广场", state.selectedStop?.name)
         assertEquals(PanelMode.STATION_CARD, state.panelMode)
+    }
+
+    // ---------- 底栏换向 ----------
+
+    @Test
+    fun switchDirection_staysSwitchingUntilReverseLineArrives() = runTest(main.dispatcher) {
+        val counting = CountingLineRepository(fakeRepository.realtime)
+        val viewModel = createViewModel(targetOrder = 2, realtime = counting)
+        testScheduler.runCurrent()
+
+        fakeRepository.lineDetailResult = Result.success(reverseDetail())
+        counting.gate = CompletableDeferred()
+        viewModel.switchOppositeDirection()
+        testScheduler.runCurrent()
+
+        // 请求还没回来：底栏换向钮转圈并禁用，挡住连点
+        assertTrue(viewModel.uiState.value.isSwitchingDirection)
+
+        counting.gate?.complete(Unit)
+        counting.gate = null
+        testScheduler.runCurrent()
+
+        assertFalse(viewModel.uiState.value.isSwitchingDirection)
+        assertEquals("line_002", viewModel.uiState.value.static?.line?.lineId)
+    }
+
+    @Test
+    fun switchDirection_whileTracking_endsTrackingFirst() = runTest(main.dispatcher) {
+        val viewModel = createViewModel(targetOrder = 2)
+        testScheduler.runCurrent()
+        assertTrue(viewModel.startTrackingSelectedStop())
+        testScheduler.runCurrent()
+        assertTrue(viewModel.uiState.value.isTrackingThisStop)
+
+        fakeRepository.lineDetailResult = Result.success(reverseDetail())
+        viewModel.switchOppositeDirection()
+        testScheduler.runCurrent()
+
+        assertEquals(1, trackingController.stopCount)
+        assertTrue(viewModel.uiState.value.userMessages.any { it.text == "已结束追踪" })
+        assertFalse(viewModel.uiState.value.isTrackingThisStop)
+    }
+
+    @Test
+    fun switchDirection_withoutSameNameStop_fallsBackAndExplains() = runTest(main.dispatcher) {
+        val viewModel = createViewModel(targetOrder = 2)
+        testScheduler.runCurrent()
+
+        // 反向线站名全不一样：只能退回默认候车站，并说明为什么换了站
+        val renamed = listOf(
+            BusStop(stopId = "r1", name = "甲站", order = 1),
+            BusStop(stopId = "r2", name = "乙站", order = 2),
+            BusStop(stopId = "r3", name = "丙站", order = 3)
+        )
+        fakeRepository.lineDetailResult = Result.success(reverseDetail(stops = renamed))
+        viewModel.switchOppositeDirection()
+        testScheduler.runCurrent()
+
+        val state = viewModel.uiState.value
+        assertEquals("甲站", state.selectedStop?.name)
+        assertEquals(
+            "反向线路没有「人民广场」，已选 甲站",
+            state.userMessages.single().text
+        )
+    }
+
+    @Test
+    fun switchDirection_failure_rollsBackToCurrentLine() = runTest(main.dispatcher) {
+        val counting = CountingLineRepository(fakeRepository.realtime)
+        val viewModel = createViewModel(targetOrder = 2, realtime = counting)
+        testScheduler.runCurrent()
+        counting.lineIds.clear()
+
+        fakeRepository.lineDetailResult = Result.failure(IllegalStateException("boom"))
+        viewModel.switchOppositeDirection()
+        testScheduler.runCurrent()
+
+        assertEquals("换向失败，请稍后重试", viewModel.uiState.value.errorMessage)
+        assertFalse(viewModel.uiState.value.isSwitchingDirection)
+
+        // 失败后线路 id 回滚：下一轮刷新仍然请求原来的方向
+        fakeRepository.lineDetailResult = Result.success(
+            BusLineDetail(line = forwardDirection, reverseDirection = reverseDirection, stops = stops, buses = buses, targetOrder = 2)
+        )
+        viewModel.refreshNow(fromPull = false)
+        testScheduler.runCurrent()
+        assertEquals("line_001", counting.lineIds.last())
+    }
+
+    @Test
+    fun switchDirection_blankReverseLineId_isIgnored() = runTest(main.dispatcher) {
+        // 旧缓存里可能留着 lineId 为空的反向：当没有，别发一条必然失败的请求
+        fakeRepository.lineDetailResult = Result.success(
+            BusLineDetail(
+                line = forwardDirection,
+                reverseDirection = reverseDirection.copy(lineId = ""),
+                stops = stops,
+                buses = buses,
+                targetOrder = 2
+            )
+        )
+        val counting = CountingLineRepository(fakeRepository.realtime)
+        val viewModel = createViewModel(targetOrder = 2, realtime = counting)
+        testScheduler.runCurrent()
+        counting.lineIds.clear()
+
+        viewModel.switchOppositeDirection()
+        testScheduler.runCurrent()
+
+        assertTrue(counting.lineIds.isEmpty())
+        assertEquals("line_001", viewModel.uiState.value.static?.line?.lineId)
+        assertFalse(viewModel.uiState.value.isSwitchingDirection)
+    }
+
+    private fun reverseDetail(stops: List<BusStop> = reversedStops()) = BusLineDetail(
+        line = reverseDirection,
+        reverseDirection = forwardDirection,
+        stops = stops,
+        buses = emptyList()
+    )
+
+    private fun reversedStops(): List<BusStop> = stops.reversed().mapIndexed { i, stop ->
+        stop.copy(stopId = "r${i + 1}", order = i + 1)
     }
 }

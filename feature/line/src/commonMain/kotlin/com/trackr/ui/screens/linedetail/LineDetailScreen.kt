@@ -34,6 +34,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
@@ -61,6 +62,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -103,6 +108,7 @@ import com.trackr.feature.line.resources.line_detail_loading
 import com.trackr.feature.line.resources.line_detail_reminder
 import com.trackr.feature.line.resources.line_detail_reverse
 import com.trackr.feature.line.resources.line_detail_stop_count
+import com.trackr.feature.line.resources.line_detail_switching
 import com.trackr.feature.line.resources.line_detail_timetable
 import com.trackr.feature.line.resources.line_detail_track_this
 import com.trackr.ui.components.message.HostMessage
@@ -185,7 +191,7 @@ fun LineDetailScreen(
     // 走向条样式是「我的」里的全局设置，线路页不提供切换入口
     val isHorizontalRail = state.railMode == RailMode.Horizontal
     // 从某个站点点进来：走向条直接跳到那一站，只跳一次。主卡固定在顶部，不会跟着跳走。
-    // 没带站序（搜索、收藏等）就保持从顶部开始；换向、选站、轮询都不会再跳。
+    // 没带站序（搜索、收藏等）就保持从顶部开始；选站、轮询都不会再跳（换向另有滚动，见下）
     var didJumpToEntryStop by rememberSaveable { mutableStateOf(false) }
     // 主卡可以收起成一行，把高度让给走向条；收起状态跟着页面保存
     var cardCollapsed by rememberSaveable { mutableStateOf(false) }
@@ -205,7 +211,7 @@ fun LineDetailScreen(
         }
     }
 
-    // 在「我的」改了走向条样式再回来：把新视图滚到当前候车站；换向、选站、轮询都不滚
+    // 在「我的」改了走向条样式再回来：把新视图滚到当前候车站；选站、轮询都不滚
     var previousRailMode by remember { mutableStateOf(state.railMode) }
     LaunchedEffect(state.railMode) {
         if (previousRailMode == state.railMode) return@LaunchedEffect
@@ -218,6 +224,24 @@ fun LineDetailScreen(
             stripScrollState.animateScrollTo(with(density) { (HorizontalRailColumnWidth * target).roundToPx() })
         } else {
             listState.animateScrollToItem(target)
+        }
+    }
+
+    // 换向后站表整个反过来：把走向条滚到新方向上的候车站（初次加载只记下线路，不滚）
+    var lastLineId by rememberSaveable { mutableStateOf<String?>(null) }
+    LaunchedEffect(static?.line?.lineId) {
+        val lineId = static?.line?.lineId ?: return@LaunchedEffect
+        val previous = lastLineId
+        lastLineId = lineId
+        if (previous == null || previous == lineId) return@LaunchedEffect
+        val stops = static.stops
+        val order = state.selectedStop?.order ?: return@LaunchedEffect
+        if (stops.none { it.order == order }) return@LaunchedEffect
+        val target = (routeRailItemIndex(stops, order) - 2).coerceAtLeast(0)
+        if (isHorizontalRail) {
+            stripScrollState.scrollTo(with(density) { (HorizontalRailColumnWidth * target).roundToPx() })
+        } else {
+            listState.scrollToItem(target)
         }
     }
 
@@ -247,7 +271,11 @@ fun LineDetailScreen(
                 LineBottomBar(
                     isTracking = state.isTrackingThisStop,
                     canTrack = state.selectedStop != null && state.live != null,
+                    // 没有反向线路（单程 / 环线 / 上游缺数据）就不占位；lineId 为空同样当没有
+                    canSwitchDirection = static.reverseDirection?.lineId?.isNotBlank() == true,
+                    isSwitchingDirection = state.isSwitchingDirection,
                     onToggleTracking = { onEvent(LineDetailEvent.ToggleTracking) },
+                    onSwitchDirection = { onEvent(LineDetailEvent.SwitchDirection) },
                     onOpenTransitCode = { onEvent(LineDetailEvent.OpenTransitCode) }
                 )
             }
@@ -317,7 +345,6 @@ fun LineDetailScreen(
                     Column(modifier = contentModifier) {
                         DirectionHeader(
                             static = static,
-                            onSwitchDirection = { onEvent(LineDetailEvent.SwitchDirection) },
                             onOpenTimetable = { onEvent(LineDetailEvent.OpenTimetable) }
                         )
                         if (hasError) {
@@ -488,11 +515,10 @@ private fun LineTopBar(
     )
 }
 
-/** 「始发 → 终点  换向」+「运营 05:30–23:30 · 票价 2元 · 共 24 站 · 时刻表 ›」。只读静态部分，轮询时不重组 */
+/** 「始发 → 终点」+「运营 05:30–23:30 · 票价 2元 · 共 24 站 · 时刻表 ›」。只读静态部分，轮询时不重组 */
 @Composable
 private fun DirectionHeader(
     static: LineStatic,
-    onSwitchDirection: () -> Unit,
     onOpenTimetable: () -> Unit
 ) {
     val line = static.line
@@ -501,38 +527,15 @@ private fun DirectionHeader(
             .fillMaxWidth()
             .padding(horizontal = 16.dp)
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                text = "${line.startStop} → ${line.endStop}",
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.weight(1f, fill = false)
-            )
-            // 反向切换只在这里一处（v3「换向贴在起终点旁」）
-            if (static.reverseDirection != null) {
-                Spacer(modifier = Modifier.width(8.dp))
-                Surface(
-                    onClick = onSwitchDirection,
-                    shape = MaterialTheme.shapes.small,
-                    color = MaterialTheme.colorScheme.secondaryContainer,
-                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = vectorResource(Res.drawable.ic_swap),
-                            contentDescription = null,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(text = stringResource(LineRes.string.line_detail_reverse), fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-                    }
-                }
-            }
-        }
+        // 换向已经挪到底栏，方向行整行留给站名，长站名不再被按钮挤掉
+        Text(
+            text = "${line.startStop} → ${line.endStop}",
+            style = MaterialTheme.typography.bodyLarge,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
         Row(verticalAlignment = Alignment.CenterVertically) {
             val meta = listOfNotNull(
                 stringResource(LineRes.string.line_detail_hours, line.firstTime.ifEmpty { "—" }, line.lastTime.ifEmpty { "—" }),
@@ -664,14 +667,22 @@ private fun rememberLineDetail(static: LineStatic, live: LineLive?): BusLineDeta
     )
 }
 
-/** 底栏：主按钮 + 乘车码（和首页悬浮按钮同一个位置）；自己让开系统导航栏 */
+/**
+ * 底栏：主按钮 + 换向 + 乘车码（和首页悬浮按钮同一个位置）；自己让开系统导航栏。
+ * 换向是高频动作，从方向行挪到这里常驻；反向线路不存在时不渲染，主按钮自动撑满。
+ */
 @Composable
 private fun LineBottomBar(
     isTracking: Boolean,
     canTrack: Boolean,
+    canSwitchDirection: Boolean,
+    isSwitchingDirection: Boolean,
     onToggleTracking: () -> Unit,
+    onSwitchDirection: () -> Unit,
     onOpenTransitCode: () -> Unit
 ) {
+    val switchDirectionLabel = stringResource(LineRes.string.line_detail_reverse)
+    val switchingDirectionLabel = stringResource(LineRes.string.line_detail_switching)
     Surface(
         color = MaterialTheme.colorScheme.surface,
         tonalElevation = 3.dp,
@@ -683,24 +694,32 @@ private fun LineBottomBar(
                 .windowInsetsPadding(WindowInsets.navigationBars)
                 .padding(horizontal = 16.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+            // 三钮并排时缝隙收窄，320dp 小屏也放得下「追踪这班车」
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             if (isTracking) {
                 OutlinedButton(
                     onClick = onToggleTracking,
                     shape = MaterialTheme.shapes.medium,
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                    contentPadding = PaddingValues(horizontal = 12.dp),
                     modifier = Modifier
                         .weight(1f)
                         .height(52.dp)
                 ) {
-                    Text(text = stringResource(Res.string.action_end_tracking), fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                    Text(
+                        text = stringResource(Res.string.action_end_tracking),
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1
+                    )
                 }
             } else {
                 Button(
                     onClick = onToggleTracking,
                     enabled = canTrack,
                     shape = MaterialTheme.shapes.medium,
+                    contentPadding = PaddingValues(horizontal = 12.dp),
                     modifier = Modifier
                         .weight(1f)
                         .height(52.dp)
@@ -711,7 +730,43 @@ private fun LineBottomBar(
                         modifier = Modifier.size(18.dp)
                     )
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text(text = stringResource(LineRes.string.line_detail_track_this), fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                    Text(
+                        text = stringResource(LineRes.string.line_detail_track_this),
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1
+                    )
+                }
+            }
+            if (canSwitchDirection) {
+                FilledTonalIconButton(
+                    onClick = onSwitchDirection,
+                    enabled = !isSwitchingDirection,
+                    shape = CircleShape,
+                    // 语义挂在按钮上：转圈时图标没了，读屏也还能读出「换向 · 换向中」
+                    modifier = Modifier
+                        .size(52.dp)
+                        .semantics {
+                            contentDescription = switchDirectionLabel
+                            if (isSwitchingDirection) stateDescription = switchingDirectionLabel
+                        }
+                ) {
+                    if (isSwitchingDirection) {
+                        // 换向要重新拉反向线路：转圈 + 禁用，挡住连点（否则会连改两次线路）
+                        CircularProgressIndicator(
+                            strokeWidth = 2.dp,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer,
+                            modifier = Modifier
+                                .size(18.dp)
+                                .clearAndSetSemantics { }
+                        )
+                    } else {
+                        Icon(
+                            imageVector = vectorResource(Res.drawable.ic_swap),
+                            contentDescription = null,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
                 }
             }
             FilledTonalIconButton(

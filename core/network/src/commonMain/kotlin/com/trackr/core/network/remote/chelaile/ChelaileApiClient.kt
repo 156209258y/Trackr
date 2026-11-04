@@ -710,12 +710,13 @@ class ChelaileApiClient(
             source = DataSourceType.CHELAILE
         )
 
-        // 反向线路
-        val otherlinesArr = data.optJSONArray("otherlines")
-        val reverseDirection = if (otherlinesArr != null && otherlinesArr.length() > 0) {
-            val revObj = otherlinesArr.getJSONObject(0)
+        // 反向线路：otherlines 为空 = 这条线没有对向（单程 / 环线 / 上游没维护）。
+        // lineId 为空也当没有：否则会造出一个「换向按钮在、点了必然失败」的反向线路。
+        val revObj = data.optJSONArray("otherlines")?.optJSONObject(0)
+        val reverseLineId = revObj?.optString("lineId").orEmpty()
+        val reverseDirection = if (revObj != null && reverseLineId.isNotBlank()) {
             BusLineDirection(
-                lineId = revObj.optString("lineId"),
+                lineId = reverseLineId,
                 name = name,
                 lineNo = lineNo,
                 direction = if (direction == 0) 1 else 0,

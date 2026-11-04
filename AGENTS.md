@@ -44,7 +44,7 @@
   - `:feature:bus`：v3 公交首页（第 19 步，全在 `commonMain`，包 `com.trackr.feature.bus`）：`BusHomeRoute` + 无状态 `BusHomeScreen(state, onEvent)`、`BusHomeViewModel`、城市选择。
   - `:feature:search`：搜索（`SearchViewModel`，entry 级，输入存 `SavedStateHandle`）。第 23 步起页面全在 commonMain：`SearchRoute` + 无状态 `SearchScreen(state, onEvent)`，结果行由 `searchRows()` 摊平；另依赖 `lifecycle-viewmodel-savedstate` 和 CMP 资源（用 `:core:designsystem` 的图标）。
   - `:feature:stop`：站点详情（`StopDetailViewModel`）。第 21 步起页面全在 commonMain：`StopDetailRoute` + 无状态 `StopDetailScreen(state, onEvent)`；选几条一起等、存成 1 程路线（`:core:domain` 的 `WatchTogetherRoute`）、一起等进行中视图、「上了哪辆？」导航弹层（`ScreenKey.ChooseBoardedBus` + `ChooseBoardedBusViewModel`，通知链接 `trackr://tracking/board` 和站点页遇到待选都打开它）。
-  - `:feature:line`：线路详情（`LineDetailViewModel`）、时刻表、走向条、定时提醒入口、乘车码弹层（`androidMain/res` 中英文案）。
+  - `:feature:line`：线路详情（`LineDetailViewModel`）、时刻表、走向条、定时提醒入口、乘车码弹层（`androidMain/res` 中英文案）；底栏 = 追踪主按钮 + 换向圆钮（单程线不占位）+ 乘车码。
   - `:feature:route`：路线规划（`RoutePlanViewModel`）、路线详情（`RouteDetailViewModel`，第 22 步起页面在 commonMain：每程候选线勾选、追踪、改名 / 改分组 / 生成返程 / 删除）；高德 Android SDK 封装（`AmapSdkManager`、`AmapSdkKeyApplier`、`AndroidAmapRouteGateway`、地图会话）放 `androidMain`，Koin 在 `routeAndroidModule`。另依赖 `:core:network`。
   - `:feature:favorites`：编辑收藏（`FavoritesEditViewModel`，第 22 步起页面在 commonMain）。第 33 步起读收藏合一仓库的 `FavoritesRepository.favoriteItems`（车 + 路线同一列，和首页「收藏」同一份数据）：拖动排序走 `move(keys)`、点一条改分组走 `setGroup`、删除按 key 分 `removeFavorite` / `removeRoute`，分组计数按 `groupId` 统计。旧收藏页的卡片、分组弹窗组件暂留 `androidMain`，第 29 步清理。
   - `:feature:me`：我的、定时提醒编辑、高德 Key、关于（`MeViewModel`、`ReminderEditViewModel`、`AmapKeyViewModel`、`AboutViewModel`）；页面都在 commonMain。
