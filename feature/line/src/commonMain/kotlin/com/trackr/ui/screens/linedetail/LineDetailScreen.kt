@@ -271,6 +271,8 @@ fun LineDetailScreen(
                     // 没有反向线路（单程 / 环线 / 上游缺数据）就不占位；lineId 为空同样当没有
                     canSwitchDirection = static.reverseDirection?.lineId?.isNotBlank() == true,
                     isSwitchingDirection = state.isSwitchingDirection,
+                    // 「我的」里关掉「显示乘车码按钮」后，底栏这个圆钮和首页悬浮按钮一起消失
+                    showTransitCode = state.showTransitCodeButton,
                     onToggleTracking = { onEvent(LineDetailEvent.ToggleTracking) },
                     onSwitchDirection = { onEvent(LineDetailEvent.SwitchDirection) },
                     onOpenTransitCode = { onEvent(LineDetailEvent.OpenTransitCode) }
@@ -677,6 +679,7 @@ private fun rememberLineDetail(static: LineStatic, live: LineLive?): BusLineDeta
 /**
  * 底栏：主按钮 + 换向 + 乘车码（和首页悬浮按钮同一个位置）；自己让开系统导航栏。
  * 换向是高频动作，从方向行挪到这里常驻；反向线路不存在时不渲染，主按钮自动撑满。
+ * [showTransitCode] 是「我的」里的开关（关掉后乘车码圆钮不占位，主按钮和换向铺满）。
  */
 @Composable
 private fun LineBottomBar(
@@ -684,6 +687,7 @@ private fun LineBottomBar(
     canTrack: Boolean,
     canSwitchDirection: Boolean,
     isSwitchingDirection: Boolean,
+    showTransitCode: Boolean,
     onToggleTracking: () -> Unit,
     onSwitchDirection: () -> Unit,
     onOpenTransitCode: () -> Unit
@@ -776,16 +780,18 @@ private fun LineBottomBar(
                     }
                 }
             }
-            FilledTonalIconButton(
-                onClick = onOpenTransitCode,
-                shape = CircleShape,
-                modifier = Modifier.size(52.dp)
-            ) {
-                Icon(
-                    imageVector = vectorResource(Res.drawable.ic_qr_code),
-                    contentDescription = stringResource(Res.string.transit_code),
-                    modifier = Modifier.size(24.dp)
-                )
+            if (showTransitCode) {
+                FilledTonalIconButton(
+                    onClick = onOpenTransitCode,
+                    shape = CircleShape,
+                    modifier = Modifier.size(52.dp)
+                ) {
+                    Icon(
+                        imageVector = vectorResource(Res.drawable.ic_qr_code),
+                        contentDescription = stringResource(Res.string.transit_code),
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
             }
         }
     }

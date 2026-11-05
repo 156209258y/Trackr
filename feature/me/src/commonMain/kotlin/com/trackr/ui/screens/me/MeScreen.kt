@@ -100,6 +100,7 @@ import com.trackr.feature.me.resources.me_status_chip_settings
 import com.trackr.feature.me.resources.me_status_chip_unsupported
 import com.trackr.feature.me.resources.me_title
 import com.trackr.feature.me.resources.me_transit_code_button
+import com.trackr.feature.me.resources.me_transit_code_button_desc
 import com.trackr.feature.me.resources.me_version
 import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.resources.vectorResource
@@ -180,7 +181,7 @@ fun MeScreen(
                     GroupDivider()
                     SwitchRow(
                         title = stringResource(MeRes.string.me_transit_code_button),
-                        subtitle = null,
+                        subtitle = stringResource(MeRes.string.me_transit_code_button_desc),
                         checked = state.showTransitCodeButton,
                         onCheckedChange = { onEvent(MeEvent.SetShowTransitCodeButton(it)) }
                     )

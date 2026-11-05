@@ -784,6 +784,19 @@ class StopDetailViewModelTest {
         assertEquals(TransitCodeProvider.UNIONPAY, settings.preferredTransitCodeProvider.value)
     }
 
+    /** 「显示乘车码按钮」开关和首页、线路页共用：关掉后站点页底栏也不画 */
+    @Test
+    fun testShowTransitCodeButton_followsGlobalSetting() = runTest(main.dispatcher) {
+        val viewModel = createViewModel()
+        testScheduler.runCurrent()
+        assertTrue(viewModel.uiState.value.showTransitCodeButton)
+
+        settings.setShowTransitCodeButton(false)
+        testScheduler.runCurrent()
+
+        assertFalse(viewModel.uiState.value.showTransitCodeButton)
+    }
+
     @Test
     fun testPullRefresh_showsIndicatorUntilDone() = runTest(main.dispatcher) {
         val repo = CountingStopRepository(fakeRepository)

@@ -137,6 +137,8 @@ data class LineDetailUiState(
     val isReminderDialogOpen: Boolean = false,
     val preferredTransitCodeProvider: TransitCodeProvider = TransitCodeProvider.ASK_ALWAYS,
     val isTransitCodeSheetOpen: Boolean = false,
+    /** 底栏「乘车码」圆钮显不显示（「我的」里的开关，和首页悬浮按钮同一个） */
+    val showTransitCodeButton: Boolean = true,
     /** 走向条样式（「我的」全局设置）：横排只有横条，竖排是时间轴列表 */
     val railMode: RailMode = RailMode.Horizontal,
     /** 当前追踪会话（页面据此判断「本站是否正在追踪」） */
@@ -260,6 +262,12 @@ class LineDetailViewModel(
         viewModelScope.launch {
             settings.preferredTransitCodeProvider.collectLatest { provider ->
                 _uiState.update { it.copy(preferredTransitCodeProvider = provider) }
+            }
+        }
+        // 底栏的「乘车码」圆钮和首页悬浮按钮共用一个开关（用 NFC 的人两边都不用看它）
+        viewModelScope.launch {
+            settings.showTransitCodeButton.collectLatest { visible ->
+                _uiState.update { it.copy(showTransitCodeButton = visible) }
             }
         }
         viewModelScope.launch {

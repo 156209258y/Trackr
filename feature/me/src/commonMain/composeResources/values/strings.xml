@@ -59,6 +59,7 @@
     <string name="me_rail_mode_desc">线路详情页的站点怎么排</string>
     <string name="me_group_travel">出行</string>
     <string name="me_transit_code_button">显示乘车码按钮</string>
+    <string name="me_transit_code_button_desc">关掉后首页、线路页、站点页都不再显示</string>
     <string name="me_arrival_alert">到站前提醒</string>
     <string name="me_arrival_alert_desc">车离上车站还剩几站时震动提醒</string>
     <string name="me_reminders">定时提醒</string>

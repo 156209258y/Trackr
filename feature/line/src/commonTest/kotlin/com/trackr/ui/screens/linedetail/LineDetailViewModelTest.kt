@@ -196,6 +196,19 @@ class LineDetailViewModelTest {
         assertEquals(RailMode.Vertical, viewModel.uiState.value.railMode)
     }
 
+    /** 底栏「乘车码」圆钮和首页悬浮按钮共用一个开关（用 NFC 的人两边都不用看） */
+    @Test
+    fun showTransitCodeButton_followsGlobalSetting() = runTest(main.dispatcher) {
+        val viewModel = createViewModel()
+        testScheduler.runCurrent()
+        assertTrue(viewModel.uiState.value.showTransitCodeButton)
+
+        fakeRepository.settings.setShowTransitCodeButton(false)
+        testScheduler.runCurrent()
+
+        assertFalse(viewModel.uiState.value.showTransitCodeButton)
+    }
+
     // ---------- 读给我听（第 33 步） ----------
 
     @Test

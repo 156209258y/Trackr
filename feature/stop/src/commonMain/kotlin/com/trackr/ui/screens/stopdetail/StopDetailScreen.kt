@@ -263,7 +263,7 @@ private fun StopDetailBottomBar(state: StopDetailUiState, watch: WatchTogetherUi
                     ) {
                         Text(stringResource(Res.string.action_end), color = MaterialTheme.colorScheme.error)
                     }
-                    TransitCodeButton(onEvent)
+                    if (state.showTransitCodeButton) TransitCodeButton(onEvent)
                 }
 
                 else -> {
@@ -275,7 +275,7 @@ private fun StopDetailBottomBar(state: StopDetailUiState, watch: WatchTogetherUi
                         Spacer(Modifier.width(6.dp))
                         Text(stringResource(StopRes.string.stop_pick_lines))
                     }
-                    TransitCodeButton(onEvent)
+                    if (state.showTransitCodeButton) TransitCodeButton(onEvent)
                 }
             }
         }

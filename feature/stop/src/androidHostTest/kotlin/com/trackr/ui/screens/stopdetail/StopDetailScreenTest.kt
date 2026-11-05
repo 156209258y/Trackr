@@ -126,6 +126,15 @@ class StopDetailScreenTest {
         )
     }
 
+    @Test
+    fun transitCodeButton_hiddenWhenSettingOff() {
+        // 「我的」里关掉「显示乘车码按钮」：站点页底栏这个圆钮也不留
+        setContent(base.copy(showTransitCodeButton = false))
+
+        composeTestRule.onNodeWithContentDescription("乘车码").assertDoesNotExist()
+        composeTestRule.onNodeWithText("选几条一起等").assertIsDisplayed()
+    }
+
     @GraphicsMode(GraphicsMode.Mode.NATIVE)
     @Test
     fun longLineName_withoutStationOrder_stillShowsHoursAndOpensLine() {

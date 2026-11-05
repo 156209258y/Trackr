@@ -27,7 +27,7 @@ import kotlinx.coroutines.launch
  * @param liveUpdate 状态栏胶囊的系统状态；平台没有这项（iOS）或实时通知关着时为 null，不显示那一行
  * @param amapKeyStatus 「高德 Key」那一行的状态文字
  * @param versionName 「关于」那一行显示的版本号；读不到为 null
- * @param showTransitCodeButton 首页右下角的「乘车码」悬浮按钮显不显示（`SettingsRepository.showTransitCodeButton`）
+ * @param showTransitCodeButton 「乘车码」按钮显不显示：首页悬浮按钮和线路页、站点页底栏的圆钮都听它（`SettingsRepository.showTransitCodeButton`）
  * @param elderMode 长辈版开关（`SettingsRepository.uiMode` 是不是 Elder）
  */
 data class MeUiState(

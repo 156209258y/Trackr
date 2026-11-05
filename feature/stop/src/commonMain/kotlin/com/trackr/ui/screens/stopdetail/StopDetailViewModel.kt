@@ -126,6 +126,12 @@ class StopDetailViewModel(
                 _uiState.update { it.copy(preferredTransitCodeProvider = provider) }
             }
         }
+        // 「我的」里关掉「显示乘车码按钮」后，底栏这个圆钮和首页、线路页一起不画
+        viewModelScope.launch {
+            settings.showTransitCodeButton.collectLatest { visible ->
+                _uiState.update { it.copy(showTransitCodeButton = visible) }
+            }
+        }
         // 同时可能追着好几项：只认这个站的那一份一起等（第 36 步）
         viewModelScope.launch {
             trackingRepository.sessions.collectLatest { onSession(watchSessionFor(it)) }
