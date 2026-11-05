@@ -26,7 +26,8 @@ val meModule = module {
             amapKeys = get(),
             notices = get(),
             liveUpdateAccess = getOrNull(),
-            versionName = getOrNull<AppVersionInfo>()?.name
+            versionName = getOrNull<AppVersionInfo>()?.name,
+            notificationHealthAccess = getOrNull()
         )
     }
     viewModel { (key: ScreenKey.ReminderEdit) ->

@@ -12,6 +12,8 @@ import com.trackr.core.model.UiMode
 import com.trackr.data.repository.IScheduledReminderRepository
 import com.trackr.ui.platform.LiveUpdateAccess
 import com.trackr.ui.platform.LiveUpdateStatus
+import com.trackr.ui.platform.NotificationHealth
+import com.trackr.ui.platform.NotificationHealthAccess
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -25,6 +27,7 @@ import kotlinx.coroutines.launch
  * @param alertThresholdStops 到站前提醒：车离上车站还有几站时提醒（1–3）
  * @param remindersSubtitle 「定时提醒」那一行的副标题（最早一条开着的提醒）；没有提醒为 null
  * @param liveUpdate 状态栏胶囊的系统状态；平台没有这项（iOS）或实时通知关着时为 null，不显示那一行
+ * @param notificationHealth 通知可靠性体检；全正常或平台没有这项（iOS）时为 null，不显示那一行
  * @param amapKeyStatus 「高德 Key」那一行的状态文字
  * @param versionName 「关于」那一行显示的版本号；读不到为 null
  * @param showTransitCodeButton 「乘车码」按钮显不显示：首页悬浮按钮和线路页、站点页底栏的圆钮都听它（`SettingsRepository.showTransitCodeButton`）
@@ -40,6 +43,8 @@ data class MeUiState(
     val isLiveNotificationEnabled: Boolean = true,
     val showOnLockScreen: Boolean = true,
     val liveUpdate: LiveUpdateStatus? = null,
+    /** 只在系统那边确实断了（没权限 / 渠道被降级）时才有值，正常时 null */
+    val notificationHealth: NotificationHealth? = null,
     val amapKeyStatus: String = amapKeyStatusText(hasMapKey = false, canShowMap = false),
     val versionName: String? = null,
     val elderMode: Boolean = false,
@@ -57,6 +62,9 @@ sealed interface MeEvent {
     data class SetLiveNotificationEnabled(val enabled: Boolean) : MeEvent
     data class SetShowOnLockScreen(val enabled: Boolean) : MeEvent
     data object OpenLiveUpdateSettings : MeEvent
+
+    /** 到站强提醒被系统降级 / 关掉时，那一行的「去开启」 */
+    data object OpenAlertChannelSettings : MeEvent
     data class SetElderMode(val enabled: Boolean) : MeEvent
     data class SetRailMode(val mode: RailMode) : MeEvent
     data class MessageShown(val id: Long) : MeEvent
@@ -75,10 +83,16 @@ class MeViewModel(
     private val amapKeys: AmapKeyRepository,
     private val notices: MeNotices,
     private val liveUpdateAccess: LiveUpdateAccess? = null,
-    private val versionName: String? = null
+    private val versionName: String? = null,
+    private val notificationHealthAccess: NotificationHealthAccess? = null
 ) : ViewModel() {
 
     private val liveUpdateStatus = MutableStateFlow(liveUpdateAccess?.status())
+
+    private val notificationHealthStatus = MutableStateFlow(notificationHealthAccess?.status())
+
+    /** 两个平台状态的合流：`combine` 的 5 参数重载已经用满，先把这两个并成一个 */
+    private val platformStatus = combine(liveUpdateStatus, notificationHealthStatus) { live, health -> live to health }
 
     private val settingsPart = combine(
         settings.engineMode,
@@ -98,11 +112,11 @@ class MeViewModel(
     val uiState: StateFlow<MeUiState> = combine(
         settingsPart,
         reminderRepository.reminders,
-        liveUpdateStatus,
+        platformStatus,
         mapKeyStatus,
         notices.messages
-    ) { part, reminders, liveUpdate, keyStatus, messages ->
-        buildState(part, reminders, liveUpdate, keyStatus, messages)
+    ) { part, reminders, platform, keyStatus, messages ->
+        buildState(part, reminders, platform.first, platform.second, keyStatus, messages)
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.Eagerly,
@@ -119,6 +133,7 @@ class MeViewModel(
             ),
             reminderRepository.reminders.value,
             liveUpdateStatus.value,
+            notificationHealthStatus.value,
             amapKeyStatusText(amapKeys.hasMapKey.value, amapKeys.canShowMap.value),
             notices.messages.value
         )
@@ -138,6 +153,7 @@ class MeViewModel(
             is MeEvent.SetLiveNotificationEnabled -> settings.setLiveNotificationEnabled(event.enabled)
             is MeEvent.SetShowOnLockScreen -> settings.setShowOnLockScreen(event.enabled)
             MeEvent.OpenLiveUpdateSettings -> liveUpdateAccess?.openSettings()
+            MeEvent.OpenAlertChannelSettings -> notificationHealthAccess?.openAlertChannelSettings()
             // 第 30 步只换主题；长辈版导航和页面在第 31–34 步
             is MeEvent.SetElderMode -> settings.setUiMode(if (event.enabled) UiMode.Elder else UiMode.Standard)
             is MeEvent.SetRailMode -> settings.setRailMode(event.mode)
@@ -147,15 +163,17 @@ class MeViewModel(
         }
     }
 
-    /** 回到前台时重查状态栏胶囊权限（用户可能刚从系统设置回来） */
+    /** 回到前台时重查状态栏胶囊权限和通知体检（用户可能刚从系统设置回来） */
     fun onScreenResumed() {
         liveUpdateStatus.value = liveUpdateAccess?.status()
+        notificationHealthStatus.value = notificationHealthAccess?.status()
     }
 
     private fun buildState(
         part: SettingsPart,
         reminders: List<ScheduledReminder>,
         liveUpdate: LiveUpdateStatus?,
+        notificationHealth: NotificationHealth?,
         keyStatus: String,
         messages: List<UserMessage>
     ) = MeUiState(
@@ -171,6 +189,8 @@ class MeViewModel(
         railMode = part.railMode,
         // 和原来一样：实时通知关着时不显示胶囊权限
         liveUpdate = liveUpdate?.takeIf { part.liveNotification },
+        // 只在真有问题时出现，正常时那一行不该占地方
+        notificationHealth = notificationHealth?.takeIf { !it.healthy },
         amapKeyStatus = keyStatus,
         versionName = versionName,
         userMessages = messages

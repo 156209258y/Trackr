@@ -76,6 +76,11 @@
     <string name="me_status_chip_settings">通知设置</string>
     <string name="me_status_chip_on">已开启</string>
     <string name="me_status_chip_off">去开启</string>
+    <string name="me_notify_broken">提醒可能收不到</string>
+    <string name="me_notify_broken_permission">系统里没给通知权限，到站时既没有横幅也不会响</string>
+    <string name="me_notify_broken_channel">「到站强提醒」被调成静音了，到站时没有横幅和声音</string>
+    <string name="me_notify_broken_live">「实时通知」渠道被关掉了，追踪进度不会显示</string>
+    <string name="me_notify_fix">去开启</string>
     <string name="me_group_map">地图</string>
     <string name="me_about_app">关于追客</string>
     <string name="me_version">版本 %1$s</string>

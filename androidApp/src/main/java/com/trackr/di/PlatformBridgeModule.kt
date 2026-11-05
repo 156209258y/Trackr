@@ -1,8 +1,12 @@
 package com.trackr.di
 
+import android.app.NotificationManager
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
+import android.provider.Settings
+import androidx.core.app.NotificationManagerCompat
 import com.trackr.BuildConfig
 import com.trackr.core.data.local.LocalMigrationFlags
 import com.trackr.core.data.local.StoreMigrationFlags
@@ -15,12 +19,16 @@ import com.trackr.core.domain.platform.TransitCodeLauncher
 import com.trackr.core.model.TransitCodeProvider
 import com.trackr.data.repository.ITransitRepository
 import com.trackr.platform.speech.AndroidTtsAnnouncer
+import com.trackr.service.ArrivalAlertNotifier
+import com.trackr.service.LiveProgressNotifier
 import com.trackr.service.vendor.LiveUpdatePromotion
 import com.trackr.service.vendor.OppoFluidCloudAdapter
 import com.trackr.service.vendor.XiaomiFocusAdapter
 import com.trackr.ui.platform.LiveUpdateAccess
 import com.trackr.ui.platform.LiveUpdateSettings
 import com.trackr.ui.platform.LiveUpdateStatus
+import com.trackr.ui.platform.NotificationHealth
+import com.trackr.ui.platform.NotificationHealthAccess
 import com.trackr.util.SignatureUtils
 import com.trackr.util.TransitCodeHelper
 import kotlinx.coroutines.flow.StateFlow
@@ -43,6 +51,8 @@ val platformBridgeModule: Module = module {
     single<LiveUpdateSettings> { AndroidLiveUpdateSettings }
     // 「我的」页「状态栏胶囊」那一行（第 25 步）
     single<LiveUpdateAccess> { AndroidLiveUpdateAccess(androidContext(), get()) }
+    // 「我的」页的通知可靠性体检：通知权限 / 到站强提醒渠道 / 追踪进度渠道
+    single<NotificationHealthAccess> { AndroidNotificationHealthAccess(androidContext()) }
     single<UserLocationStore> { TransitUserLocationStore(get()) }
     // 收藏分组一次性数据修复的版本号（原来在 viewModelModule 里给 FavoritesGroupViewModel 现建）
     single<LocalMigrationFlags> { StoreMigrationFlags(get()) }
@@ -125,6 +135,39 @@ class AndroidLiveUpdateAccess(
             settings.isColorOs() -> settings.openFluidCloudSettings(appContext)
             else -> settings.openAppNotificationSettings(appContext)
         }
+    }
+}
+
+/**
+ * 「我的」页的通知可靠性体检：只查系统真给得出的三件事——通知总开关、到站强提醒渠道的重要级别、
+ * 追踪进度渠道有没有被关。锁屏通知开关和「横幅」子开关没有公开 API，不在这里猜。
+ */
+class AndroidNotificationHealthAccess(context: Context) : NotificationHealthAccess {
+    private val appContext: Context = context.applicationContext ?: context
+
+    override fun status(): NotificationHealth {
+        val enabled = runCatching {
+            NotificationManagerCompat.from(appContext).areNotificationsEnabled()
+        }.getOrDefault(true)
+        val manager = appContext.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
+        val alert = manager?.getNotificationChannel(ArrivalAlertNotifier.CHANNEL_ID_ALERT)
+        val live = manager?.getNotificationChannel(LiveProgressNotifier.CHANNEL_ID_LIVE_PROGRESS)
+        return NotificationHealth(
+            notificationsEnabled = enabled,
+            // 没有渠道（还没追过一次）不算异常：第一次追踪时会按 IMPORTANCE_HIGH 建出来
+            alertChannelAudible = alert == null || alert.importance >= NotificationManager.IMPORTANCE_HIGH,
+            liveChannelOff = live != null && live.importance == NotificationManager.IMPORTANCE_NONE
+        )
+    }
+
+    override fun openAlertChannelSettings() {
+        val intent = Intent(Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS).apply {
+            putExtra(Settings.EXTRA_APP_PACKAGE, appContext.packageName)
+            putExtra(Settings.EXTRA_CHANNEL_ID, ArrivalAlertNotifier.CHANNEL_ID_ALERT)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        val opened = runCatching { appContext.startActivity(intent) }.isSuccess
+        if (!opened) LiveUpdatePromotion.openAppNotificationSettings(appContext)
     }
 }
 

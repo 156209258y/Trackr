@@ -88,6 +88,11 @@ import com.trackr.feature.me.resources.me_live_notify_desc
 import com.trackr.feature.me.resources.me_lockscreen
 import com.trackr.feature.me.resources.me_lockscreen_full
 import com.trackr.feature.me.resources.me_lockscreen_hidden
+import com.trackr.feature.me.resources.me_notify_broken
+import com.trackr.feature.me.resources.me_notify_broken_channel
+import com.trackr.feature.me.resources.me_notify_broken_live
+import com.trackr.feature.me.resources.me_notify_broken_permission
+import com.trackr.feature.me.resources.me_notify_fix
 import com.trackr.feature.me.resources.me_reminders
 import com.trackr.feature.me.resources.me_reminders_count
 import com.trackr.feature.me.resources.me_reminders_empty
@@ -227,6 +232,23 @@ fun MeScreen(
                         checked = state.showOnLockScreen,
                         onCheckedChange = { onEvent(MeEvent.SetShowOnLockScreen(it)) }
                     )
+                    // 系统那边把提醒关了 / 降级了：说清楚是哪一项，点一下直达对应设置页
+                    state.notificationHealth?.let { health ->
+                        GroupDivider()
+                        SettingRow(
+                            title = stringResource(MeRes.string.me_notify_broken),
+                            subtitle = when {
+                                !health.notificationsEnabled ->
+                                    stringResource(MeRes.string.me_notify_broken_permission)
+                                !health.alertChannelAudible ->
+                                    stringResource(MeRes.string.me_notify_broken_channel)
+                                else -> stringResource(MeRes.string.me_notify_broken_live)
+                            },
+                            value = stringResource(MeRes.string.me_notify_fix),
+                            valueColor = TrackrTheme.colors.warn,
+                            onClick = { onEvent(MeEvent.OpenAlertChannelSettings) }
+                        )
+                    }
                     state.liveUpdate?.let { liveUpdate ->
                         GroupDivider()
                         SettingRow(
