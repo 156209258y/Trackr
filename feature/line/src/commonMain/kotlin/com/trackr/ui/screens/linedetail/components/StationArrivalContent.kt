@@ -5,9 +5,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
-import androidx.compose.foundation.MarqueeSpacing
 import androidx.compose.foundation.background
-import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -273,7 +271,7 @@ fun StationArrivalContent(
  * 以前是「XX站上车」，遇上「人民东路学海路（南汇大学城）」这种长站名，主卡一行就被挤满了（#23）；
  * 上车点是主卡本身的意思，不必每个字都写出来，点它仍可以换站。
  *
- * 站名长到装不下时不打省略号，而是在胶囊里慢慢滚过去（滚完停一下再从头来），
+ * 站名长到装不下时不打省略号，而是在胶囊里慢慢滚过去（见 [overflowMarquee]），
  * 这样多长的站名都能看全，也不会顶掉右边的「追踪中 / 第 N 站」。
  */
 @Composable
@@ -293,13 +291,7 @@ private fun StopPickChip(stop: BusStop?, onClick: () -> Unit, modifier: Modifier
             softWrap = false,
             modifier = Modifier
                 .padding(horizontal = 10.dp, vertical = 4.dp)
-                .basicMarquee(
-                    initialDelayMillis = 900,
-                    repeatDelayMillis = 1400,
-                    velocity = 36.dp,
-                    // 滚回开头时隔一小段，别让尾巴和开头挤在一起像两段站名
-                    spacing = MarqueeSpacing(24.dp)
-                )
+                .overflowMarquee()
         )
     }
 }

@@ -123,6 +123,7 @@ import com.trackr.ui.screens.linedetail.components.BusFollowContent
 import com.trackr.ui.screens.linedetail.components.BusListContent
 import com.trackr.ui.screens.linedetail.components.FavoriteGroupPickerSheet
 import com.trackr.ui.screens.linedetail.components.StationArrivalContent
+import com.trackr.ui.screens.linedetail.components.overflowMarquee
 import kotlin.math.roundToInt
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
@@ -525,14 +526,15 @@ private fun DirectionHeader(
             .fillMaxWidth()
             .padding(horizontal = 16.dp)
     ) {
-        // 换向已经挪到底栏，方向行整行留给站名，长站名不再被按钮挤掉
+        // 换向已经挪到底栏，方向行整行留给站名；站名太长时在行里滚，不打省略号
         Text(
             text = "${line.startStop} → ${line.endStop}",
             style = MaterialTheme.typography.bodyLarge,
             fontWeight = FontWeight.SemiBold,
             color = MaterialTheme.colorScheme.onSurface,
             maxLines = 1,
-            overflow = TextOverflow.Ellipsis
+            softWrap = false,
+            modifier = Modifier.overflowMarquee()
         )
         Row(verticalAlignment = Alignment.CenterVertically) {
             val meta = listOfNotNull(

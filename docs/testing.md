@@ -119,6 +119,7 @@ Koin 由 `TrackrApp.onCreate` 启动，Robolectric 用例里每个用例都会�
 |  | `ChooseBoardedBusViewModelTest` | 「上了哪辆？」导航弹层（`ScreenKey.ChooseBoardedBus`）：有待选时显示每辆车和终点、选了交给 `TrackingController`、「还没上」后关；没有待选、链接里是别的会话、追踪结束都关 | commonTest（JVM；iOS 未验） |
 | `:feature:line` `ui/screens/linedetail` | `LineDetailViewModelTest` | 线路详情（第 20 步 v3）：初次加载拆成静态 / 实时两半（带目标站序只请求一次、不带时为默认站补一次）；选站 / 手动刷新后下一轮从那一刻起再等 10 秒；下拉刷新只在下拉时画圈；站表先读磁盘缓存（网络没回来先显示、不挡请求、站表变了才写回、静态部分沿用旧实例、缓存上点过的站不被初次结果改掉）；跟车；收藏切换及提示条（有分组时带「换分组」、换分组后提示）；定时提醒保存并提示；换向找同名站；乘车码弹层与偏好；追踪当前站（提前 2 站）和「追踪本站」判断；车都过了用时刻表补下一班（快来的车不用）；上一轮没回来跳过；回到页面只在过时时刷新 | commonTest（JVM；iOS 只编译和链接测试，不跑） |
 |  | `BusFollowContentTest` | 跟车内容渲染与空车辆处理 | Robolectric Compose UI |
+|  | `LineDetailEntryScrollTest` | 从某个站点点进线路页：整页（含走向条）直接跳到那一站、主卡不被裁、收起 / 展开卡片、横排竖排两种走向条都跳到位；顶上「始发 → 终点」站名太长时滚动而不是打省略号 | Robolectric Compose UI |
 |  | `StationArrivalContentTest` | 线路页主卡：在路上（大字分钟、小字站数、车牌、预计到达、下一辆）、到站了、车都过了只给下一班始发时间（没有时用时刻表或提示）、首班、末班已过、实时没回来显示「正在查车…」、追踪中标记、预警 chips 已去掉、「全线 N 辆车在途 · 查看」与候车站胶囊（只写站名、长站名在胶囊里滚动不省略）点击；反向切换按钮不在主卡 | Robolectric Compose UI |
 | `:feature:line` `ui/components` | `ExpressiveRouteRailUiTest` | 竖向走向条（第 20 步删了横向）渲染与点击、「候车中」标记、放进 `LazyColumn` 的 `routeRailItems` 渲染与点击、车辆标签不进文字、线段颜色 | Robolectric Compose UI |
 |  | `HorizontalRouteRailUiTest` | 横排走向条：站名竖排但读屏读完整站名、点站换候车、点车标跟随、空站表不画、长站名按字数给足高度不被省略号吃、贴满整宽；带括号的站名整段一个 Text、括号那几行换全角空格占位再画上横版括号（对齐字心、不再拆成单字，见 #23） | Robolectric Compose UI |

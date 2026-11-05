@@ -1,5 +1,7 @@
 package com.trackr.ui.screens.linedetail
 
+import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotDisplayed
@@ -15,7 +17,10 @@ import com.trackr.core.model.BusLineDirection
 import com.trackr.core.model.BusStop
 import com.trackr.core.model.LiveBus
 import com.trackr.core.model.RailMode
+import androidx.compose.ui.text.TextLayoutResult
 import com.trackr.ui.components.HorizontalRailTags
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -89,6 +94,29 @@ class LineDetailEntryScrollTest {
 
         composeTestRule.onNodeWithContentDescription("S01").assertIsDisplayed()
         composeTestRule.onNodeWithContentDescription("S20").assertIsNotDisplayed()
+    }
+
+    @Test
+    fun longDirectionNames_scrollInsteadOfEllipsis() {
+        // 顶上的「始发 → 终点」站名太长时不打省略号，交给跑马灯滚
+        val longLine = line.copy(
+            startStop = "人民东路学海路（南汇大学城）",
+            endStop = "申昆路公交枢纽站（西区）"
+        )
+        val state = stateOf(entryStopOrder = null)
+        show(state.copy(static = LineStatic(longLine, null, stops)))
+
+        val text = "人民东路学海路（南汇大学城） → 申昆路公交枢纽站（西区）"
+        val results = mutableListOf<TextLayoutResult>()
+        composeTestRule.onNodeWithText(text, useUnmergedTree = true)
+            .fetchSemanticsNode()
+            .config.getOrNull(SemanticsActions.GetTextLayoutResult)
+            ?.action
+            ?.invoke(results)
+
+        val layout = results.single()
+        assertEquals(1, layout.lineCount)
+        assertFalse("方向行被截成省略号", layout.isLineEllipsized(0))
     }
 
     @Test
