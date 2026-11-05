@@ -1,6 +1,7 @@
 package com.trackr.service
 
 import android.app.Application
+import android.app.Notification
 import android.app.NotificationManager
 import androidx.test.core.app.ApplicationProvider
 import com.trackr.TrackrApp
@@ -174,6 +175,48 @@ class ArrivalAlertManagerTest {
         val text = posted?.extras?.getCharSequence("android.text")?.toString().orEmpty()
         val expectedHours = TrackingEngine.MAX_TRACKING_DURATION_MILLIS / 3_600_000L
         assertTrue("文案里的时长应与常量一致，实际：$text", text.contains("$expectedHours 小时"))
+    }
+
+    /**
+     * D3：强提醒的锁屏可见性跟「我的 → 锁屏显示」走。
+     * 不设的话 `Notification.visibility` 默认 PRIVATE，用户把系统锁屏设成「隐藏敏感内容」时，
+     * 到站提醒在锁屏上只剩「内容已隐藏」，震动照响但看不到是哪条线哪个站。
+     */
+    private fun alertsWithLockScreen(setting: () -> Boolean) =
+        ArrivalAlertNotifier(liveNotifier, showOnLockScreenSetting = setting).apply {
+            liveNotificationEnabledProvider = { true }
+            liveUpdateActiveChecker = { false }
+        }
+
+    @Test
+    fun testStandaloneAlert_lockScreenOn_isPublic() {
+        alertsWithLockScreen { true }
+            .triggerArrivedAlert(app, activeTrackingState(stopsRemaining = 0).copy(isBusArrivedAtStop = true))
+
+        val posted = shadowOf(notificationManager).getNotification(ArrivalAlertNotifier.NOTIFICATION_ID_ARRIVED)
+        assertNotNull(posted)
+        assertEquals(Notification.VISIBILITY_PUBLIC, posted!!.visibility)
+    }
+
+    @Test
+    fun testStandaloneAlert_lockScreenOff_isPrivateWithoutPublicVersion() {
+        alertsWithLockScreen { false }
+            .triggerApproachingAlert(app, activeTrackingState(stopsRemaining = 2))
+
+        val posted = shadowOf(notificationManager).getNotification(ArrivalAlertNotifier.NOTIFICATION_ID_APPROACHING)
+        assertNotNull(posted)
+        assertEquals(Notification.VISIBILITY_PRIVATE, posted!!.visibility)
+        assertNull("关掉锁屏显示时不给公开版本，锁屏上不该出现站名", posted.publicVersion)
+    }
+
+    @Test
+    fun testStandaloneAlert_lockScreenSettingThrows_fallsBackToPublic() {
+        alertsWithLockScreen { error("读不到设置") }
+            .triggerTrackingExpired(app, activeTrackingState(stopsRemaining = 3))
+
+        val posted = shadowOf(notificationManager).getNotification(ArrivalAlertNotifier.NOTIFICATION_ID_EXPIRED)
+        assertNotNull(posted)
+        assertEquals(Notification.VISIBILITY_PUBLIC, posted!!.visibility)
     }
 
     private fun activeTrackingState(stopsRemaining: Int) = TrackingSessionState(
