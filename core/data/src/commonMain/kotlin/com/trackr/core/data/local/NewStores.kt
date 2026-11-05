@@ -113,7 +113,8 @@ class RoomFavoritesStore(private val db: TrackrDatabase) : FavoritesStore {
             stops = rows.stops.map { it.toModel() },
             routes = if (rows.routes.isEmpty()) null else rows.routes.map { it.toModel() },
             groups = if (rows.groups.isEmpty()) null else rows.groups.map { it.toModel() },
-            items = if (rows.items.isEmpty()) null else rows.items.mapNotNull { it.toRecordOrNull() }
+            items = if (rows.items.isEmpty()) null else rows.items.mapNotNull { it.toRecordOrNull() },
+            groupsInitialized = rows.groupsInitialized
         )
     }
 
@@ -123,7 +124,8 @@ class RoomFavoritesStore(private val db: TrackrDatabase) : FavoritesStore {
             routes = change.routes?.mapIndexed { index, route -> route.toRows(index) },
             groups = change.groups?.mapIndexed { index, group -> group.toEntity(index) },
             items = change.items?.map { it.toEntity() },
-            itemUpdates = change.itemUpdates.map { it.toEntity() }
+            itemUpdates = change.itemUpdates.map { it.toEntity() },
+            markGroupsInitialized = change.markGroupsInitialized
         )
     }
 }

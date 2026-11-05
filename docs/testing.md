@@ -172,7 +172,7 @@ Koin 由 `TrackrApp.onCreate` 启动，Robolectric 用例里每个用例都会�
 |  | `LocationRepositoryTest` | 首页取定位：够新够准直接用、强制刷新 10 秒 / 平时 60 秒、4.5 秒窗口取最准且 ≤100 m 提前结束、超过 10 分钟的旧定位不用、无权限不定位；规划页 lastKnown 取 10 分钟内最准的 | commonTest（JVM + iOS 模拟器） |
 |  | `CountyLevelCityMatchTest` | 县级市/县城匹配与省份校验 | commonTest（JVM + iOS 模拟器） |
 | `:core:data` `route` | `RoutePlanRepositoryTest` | `DefaultRoutePlanRepository` 缓存（第 17 步）：同城、同坐标、同一 15 分钟时间桶的算路命中缓存，跨时间桶重新算；输入提示按城市 + 关键字缓存，空结果不缓存 | commonTest（JVM + iOS 模拟器） |
-| `:core:data` `repository` | `FavoritesRepositoryTest` | 收藏合一（第 14 步）在 Room 内存库上：车和路线合并排序（新车在最前、新路线在最后）、拖动排序（跨类型、只给几条）、改分组、删分组后车和路线都变不分组、旧数据迁入后顺序和分组不变、启动对账（删孤儿行、补缺的）、默认分组、清理假数据、并发写不丢 | Robolectric（只 JVM） |
+| `:core:data` `repository` | `FavoritesRepositoryTest` | 收藏合一（第 14 步）在 Room 内存库上：车和路线合并排序（新车在最前、新路线在最后）、拖动排序（跨类型、只给几条）、改分组、删分组后车和路线都变不分组、旧数据迁入后顺序和分组不变、启动对账（删孤儿行、补缺的）、默认分组（只在从没建过分组时写，删光后重开不再补回来）、清理假数据、并发写不丢 | Robolectric（只 JVM） |
 | `:core:data` | `TrackrDatabaseMigrationTest` | 库 1 -> 2：按 `schemas/.../1.json` 手工建版本 1 的库再用正式 builder 打开，`favorite_item` 按原顺序生成（车在前、路线按 sortOrder），分组按收藏页原来的规则补，旧表一行不变，仓库读出的顺序和分组和升级前一样；空库、重开 | Robolectric（只 JVM） |
 | `:core:data` `legacy` | `LegacyLibraryMigrationTest` | 旧 SharedPreferences -> Room / DataStore：每个旧 key 一条（收藏、搜索历史、路线、收藏分组、收藏合一索引 `favorite_items_json`、提醒 + 计划触发时刻、6 个设置（聚合优先级不导入）、两个 Key 槽，含 0a4fdab 之前存在 `trackr_prefs` 的 Key 与「Key 文件优先」）；旧文件前后一字不差；损坏 JSON 不崩、只跳过那一项、原文复制到 `legacy_backup/`；已有 `_corrupt_backup_` 原样复制；同一代只跑一次、换代只替换旧文件里有的项；库重建后重新导入 | Robolectric（只 JVM） |
 |  | `SettingsMigrationTest` | 设置和 Key 的只读 DataMigration：按类型搬、旧的聚合配置（`engine_mode = ALL` 或没存 + 优先级）落成主数据源（D1）、类型不对跳过、旧 key 不删、同一代不重跑、再导只覆盖旧文件里有的 key、空的旧 Key 不清掉新 Key、Key 不进设置文件 | Robolectric（只 JVM） |
