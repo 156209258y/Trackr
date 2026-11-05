@@ -1,8 +1,10 @@
 package com.trackr.ui.screens.linedetail
 
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -76,7 +78,7 @@ class LineDetailEntryScrollTest {
         show(stateOf(entryStopOrder = 20))
 
         // 走向条跳到第 20 站，主卡仍在顶上显示这一站的候车信息
-        composeTestRule.onNodeWithText("S20站上车").assertIsDisplayed()
+        composeTestRule.onNodeWithText("S20").assertIsDisplayed()
         composeTestRule.onNodeWithContentDescription("S20").assertIsDisplayed()
         composeTestRule.onNodeWithContentDescription("S01").assertIsNotDisplayed()
     }
@@ -94,8 +96,9 @@ class LineDetailEntryScrollTest {
         // 走向条样式来自「我的」设置，线路页没有切换按钮
         show(stateOf(entryStopOrder = 20).copy(railMode = RailMode.Vertical))
 
-        composeTestRule.onNodeWithText("S20").assertIsDisplayed()
-        composeTestRule.onNodeWithText("S01").assertIsNotDisplayed()
+        // 竖排走向条滚到第 20 站：主卡胶囊和走向条各出现一次「S20」，第 1 站没被组合出来
+        composeTestRule.onAllNodesWithText("S20").assertCountEquals(2)
+        composeTestRule.onNodeWithText("S01").assertDoesNotExist()
     }
 
     @Test
@@ -144,7 +147,7 @@ class LineDetailEntryScrollTest {
 
         // 收起：详细内容消失，只剩候车站、到站和展开按钮
         composeTestRule.onNodeWithText("第 20 站").assertDoesNotExist()
-        composeTestRule.onNodeWithText("S20站上车").assertIsDisplayed()
+        composeTestRule.onNodeWithText("S20").assertIsDisplayed()
         composeTestRule.onNodeWithContentDescription("展开卡片").assertIsDisplayed()
 
         composeTestRule.onNodeWithContentDescription("展开卡片").performClick()
