@@ -68,7 +68,6 @@ internal object BusHomeTags {
     const val SEARCH = "bus_home_search"
     const val TRACKING_CARD = "bus_home_tracking"
     const val STOP_TRACKING = "bus_home_stop_tracking"
-    const val WATCH_MORE = "bus_home_watch_more"
     const val EDIT_FAVORITES = "bus_home_edit_favorites"
     const val NEARBY_HEADER = "bus_home_nearby_header"
     fun favoriteRow(key: String) = "bus_home_fav_$key"
@@ -158,12 +157,13 @@ fun BusHomeScreen(
                 ),
                 verticalArrangement = Arrangement.spacedBy(TrackrTheme.dimens.spaceS)
             ) {
-                state.trackingCard?.let { card ->
-                    item(key = "tracking", contentType = "tracking") {
+                // 同时追多项时一项一张卡（一起等的每条线也各一张），各自点进自己的线路页
+                state.trackingCards.forEach { card ->
+                    item(key = card.key, contentType = "tracking") {
                         TrackingCard(
                             card = card,
                             onOpen = { onEvent(BusHomeEvent.OpenLine(card.open)) },
-                            onStop = { onEvent(BusHomeEvent.StopTracking) }
+                            onStop = { onEvent(BusHomeEvent.StopTracking(card.sessionId, card.watchLineId)) }
                         )
                     }
                 }

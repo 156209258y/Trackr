@@ -94,9 +94,10 @@ class ArrivalAlertNotifier(
     /**
      * 当车辆距离目标候车站 stopsRemaining <= state.alertThresholdStops 时触发强提醒通知及三段式节奏震动
      */
-    fun triggerApproachingAlert(context: Context, state: TrackingSessionState) {
+    fun triggerApproachingAlert(context: Context, state: TrackingSessionState, sessionId: String = "") {
         ensureNotificationChannel(context)
-        cancelCounterpart(context, NOTIFICATION_ID_ARRIVED)
+        val notificationId = alertNotificationId(NOTIFICATION_ID_APPROACHING, sessionId)
+        cancelCounterpart(context, alertNotificationId(NOTIFICATION_ID_ARRIVED, sessionId))
 
         var posted = false
         if (shouldPostStandaloneNotification(context, state)) {
@@ -108,7 +109,7 @@ class ArrivalAlertNotifier(
             val title = "【即将到站】${state.lineName}"
             val content = "距 ${state.targetStopName} 还有 ${state.stopsRemaining} 站$etaText，请准备上车/下车！"
 
-            val contentPendingIntent = createMainActivityPendingIntent(context, NOTIFICATION_ID_APPROACHING)
+            val contentPendingIntent = createMainActivityPendingIntent(context, notificationId)
 
             val notification = NotificationCompat.Builder(context, CHANNEL_ID_ALERT)
                 .setSmallIcon(R.drawable.ic_stat_trackr)
@@ -123,7 +124,7 @@ class ArrivalAlertNotifier(
                 .build()
 
             try {
-                NotificationManagerCompat.from(context).notify(NOTIFICATION_ID_APPROACHING, notification)
+                NotificationManagerCompat.from(context).notify(notificationId, notification)
                 posted = areNotificationsEnabled(context)
             } catch (e: SecurityException) {
                 Log.w(TAG, "Cannot post approaching alert: missing POST_NOTIFICATIONS permission", e)
@@ -143,17 +144,19 @@ class ArrivalAlertNotifier(
     fun triggerArrivedAlert(
         context: Context,
         state: TrackingSessionState,
-        forceStandalone: Boolean = false
+        forceStandalone: Boolean = false,
+        sessionId: String = ""
     ) {
         ensureNotificationChannel(context)
-        cancelCounterpart(context, NOTIFICATION_ID_APPROACHING)
+        val notificationId = alertNotificationId(NOTIFICATION_ID_ARRIVED, sessionId)
+        cancelCounterpart(context, alertNotificationId(NOTIFICATION_ID_APPROACHING, sessionId))
 
         var posted = false
         if (forceStandalone || shouldPostStandaloneNotification(context, state)) {
             val title = "【车辆已到站】${state.lineName}"
             val content = "${state.lineName} 已到达 ${state.targetStopName}！请注意上车/下车。"
 
-            val contentPendingIntent = createMainActivityPendingIntent(context, NOTIFICATION_ID_ARRIVED)
+            val contentPendingIntent = createMainActivityPendingIntent(context, notificationId)
 
             val notification = NotificationCompat.Builder(context, CHANNEL_ID_ALERT)
                 .setSmallIcon(R.drawable.ic_stat_trackr)
@@ -168,7 +171,7 @@ class ArrivalAlertNotifier(
                 .build()
 
             try {
-                NotificationManagerCompat.from(context).notify(NOTIFICATION_ID_ARRIVED, notification)
+                NotificationManagerCompat.from(context).notify(notificationId, notification)
                 posted = areNotificationsEnabled(context)
             } catch (e: SecurityException) {
                 Log.w(TAG, "Cannot post arrived alert: missing POST_NOTIFICATIONS permission", e)
@@ -185,16 +188,22 @@ class ArrivalAlertNotifier(
     /**
      * 当换乘行程第一程到达换乘站时触发换乘提醒及节拍震动，通知用户准备下车换乘
      */
-    fun triggerTransferAlert(context: Context, transferStationName: String, nextLineName: String) {
+    fun triggerTransferAlert(
+        context: Context,
+        transferStationName: String,
+        nextLineName: String,
+        sessionId: String = ""
+    ) {
         ensureNotificationChannel(context)
+        val notificationId = alertNotificationId(NOTIFICATION_ID_TRANSFER, sessionId)
         // 换乘站即本程下车站：只保留换乘提醒，清掉同一站的到站 / 临近通知，避免连发两条
-        cancelCounterpart(context, NOTIFICATION_ID_ARRIVED)
-        cancelCounterpart(context, NOTIFICATION_ID_APPROACHING)
+        cancelCounterpart(context, alertNotificationId(NOTIFICATION_ID_ARRIVED, sessionId))
+        cancelCounterpart(context, alertNotificationId(NOTIFICATION_ID_APPROACHING, sessionId))
 
         val title = "【换乘提醒】到达 $transferStationName"
         val content = "已到达换乘站 $transferStationName，已自动切换追踪下一程：$nextLineName"
 
-        val contentPendingIntent = createMainActivityPendingIntent(context, NOTIFICATION_ID_TRANSFER)
+        val contentPendingIntent = createMainActivityPendingIntent(context, notificationId)
 
         val notification = NotificationCompat.Builder(context, CHANNEL_ID_ALERT)
             .setSmallIcon(R.drawable.ic_stat_trackr)
@@ -210,7 +219,7 @@ class ArrivalAlertNotifier(
 
         var posted = false
         try {
-            NotificationManagerCompat.from(context).notify(NOTIFICATION_ID_TRANSFER, notification)
+            NotificationManagerCompat.from(context).notify(notificationId, notification)
             posted = areNotificationsEnabled(context)
         } catch (e: SecurityException) {
             Log.w(TAG, "Cannot post transfer alert: missing POST_NOTIFICATIONS permission", e)
@@ -268,6 +277,13 @@ class ArrivalAlertNotifier(
 
     private fun areNotificationsEnabled(context: Context): Boolean =
         runCatching { NotificationManagerCompat.from(context).areNotificationsEnabled() }.getOrDefault(true)
+
+    /**
+     * 同时追多项时每项的到站 / 临近提醒各用一组 id：不同项的提醒不互相顶掉、也不互相取消。
+     * [sessionId] 为空时还是原来的固定 id（旧调用 / 没有会话的场景）。
+     */
+    private fun alertNotificationId(base: Int, sessionId: String): Int =
+        if (sessionId.isEmpty()) base else base * 4096 + (sessionId.hashCode() and 0xFFF)
 
     private fun cancelCounterpart(context: Context, notificationId: Int) {
         try {

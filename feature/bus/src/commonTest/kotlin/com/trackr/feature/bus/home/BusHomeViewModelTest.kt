@@ -466,7 +466,7 @@ class BusHomeViewModelTest {
         assertTrue(viewModel.uiState.value.activeTracking.isActive)
         assertEquals("line_71", viewModel.uiState.value.activeTracking.lineId)
 
-        viewModel.stopTracking()
+        viewModel.stopTracking(assertNotNull(trackingRepository.session.value).sessionId)
         testScheduler.runCurrent()
 
         assertEquals(1, trackingController.stopCount)
@@ -728,7 +728,7 @@ class BusHomeViewModelTest {
     fun testTrackingCard_singleLine_endedByStopTracking() = runTest(main.dispatcher) {
         val viewModel = createViewModel()
         testScheduler.runCurrent()
-        assertNull(viewModel.uiState.value.trackingCard)
+        assertTrue(viewModel.uiState.value.trackingCards.isEmpty())
 
         trackingController.start(
             TrackingTarget.SingleLine(
@@ -744,7 +744,7 @@ class BusHomeViewModelTest {
         )
         testScheduler.runCurrent()
 
-        val card = assertNotNull(viewModel.uiState.value.trackingCard)
+        val card = viewModel.uiState.value.trackingCards.single()
         assertEquals("追踪 71路 · 人民广场", card.title)
         // 长辈版「读给我听」：还没选到车时读「正在查车」
         assertEquals("71路，正在查车", card.spoken)
@@ -753,11 +753,43 @@ class BusHomeViewModelTest {
         // 点卡片按会话里的数据源打开线路页（旧首页写死 CHELAILE）
         assertEquals(DataSourceType.MYGOLBS, card.open.source)
 
-        viewModel.onEvent(BusHomeEvent.StopTracking)
+        viewModel.onEvent(BusHomeEvent.StopTracking(card.sessionId))
         testScheduler.runCurrent()
         assertEquals(1, trackingController.stopCount)
-        assertNull(viewModel.uiState.value.trackingCard)
+        assertTrue(viewModel.uiState.value.trackingCards.isEmpty())
         assertNull(trackingRepository.groupSession.value)
+    }
+
+    @Test
+    fun testTrackingCards_twoLines_stopOnlyTheOne() = runTest(main.dispatcher) {
+        val viewModel = createViewModel()
+        testScheduler.runCurrent()
+
+        fun target(lineId: String, lineName: String, order: Int) = TrackingTarget.SingleLine(
+            cityId = "034",
+            lineId = lineId,
+            lineName = lineName,
+            targetStopId = "stop_$order",
+            targetStopName = "人民广场",
+            targetOrder = order,
+            totalStops = 20
+        )
+        trackingController.start(target("line_71", "71路", 5))
+        trackingController.start(target("line_59", "59路", 9))
+        testScheduler.runCurrent()
+
+        // 两项同时追：两张卡，各写自己的线路、各点进自己的线路页
+        val cards = viewModel.uiState.value.trackingCards
+        assertEquals(listOf("追踪 71路 · 人民广场", "追踪 59路 · 人民广场"), cards.map { it.title })
+        assertEquals(listOf("line_71", "line_59"), cards.map { it.open.lineId })
+
+        // 结束第一张：只停那一项，第二项还在
+        viewModel.onEvent(BusHomeEvent.StopTracking(cards[0].sessionId))
+        testScheduler.runCurrent()
+
+        assertEquals(1, trackingController.stopCount)
+        assertEquals(listOf("line_59"), viewModel.uiState.value.trackingCards.map { it.open.lineId })
+        assertEquals(1, trackingRepository.sessions.value.size)
     }
 
     // ---- 第 33 步：读给我听 ----

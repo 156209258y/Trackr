@@ -2,6 +2,7 @@ package com.trackr.feature.bus.home
 
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -96,7 +97,7 @@ class BusHomeScreenTest {
             favorites = if (withFavorites) listOf(fav) else emptyList(),
             favoriteItems = if (withFavorites) listOf(FavoriteItem.Stop(fav, groupId = null, sortOrder = 0)) else emptyList(),
             favoriteGroups = groups,
-            trackingSession = session,
+            trackingSessions = listOfNotNull(session),
             nearbyStops = listOf(nearby)
         )
         return BusHomeMapper.derive(BusHomeUiState(), raw)
@@ -176,30 +177,27 @@ class BusHomeScreenTest {
     }
 
     @Test
-    fun watchTogetherCard_foldsExtraLines_andExpandsOnTap() {
-        setContent(stateOf(session = watchSession(lineCount = 5)))
+    fun watchTogether_oneCardPerLine_eachOpensItsOwnLine() {
+        setContent(stateOf(session = watchSession(lineCount = 3)))
 
-        composeTestRule.onNodeWithText("一起等 5 条 · 科技园站").assertIsDisplayed()
-        composeTestRule.onNodeWithText("2 分钟").assertIsDisplayed()
-        composeTestRule.onNodeWithText("L1 先到 · 还有 1 站").assertIsDisplayed()
-        // 大字 1 条 + 下面 2 条，剩下 2 条折叠
-        composeTestRule.onNodeWithText("L2").assertIsDisplayed()
-        composeTestRule.onNodeWithText("L3").assertIsDisplayed()
-        composeTestRule.onNodeWithText("L4").assertDoesNotExist()
-        composeTestRule.onNodeWithText("还有 2 条").performClick()
-        composeTestRule.onNodeWithText("L4").assertIsDisplayed()
-        composeTestRule.onNodeWithText("L5").assertIsDisplayed()
+        composeTestRule.onNodeWithText("追踪 L1 · 科技园站").assertIsDisplayed()
+        composeTestRule.onNodeWithText("追踪 L3 · 科技园站").assertIsDisplayed()
 
-        composeTestRule.onNodeWithTag(BusHomeTags.STOP_TRACKING).performClick()
-        assertEquals(BusHomeEvent.StopTracking, events.last())
+        // 第二张卡点进去是 L2 的线路页
+        composeTestRule.onAllNodesWithTag(BusHomeTags.TRACKING_CARD)[1].performClick()
+        val opened = events.last() as BusHomeEvent.OpenLine
+        assertEquals("w2", opened.target.lineId)
+        assertEquals("L2", opened.target.lineName)
     }
 
     @Test
-    fun watchTogetherCard_fewLines_noFoldButton() {
-        setContent(stateOf(session = watchSession(lineCount = 2)))
+    fun watchTogether_stopOnlyRemovesThatLine() {
+        setContent(stateOf(session = watchSession(lineCount = 3)))
 
-        composeTestRule.onNodeWithText("一起等 2 条 · 科技园站").assertIsDisplayed()
-        composeTestRule.onNodeWithTag(BusHomeTags.WATCH_MORE).assertDoesNotExist()
+        val stops = composeTestRule.onAllNodesWithTag(BusHomeTags.STOP_TRACKING)
+        assertEquals(3, stops.fetchSemanticsNodes().size)
+        stops[0].performClick()
+        assertEquals(BusHomeEvent.StopTracking("x", "w1"), events.last())
     }
 
     @Test

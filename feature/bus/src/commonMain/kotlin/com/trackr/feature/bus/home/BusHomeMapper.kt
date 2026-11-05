@@ -11,6 +11,7 @@ import com.trackr.core.model.LegPhase
 import com.trackr.core.model.NearbyStop
 import com.trackr.core.model.NearbyStopLineStatus
 import com.trackr.core.model.TrackingSession
+import com.trackr.core.model.TrackingTarget
 import com.trackr.core.model.TransitGroup
 import com.trackr.core.model.WatchedLine
 import com.trackr.core.model.displayLineName
@@ -25,22 +26,33 @@ import com.trackr.ui.components.arrival.ArrivalUi
  */
 internal object BusHomeMapper {
 
-    /** 一起等卡片里大字之外直接显示几条线，多的折叠成「还有 N 条」（R6） */
-    const val WATCH_LINES_SHOWN = 2
-
     /** 重新算 UI 模型；和 [old] 相等的行沿用旧实例，列表没变就沿用旧列表（§4.1，强跳过靠 ===） */
     fun derive(old: BusHomeUiState, new: BusHomeUiState): BusHomeUiState {
-        val card = trackingCard(new.trackingSession).reuse(old.trackingCard)
+        val cards = reuseList(old.trackingCards, trackingCards(new.trackingSessions), TrackingCardUi::key)
         val rows = reuseList(old.favoriteRows, favoriteRows(new), FavoriteRowUi::key)
         val nearby = reuseList(old.nearbyCards, nearbyCards(new), NearbyStopUi::key)
-        return new.copy(trackingCard = card, favoriteRows = rows, nearbyCards = nearby)
+        return new.copy(trackingCards = cards, favoriteRows = rows, nearbyCards = nearby)
     }
 
     // ---- 追踪卡 ----
 
-    fun trackingCard(session: TrackingSession?): TrackingCardUi? {
-        val state = session?.state ?: return null
-        if (!state.isActive) return null
+    /**
+     * 每一项追踪一张卡；一起等等车时**每条线各一张**（这样每张都能点进自己那条线的线路页，
+     * 「结束」也只去掉这一条）。
+     */
+    fun trackingCards(sessions: List<TrackingSession>): List<TrackingCardUi> =
+        sessions.flatMap { cardsOf(it) }
+
+    private fun cardsOf(session: TrackingSession): List<TrackingCardUi> {
+        val state = session.state
+        if (!state.isActive) return emptyList()
+        val watch = session.watchTarget
+        val watched = session.watchedLines
+        // 等车阶段一起等的每条线各一张卡（上车后 watchedLines 清空了，只剩坐上的那辆）
+        if (watch != null && watched.isNotEmpty()) {
+            return watched.map { line -> watchCard(session, watch, line) }
+        }
+
         val open = LineTarget(
             cityId = state.cityId.ifBlank { session.leg.cityId },
             lineId = state.lineId.ifBlank { session.leg.lineId },
@@ -49,51 +61,22 @@ internal object BusHomeMapper {
             source = session.leg.source,
             lineName = state.lineName
         )
-        val watch = session.watchTarget
-        val watched = session.watchedLines
-        if (watch != null && watched.isNotEmpty()) {
-            val first = watched.first()
-            val firstDisplay = ArrivalText.format(watchedLineState(first))
-            val choice = session.boardChoice
-            val detail = if (choice != null) {
-                choice.options.map { it.lineName }.distinct().joinToString("、") + " 都在站"
-            } else {
-                joinDot("${first.line.lineName} 先到", firstDisplay.detail)
-            }
-            val others = watched.drop(1).map { line ->
-                WatchLineUi(
-                    key = line.line.lineId,
-                    lineName = line.line.lineName,
-                    arrival = ArrivalUi.of(ArrivalText.format(watchedLineState(line)))
-                )
-            }
-            return TrackingCardUi(
-                title = joinDot("一起等 ${watched.size} 条", watch.stopName),
-                arrival = ArrivalUi.of(firstDisplay),
-                detail = detail,
-                otherLines = others.take(WATCH_LINES_SHOWN),
-                foldedLines = others.drop(WATCH_LINES_SHOWN),
-                open = open,
-                spoken = ArrivalText.spoken(
-                    watchedLineState(first),
-                    lineName = first.line.lineName,
-                    stopName = watch.stopName,
-                    towards = first.line.endStopName
-                )
-            )
-        }
-
         val sessionState = ArrivalText.stateForSession(state)
         val display = ArrivalText.format(sessionState)
         val loadingDetail = if (state.stopsRemaining < 0) state.statusSummary.ifBlank { display.detail } else display.detail
         val group = session.group
+        val key = session.sessionId
         return when {
-            watch != null -> TrackingCardUi(
-                // 一起等上车后只追坐上的那辆，到终点结束
-                title = joinDot("一起等 · 已上 ${state.lineName}", watch.stopName),
-                arrival = ArrivalUi.of(display),
-                detail = joinDot("坐到 ${state.targetStopName}", loadingDetail),
-                open = open
+            watch != null -> listOf(
+                TrackingCardUi(
+                    key = key,
+                    sessionId = session.sessionId,
+                    // 一起等上车后只追坐上的那辆，到终点结束
+                    title = joinDot("一起等 · 已上 ${state.lineName}", watch.stopName),
+                    arrival = ArrivalUi.of(display),
+                    detail = joinDot("坐到 ${state.targetStopName}", loadingDetail),
+                    open = open
+                )
             )
             group != null -> {
                 val routeName = routeTitle(group)
@@ -102,37 +85,83 @@ internal object BusHomeMapper {
                     LegPhase.ON_BOARD -> "已上 ${state.lineName} · 到 ${state.targetStopName}下车"
                     else -> "${state.lineName} · ${state.boardStopName.ifBlank { state.targetStopName }}上车"
                 }
-                TrackingCardUi(
-                    title = joinDot("路线 $routeName", legText),
-                    arrival = ArrivalUi.of(display),
-                    detail = joinDot(phaseText, loadingDetail),
-                    open = open,
-                    // 车上（等下车）不读「快去上车」那套
-                    spoken = if (state.legPhase == LegPhase.ON_BOARD) {
-                        ""
-                    } else {
-                        ArrivalText.spoken(
-                            sessionState,
-                            lineName = state.lineName,
-                            stopName = state.boardStopName.ifBlank { state.targetStopName },
-                            towards = state.endStopName
-                        )
-                    }
+                listOf(
+                    TrackingCardUi(
+                        key = key,
+                        sessionId = session.sessionId,
+                        title = joinDot("路线 $routeName", legText),
+                        arrival = ArrivalUi.of(display),
+                        detail = joinDot(phaseText, loadingDetail),
+                        open = open,
+                        // 车上（等下车）不读「快去上车」那套
+                        spoken = if (state.legPhase == LegPhase.ON_BOARD) {
+                            ""
+                        } else {
+                            ArrivalText.spoken(
+                                sessionState,
+                                lineName = state.lineName,
+                                stopName = state.boardStopName.ifBlank { state.targetStopName },
+                                towards = state.endStopName
+                            )
+                        }
+                    )
                 )
             }
-            else -> TrackingCardUi(
-                title = joinDot("追踪 ${state.lineName}", state.targetStopName),
-                arrival = ArrivalUi.of(display),
-                detail = loadingDetail,
-                open = open,
-                spoken = ArrivalText.spoken(
-                    sessionState,
-                    lineName = state.lineName,
-                    stopName = state.targetStopName,
-                    towards = state.endStopName
+            else -> listOf(
+                TrackingCardUi(
+                    key = key,
+                    sessionId = session.sessionId,
+                    title = joinDot("追踪 ${state.lineName}", state.targetStopName),
+                    arrival = ArrivalUi.of(display),
+                    detail = loadingDetail,
+                    open = open,
+                    spoken = ArrivalText.spoken(
+                        sessionState,
+                        lineName = state.lineName,
+                        stopName = state.targetStopName,
+                        towards = state.endStopName
+                    )
                 )
             )
         }
+    }
+
+    /** 一起等等车时一条线一张卡：大字是这条线自己到站情况，点进去是这条线的线路页 */
+    private fun watchCard(
+        session: TrackingSession,
+        watch: TrackingTarget.WatchTogether,
+        line: WatchedLine
+    ): TrackingCardUi {
+        val arrival = watchedLineState(line)
+        val display = ArrivalText.format(arrival)
+        val inChoice = session.boardChoice?.options?.any { it.lineId == line.line.lineId } == true
+        val detail = when {
+            inChoice -> joinDot("都在 ${watch.stopName}", "选一下上了哪辆")
+            line.isArrived -> "到站了，快去上车"
+            else -> display.detail
+        }
+        return TrackingCardUi(
+            key = "${session.sessionId}:${line.line.lineId}",
+            sessionId = session.sessionId,
+            title = joinDot("追踪 ${line.line.lineName}", watch.stopName),
+            arrival = ArrivalUi.of(display),
+            detail = detail,
+            open = LineTarget(
+                cityId = watch.cityId,
+                lineId = line.line.lineId,
+                targetOrder = line.line.stopOrder,
+                stopId = line.line.stopIdOnLine.ifBlank { watch.stopId },
+                source = line.line.source,
+                lineName = line.line.lineName
+            ),
+            spoken = ArrivalText.spoken(
+                arrival,
+                lineName = line.line.lineName,
+                stopName = watch.stopName,
+                towards = line.line.endStopName
+            ),
+            watchLineId = line.line.lineId
+        )
     }
 
     /** 一起等里一条线此刻的到站状态 */
@@ -342,9 +371,6 @@ internal object BusHomeMapper {
 
     /** 用「 · 」连起非空的几段 */
     fun joinDot(vararg parts: String): String = parts.filter { it.isNotBlank() }.joinToString(" · ")
-
-    private fun TrackingCardUi?.reuse(old: TrackingCardUi?): TrackingCardUi? =
-        if (this != null && this == old) old else this
 
     private fun <T : Any> reuseList(old: List<T>, new: List<T>, key: (T) -> String): List<T> {
         if (old == new) return old

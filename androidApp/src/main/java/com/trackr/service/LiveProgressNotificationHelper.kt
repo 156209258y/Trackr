@@ -183,7 +183,11 @@ class LiveProgressNotifier(
         context: Context,
         state: TrackingSessionState,
         nextLineName: String? = nextLegLineNameOf(state.currentLegIndex),
-        watch: WatchNotice? = null
+        watch: WatchNotice? = null,
+        sessionId: String = "",
+        allowPromotion: Boolean = true,
+        /** 一起等里这条通知属于哪条线（按钮广播带出去，点「结束」只去掉这条线） */
+        watchLineId: String = ""
     ): Notification {
         ensureNotificationChannel(context)
 
@@ -215,7 +219,7 @@ class LiveProgressNotifier(
         // 7. 通知点击与 Action Intent：一起等有「上了哪辆？」待选时点通知直接打开那个弹层，否则只拉起 App
         val contentPendingIntent = PendingIntent.getActivity(
             context,
-            200,
+            requestCodeOf(CONTENT_REQUEST_CODE, sessionId, watchLineId),
             contentIntent(context, watch),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
@@ -250,12 +254,12 @@ class LiveProgressNotifier(
             val intent = if (action.opensTransitCode) {
                 transitCodePendingIntent(context, action.requestCode)
             } else {
-                receiverPendingIntent(context, action.intentAction, action.requestCode)
+                receiverPendingIntent(context, action.intentAction, action.requestCode, sessionId, watchLineId)
             }
             builder.addAction(0, action.label, intent)
         }
 
-        if (isLiveEnabled) {
+        if (isLiveEnabled && allowPromotion) {
             builder.setRequestPromotedOngoing(true)
             builder.setShortCriticalText(texts.shortCriticalText)
             if (XiaomiFocusAdapter.isXiaomiRom()) {
@@ -263,8 +267,8 @@ class LiveProgressNotifier(
             }
         }
 
-        val notification = if (isLiveEnabled) buildPromotable(builder) else builder.build()
-        if (isLiveEnabled && LiveUpdatePromotion.isPromotionSupported()) {
+        val notification = if (isLiveEnabled && allowPromotion) buildPromotable(builder) else builder.build()
+        if (isLiveEnabled && allowPromotion && LiveUpdatePromotion.isPromotionSupported()) {
             logPromotionState(context, notification)
         }
         return notification
@@ -591,14 +595,33 @@ class LiveProgressNotifier(
         return launchIntent
     }
 
-    private fun receiverPendingIntent(context: Context, action: String, requestCode: Int): PendingIntent {
-        val intent = Intent(context, TrackingActionReceiver::class.java).apply { this.action = action }
+    private fun receiverPendingIntent(
+        context: Context,
+        action: String,
+        requestCode: Int,
+        sessionId: String = "",
+        watchLineId: String = ""
+    ): PendingIntent {
+        val intent = Intent(context, TrackingActionReceiver::class.java).apply {
+            this.action = action
+            if (sessionId.isNotBlank()) putExtra(TrackingActionReceiver.EXTRA_SESSION_ID, sessionId)
+            if (watchLineId.isNotBlank()) putExtra(TrackingActionReceiver.EXTRA_WATCH_LINE_ID, watchLineId)
+        }
         return PendingIntent.getBroadcast(
             context,
-            requestCode,
+            requestCodeOf(requestCode, sessionId, watchLineId),
             intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
+    }
+
+    /**
+     * 同一份会话的 PendingIntent 请求码。同时追多项时每项一条通知，请求码相同的话
+     * （PendingIntent 的身份不含 extras）后一条会把前一条的 sessionId 覆盖掉，按钮就都指向同一项了。
+     */
+    private fun requestCodeOf(base: Int, sessionId: String, watchLineId: String = ""): Int {
+        val key = if (watchLineId.isEmpty()) sessionId else "$sessionId#$watchLineId"
+        return if (key.isEmpty()) base else base * 4096 + (key.hashCode() and 0xFFF)
     }
 
     /**
@@ -641,16 +664,34 @@ class LiveProgressNotifier(
             ?.importance
 
     /**
-     * 刷新已有通知
+     * 刷新一项追踪的常驻通知（一份会话一条）。
+     * @param notificationId 这条通知的 id：一份会话固定一个（见 [notificationIdOf]），由 sessionId 决定
      */
-    fun updateNotification(context: Context, state: TrackingSessionState, watch: WatchNotice? = null) {
+    fun updateNotification(
+        context: Context,
+        state: TrackingSessionState,
+        watch: WatchNotice? = null,
+        sessionId: String = "",
+        allowPromotion: Boolean = true,
+        nextLineName: String? = null,
+        notificationId: Int = NOTIFICATION_ID_LIVE_PROGRESS,
+        watchLineId: String = ""
+    ) {
         if (!state.isActive) {
-            cancelNotification(context)
+            cancelNotification(context, notificationId)
             return
         }
-        val notification = buildNotification(context, state, watch = watch)
+        val notification = buildNotification(
+            context = context,
+            state = state,
+            nextLineName = nextLineName,
+            watch = watch,
+            sessionId = sessionId,
+            allowPromotion = allowPromotion,
+            watchLineId = watchLineId
+        )
         try {
-            NotificationManagerCompat.from(context).notify(NOTIFICATION_ID_LIVE_PROGRESS, notification)
+            NotificationManagerCompat.from(context).notify(notificationId, notification)
         } catch (e: SecurityException) {
             Log.w(TAG, "Cannot update notification: missing POST_NOTIFICATIONS permission", e)
         } catch (e: Exception) {
@@ -658,16 +699,22 @@ class LiveProgressNotifier(
         }
     }
 
-    /**
-     * 取消常驻通知
-     */
-    fun cancelNotification(context: Context) {
+    /** 取消一条常驻通知（默认那条：没有会话时进前台用的占位通知） */
+    fun cancelNotification(context: Context, notificationId: Int = NOTIFICATION_ID_LIVE_PROGRESS) {
         try {
-            NotificationManagerCompat.from(context).cancel(NOTIFICATION_ID_LIVE_PROGRESS)
+            NotificationManagerCompat.from(context).cancel(notificationId)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to cancel live progress notification", e)
         }
     }
+
+    /**
+     * 一份会话的常驻通知 id：由 sessionId 决定，**同一项追踪从开始到结束都用同一个 id**。
+     *
+     * 不按列表位置分：前面一项结束时后面那项要挪 id（撤一条再发一条），漏撤一次就会在通知栏留下
+     * 一条点不动的常驻通知。按 sessionId 分之后，结束哪一项就精确撤哪一条，位置怎么变都不用挪。
+     */
+    fun notificationIdOf(sessionId: String): Int = notificationIdOfSession(sessionId)
 
     companion object {
         private const val TAG = "LiveProgressNotif"
@@ -676,6 +723,46 @@ class LiveProgressNotifier(
         private const val CHANNEL_NAME_LIVE_PROGRESS = "实时在途追踪与进度"
 
         const val NOTIFICATION_ID_LIVE_PROGRESS = 10001
+
+        /** 同时追多项时每项一条的通知 id 起点（10001 留给没有 sessionId 的旧调用） */
+        const val NOTIFICATION_ID_FIRST_PER_SESSION = 11000
+
+        /**
+         * 一份会话的常驻通知 id。广播接收器也要能算出同一个值（用户在通知栏点「结束」时精确撤掉
+         * 那一条），所以是纯函数、只跟 sessionId 有关。
+         */
+        fun notificationIdOfSession(sessionId: String): Int =
+            if (sessionId.isEmpty()) {
+                NOTIFICATION_ID_LIVE_PROGRESS
+            } else {
+                NOTIFICATION_ID_FIRST_PER_SESSION + (sessionId.hashCode() and 0xFFFFF)
+            }
+
+        /**
+         * 撤掉某一项追踪的常驻通知。会话已经不在仓库里时（进程刚被拉起 / 已经结束过）也照样能撤，
+         * 免得留一条怎么点都没反应的常驻通知。
+         */
+        fun cancelSessionNotification(context: Context, sessionId: String) {
+            runCatching {
+                NotificationManagerCompat.from(context).cancel(notificationIdOfSession(sessionId))
+            }
+        }
+
+        /**
+         * 一起等里一条线的通知标识：一条线一条常驻通知，各自有进度和「结束」，
+         * 所以通知 id 要按「会话 + 线」分，不能只按会话。
+         */
+        fun watchLineKey(sessionId: String, lineId: String): String = "$sessionId#$lineId"
+
+        /** 撤掉一起等里某条线的通知（那条线被去掉 / 结束后） */
+        fun cancelWatchLineNotification(context: Context, sessionId: String, lineId: String) {
+            runCatching {
+                NotificationManagerCompat.from(context).cancel(notificationIdOfSession(watchLineKey(sessionId, lineId)))
+            }
+        }
+
+        /** 点通知本身进 App 的 PendingIntent 请求码（多份会话时再加 sessionId 的散列） */
+        private const val CONTENT_REQUEST_CODE = 200
 
         /** Android 16 胶囊短文本的建议长度上限 */
         private const val MAX_SHORT_TEXT_LENGTH = 7

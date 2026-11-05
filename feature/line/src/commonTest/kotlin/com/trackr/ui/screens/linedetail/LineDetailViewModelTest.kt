@@ -15,6 +15,7 @@ import com.trackr.core.model.RailMode
 import com.trackr.core.model.TrackingTarget
 import com.trackr.core.model.TransitCity
 import com.trackr.core.model.TransitCodeProvider
+import com.trackr.core.model.WatchLine
 import com.trackr.core.model.ScheduledReminder
 import com.trackr.core.testing.FakeAnnouncer
 import com.trackr.core.testing.FakeTrackingController
@@ -281,6 +282,8 @@ class LineDetailViewModelTest {
         )
 
         assertTrue(started)
+        // 追踪状态由 ViewModel 收集会话列表得到，跑一轮调度器
+        testScheduler.runCurrent()
         assertEquals(
             listOf<TrackingTarget>(
                 TrackingTarget.SingleLine(
@@ -308,6 +311,7 @@ class LineDetailViewModelTest {
         assertEquals(2, session.targetOrder)
 
         viewModel.stopTracking()
+        testScheduler.runCurrent()
 
         assertEquals(1, trackingController.stopCount)
         assertFalse(viewModel.activeTrackingSession.value.isActive)
@@ -1191,5 +1195,36 @@ class LineDetailViewModelTest {
 
     private fun reversedStops(): List<BusStop> = stops.reversed().mapIndexed { i, stop ->
         stop.copy(stopId = "r${i + 1}", order = i + 1)
+    }
+
+    @Test
+    fun watchTogether_lineThatIsNotThePrimary_showsTrackingForThisStop() = runTest(main.dispatcher) {
+        val viewModel = createViewModel(targetOrder = 2)
+        testScheduler.runCurrent()
+
+        // 一起等里排第一的是 9 路，这条线（49 路）是第二条
+        trackingController.start(
+            TrackingTarget.WatchTogether(
+                cityId = "034",
+                stopId = "s2",
+                stopName = "人民广场",
+                lines = listOf(WatchLine(lineId = "line_009", lineName = "9路", stopOrder = 2), WatchLine(lineId = "line_001", lineName = "49路", stopOrder = 2))
+            )
+        )
+        testScheduler.runCurrent()
+
+        val session = viewModel.activeTrackingSession.value
+        assertTrue(session.isActive)
+        // 状态按这条线自己的数据拼：站序、线名都是它的
+        assertEquals("line_001", session.lineId)
+        assertEquals("49路", session.lineName)
+        assertEquals(2, session.targetOrder)
+        assertTrue(viewModel.uiState.value.isTrackingThisStop)
+
+        // 结束追踪只去掉这一条，一起等还在
+        viewModel.stopTracking()
+        testScheduler.runCurrent()
+        assertEquals(listOf("line_009"), trackingRepository.session.value?.watchTarget?.lines?.map { it.lineId })
+        assertFalse(viewModel.activeTrackingSession.value.isActive)
     }
 }

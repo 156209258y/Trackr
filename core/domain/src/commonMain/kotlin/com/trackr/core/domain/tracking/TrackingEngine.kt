@@ -261,6 +261,13 @@ object TrackingEngine {
     fun chooseBoardedBus(session: TrackingSession, busId: String?, nowMillis: Long): TrackingSession? =
         WatchTogetherTracker.chooseBoardedBus(session, busId, nowMillis)
 
+    /**
+     * 一起等里去掉一条线（首页那一张卡点「结束」）：只停这一条，其他线接着等。
+     * @return 新会话；null 表示这份会话该结束（一条不剩，或去掉的是正在追的那条）
+     */
+    fun removeWatchLine(session: TrackingSession, lineId: String, nowMillis: Long): TrackingSession? =
+        if (session.watchTarget == null) null else WatchTogetherTracker.removeLine(session, lineId, nowMillis)
+
     // ---------------------------------------------------------------- 轮询
 
     /**

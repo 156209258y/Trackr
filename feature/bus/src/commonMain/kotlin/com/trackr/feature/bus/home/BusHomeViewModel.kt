@@ -37,7 +37,7 @@ import kotlin.concurrent.Volatile
  * - 附近站固定 6 个；附近站 + 收藏实时每 15 秒轮询一次，由 [BusHomeRoute] 随 STARTED 开关（§4.4），
  *   恢复时距上次刷新超过一个周期就立即补刷。
  * - 定位走 [LocationRepository.bestFix]（4.5 秒窗口内取最准）。
- * - 追踪卡读整个会话（一起等的几条线都在里面）；「结束」调 [TrackingController.stopTracking]，路线状态一起清。
+ * - 追踪卡读所有会话（同时可以追多项，一项一张卡）；「结束」只停那一项。
  * - 乘车码按钮：「我的」里选了平台就直接打开，选了「每次询问」才弹选择。
  */
 class BusHomeViewModel(
@@ -178,15 +178,15 @@ class BusHomeViewModel(
             }
         }
 
-        // 追踪：当前这一程 + 整个会话（一起等的几条线）
+        // 追踪：所有会话（可以同时追多项，首页一项一张卡）+ 主会话这一程的状态
         viewModelScope.launch {
-            trackingRepository.legState.collect { session ->
-                edit { it.copy(activeTracking = session) }
+            trackingRepository.sessions.collect { sessions ->
+                edit { it.copy(trackingSessions = sessions) }
             }
         }
         viewModelScope.launch {
-            trackingRepository.session.collect { session ->
-                edit { it.copy(trackingSession = session) }
+            trackingRepository.legState.collect { session ->
+                edit { it.copy(activeTracking = session) }
             }
         }
 
@@ -222,7 +222,7 @@ class BusHomeViewModel(
         when (event) {
             BusHomeEvent.Refresh -> refresh()
             BusHomeEvent.RetryLocation -> refreshLocationAndNearby()
-            BusHomeEvent.StopTracking -> stopTracking()
+            is BusHomeEvent.StopTracking -> stopTracking(event.sessionId, event.watchLineId)
             is BusHomeEvent.SelectGroup -> selectGroup(event.groupId)
             BusHomeEvent.TransitCodeClicked -> onTransitCodeClicked()
             is BusHomeEvent.TransitCodeChosen -> onTransitCodeChosen(event.provider, event.saveAsDefault)
@@ -527,10 +527,17 @@ class BusHomeViewModel(
         }
     }
 
-    fun stopTracking() {
-        // 停止追踪（单线路、路线、一起等一样）；仓库会立刻变成未追踪（路线状态一起清），追踪卡随之消失
+    /**
+     * 一张追踪卡上的「结束」：只停这一项，别的追踪继续。
+     * @param watchLineId 一起等里的哪一条线（只去掉这条）；null = 结束整份会话
+     */
+    fun stopTracking(sessionId: String, watchLineId: String? = null) {
         try {
-            trackingController.stopTracking()
+            if (watchLineId != null) {
+                trackingController.removeWatchLine(sessionId, watchLineId)
+            } else {
+                trackingController.stopTracking(sessionId)
+            }
         } catch (_: Exception) {
         }
     }

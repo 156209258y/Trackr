@@ -101,16 +101,16 @@ fun createPreferencesDataStore(
     produceFile = { path.toPath() }
 )
 
-/** 建追踪会话的 DataStore（JSON 单对象，没有会话时是 null） */
+/** 建追踪会话的 DataStore（JSON 数组，没有会话时是空列表） */
 fun createTrackingSessionDataStore(
     path: String,
     scope: CoroutineScope
-): DataStore<com.trackr.core.model.TrackingSession?> = DataStoreFactory.create(
+): DataStore<List<com.trackr.core.model.TrackingSession>> = DataStoreFactory.create(
     storage = OkioStorage(
         fileSystem = systemFileSystem(),
         serializer = TrackingSessionSerializer,
         producePath = { path.toPath() }
     ),
-    corruptionHandler = ReplaceFileCorruptionHandler { null },
+    corruptionHandler = ReplaceFileCorruptionHandler { emptyList() },
     scope = scope
 )
