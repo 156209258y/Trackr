@@ -258,9 +258,8 @@ class LiveProgressNotifier(
         if (isLiveEnabled) {
             builder.setRequestPromotedOngoing(true)
             builder.setShortCriticalText(texts.shortCriticalText)
-            // Android 16 的 hasPromotableCharacteristics() 还要求通知是 colorized；
-            // 缺这一项即使权限全开、系统白名单放行也不会升级成状态栏胶囊
-            builder.setColorized(true)
+            // 注意：不要 setColorized(true)。Android 16 的 hasPromotableCharacteristics() 里
+            // `!isColorizedRequested()` 是必要条件之一，染色反而会让通知失去升级资格（issue #27）
             if (XiaomiFocusAdapter.isXiaomiRom()) {
                 XiaomiFocusAdapter.attachFocusParams(builder, state, nextLineName)
             }
@@ -595,12 +594,21 @@ class LiveProgressNotifier(
                 TAG,
                 "promotion canPost=$canPost promotable=$promotable " +
                         "requested=${NotificationCompat.isRequestPromotedOngoing(notification)} " +
+                        "ongoing=${notification.flags and Notification.FLAG_ONGOING_EVENT != 0} " +
+                        "colorized=${notification.extras?.getBoolean(NotificationCompat.EXTRA_COLORIZED) == true} " +
+                        "importance=${channelImportance(context)} " +
                         "fluidCloud=${OppoFluidCloudAdapter.isColorOs()}"
             )
         } catch (e: Exception) {
             Log.w(TAG, "Failed to inspect promotion state", e)
         }
     }
+
+    /** 通知渠道重要级别；IMPORTANCE_MIN 会让通知失去上岛资格（文档明列的限制之一） */
+    private fun channelImportance(context: Context): Int? =
+        (context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager)
+            ?.getNotificationChannel(CHANNEL_ID_LIVE_PROGRESS)
+            ?.importance
 
     /**
      * 刷新已有通知
