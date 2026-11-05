@@ -245,6 +245,48 @@ class ArrivalAlertNotifier(
     }
 
     /**
+     * 没赶上这班车：车已经开走，人还在原地等。
+     *
+     * 不提醒的话，只在后台把追踪悄悄换成下一班，用户会以为自己还在等原来那班，等到发现时已经晚了。
+     * 顺手撤掉「车已到站」那条——车都走了，再挂着只会误导。
+     */
+    fun triggerMissedBusAlert(context: Context, state: TrackingSessionState, sessionId: String = "") {
+        ensureNotificationChannel(context)
+        val notificationId = alertNotificationId(NOTIFICATION_ID_MISSED, sessionId)
+        cancelCounterpart(context, alertNotificationId(NOTIFICATION_ID_ARRIVED, sessionId))
+        cancelCounterpart(context, alertNotificationId(NOTIFICATION_ID_APPROACHING, sessionId))
+
+        val stop = state.targetStopName.ifBlank { "上车站" }
+        val next = when {
+            state.stopsRemaining == 0 -> "下一班已经到 $stop 了，快跑"
+            state.etaSeconds > 0 -> "下一班约 ${RouteProjectionMath.formatEtaText(state.etaSeconds)}到"
+            state.stopsRemaining > 0 -> "下一班还有 ${state.stopsRemaining} 站"
+            else -> "暂时还没有开往 $stop 的车"
+        }
+
+        val notification = alertNotification(
+            context = context,
+            title = "错过 ${state.lineName} 了",
+            content = "$next，仍在追踪 $stop",
+            category = NotificationCompat.CATEGORY_REMINDER,
+            requestCode = notificationId
+        )
+
+        var posted = false
+        try {
+            NotificationManagerCompat.from(context).notify(notificationId, notification)
+            posted = areNotificationsEnabled(context)
+        } catch (e: SecurityException) {
+            Log.w(TAG, "Cannot post missed-bus alert: missing POST_NOTIFICATIONS permission", e)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to post missed-bus alert notification", e)
+        }
+        if (!posted) {
+            performWaveformVibration(context, MISSED_VIBRATION_PATTERN)
+        }
+    }
+
+    /**
      * 实时活动（流体云 / 焦点通知 / 状态栏胶囊）已经在通知栏常驻展示同一趟车的进度与到站状态时，
      * 不再重复发一条内容相同的强提醒通知，仅保留震动提示；
      * 若当前系统不支持提升通知或用户未授权实时活动/焦点通知，则回退为发送独立强提醒通知
@@ -370,9 +412,11 @@ class ArrivalAlertNotifier(
         // 追踪已停止 / 已中断用独立的 id，否则会顶掉同一时刻的换乘提醒
         const val NOTIFICATION_ID_EXPIRED = 10005
         const val NOTIFICATION_ID_INTERRUPTED = 10006
+        const val NOTIFICATION_ID_MISSED = 10007
 
         private val APPROACHING_VIBRATION_PATTERN = longArrayOf(0, 280, 120, 280, 120, 400)
         private val TRANSFER_VIBRATION_PATTERN = longArrayOf(0, 300, 100, 300, 100, 300)
+        private val MISSED_VIBRATION_PATTERN = longArrayOf(0, 350, 150, 350)
         private const val ARRIVED_VIBRATION_DURATION_MS = 800L
     }
 }

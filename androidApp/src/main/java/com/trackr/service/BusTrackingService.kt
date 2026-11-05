@@ -554,6 +554,8 @@ class BusTrackingService : LifecycleService() {
                     arrivalAlerts.triggerArrivedAlert(this, effect.state, effect.forceStandalone, sessionId)
                 TrackingEngine.AlertKind.APPROACHING ->
                     arrivalAlerts.triggerApproachingAlert(this, effect.state, sessionId)
+                TrackingEngine.AlertKind.MISSED ->
+                    arrivalAlerts.triggerMissedBusAlert(this, effect.state, sessionId)
             }
             is TrackingEngine.Effect.TransferAlert -> {
                 Log.d(TAG, "到换乘站 ${effect.stationName}，自动切换到下一程: ${effect.nextLineName}")

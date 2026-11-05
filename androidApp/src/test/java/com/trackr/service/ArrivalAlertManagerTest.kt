@@ -177,6 +177,28 @@ class ArrivalAlertManagerTest {
         assertTrue("文案里的时长应与常量一致，实际：$text", text.contains("$expectedHours 小时"))
     }
 
+    @Test
+    fun testMissedBusAlert_clearsStaleArrivedNotificationAndSaysNextBus() {
+        alertNotifier.triggerArrivedAlert(
+            app,
+            activeTrackingState(stopsRemaining = 0).copy(isBusArrivedAtStop = true),
+            forceStandalone = true
+        )
+        assertNotNull(shadowOf(notificationManager).getNotification(ArrivalAlertNotifier.NOTIFICATION_ID_ARRIVED))
+
+        alertNotifier.triggerMissedBusAlert(app, activeTrackingState(stopsRemaining = 1).copy(etaSeconds = 480))
+
+        assertNull(
+            "车都开走了，别再挂着「车已到站」",
+            shadowOf(notificationManager).getNotification(ArrivalAlertNotifier.NOTIFICATION_ID_ARRIVED)
+        )
+        val posted = shadowOf(notificationManager).getNotification(ArrivalAlertNotifier.NOTIFICATION_ID_MISSED)
+        assertNotNull(posted)
+        val text = posted?.extras?.getCharSequence("android.text")?.toString().orEmpty()
+        assertTrue("要说下一班还有多久，实际：$text", text.contains("下一班"))
+        assertEquals(Notification.CATEGORY_REMINDER, posted?.category)
+    }
+
     /**
      * D3：强提醒的锁屏可见性跟「我的 → 锁屏显示」走。
      * 不设的话 `Notification.visibility` 默认 PRIVATE，用户把系统锁屏设成「隐藏敏感内容」时，
