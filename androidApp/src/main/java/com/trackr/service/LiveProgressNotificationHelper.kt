@@ -258,19 +258,38 @@ class LiveProgressNotifier(
         if (isLiveEnabled) {
             builder.setRequestPromotedOngoing(true)
             builder.setShortCriticalText(texts.shortCriticalText)
-            // 注意：不要 setColorized(true)。Android 16 的 hasPromotableCharacteristics() 里
-            // `!isColorizedRequested()` 是必要条件之一，染色反而会让通知失去升级资格（issue #27）
             if (XiaomiFocusAdapter.isXiaomiRom()) {
                 XiaomiFocusAdapter.attachFocusParams(builder, state, nextLineName)
             }
         }
 
-        val notification = builder.build()
+        val notification = if (isLiveEnabled) buildPromotable(builder) else builder.build()
         if (isLiveEnabled && LiveUpdatePromotion.isPromotionSupported()) {
             logPromotionState(context, notification)
         }
         return notification
     }
+
+    /**
+     * 染色和上岛的关系，平台代码和官方文档说法正好相反（issue #27）：
+     * - AOSP `Notification.hasPromotableCharacteristics()` 要求 `isColorizedRequested()`，
+     *   不染色在 Pixel / 原生 Android 16 上永远 promotable=false；
+     * - developer.android.com 的 Live Updates 细则却写「不能 setColorized(true)」。
+     * 谁对由设备说了算：先按文档不染色，设备仍判定不可上岛再染一次，用设备认可的那个；
+     * 两次都不认就保持不染色。系统低于 Android 16 没有这套判定，直接不染色。
+     * 只能在真机验证，Robolectric 4.14 还没有 SDK 36 运行时。
+     */
+    private fun buildPromotable(builder: NotificationCompat.Builder): Notification {
+        if (!LiveUpdatePromotion.isPromotionSupported()) return builder.build()
+        val plain = builder.build()
+        if (isPromotable(plain)) return plain
+        val colorized = builder.setColorized(true).build()
+        return if (isPromotable(colorized)) colorized else plain
+    }
+
+    private fun isPromotable(notification: Notification): Boolean =
+        Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA &&
+            notification.hasPromotableCharacteristics()
 
     /** 锁屏开关关掉时锁屏上看到的版本：不带线路、站名和按钮 */
     private fun buildLockScreenPublicVersion(context: Context): Notification =
@@ -582,20 +601,31 @@ class LiveProgressNotifier(
         )
     }
 
+    /**
+     * 把 `hasPromotableCharacteristics()` 的每一项单独打出来。
+     * 只看总结果 `promotable=false` 定位不了是哪一项不满足（issue #27 就卡在这），
+     * 逐项打出来后，用户贴一行日志就能知道差什么。
+     */
+    @Suppress("DEPRECATION")
     private fun logPromotionState(context: Context, notification: Notification) {
         try {
             val canPost = LiveUpdatePromotion.canPromote(context)
-            val promotable = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA) {
-                notification.hasPromotableCharacteristics()
-            } else {
-                false
-            }
+            val promotable = isPromotable(notification)
+            val extras = notification.extras
+            val hasCustomViews = notification.contentView != null ||
+                notification.bigContentView != null ||
+                notification.headsUpContentView != null
             Log.i(
                 TAG,
                 "promotion canPost=$canPost promotable=$promotable " +
                         "requested=${NotificationCompat.isRequestPromotedOngoing(notification)} " +
+                        // AOSP 要求染色（Android 16 及主线），官方文档要求不染色，两边都能被这一项验证
+                        "colorized=${extras?.getBoolean(NotificationCompat.EXTRA_COLORIZED) == true} " +
                         "ongoing=${notification.flags and Notification.FLAG_ONGOING_EVENT != 0} " +
-                        "colorized=${notification.extras?.getBoolean(NotificationCompat.EXTRA_COLORIZED) == true} " +
+                        "title=${!extras?.getCharSequence(NotificationCompat.EXTRA_TITLE).isNullOrBlank()} " +
+                        "groupSummary=${notification.flags and Notification.FLAG_GROUP_SUMMARY != 0} " +
+                        "customViews=$hasCustomViews " +
+                        "template=${extras?.getString(NotificationCompat.EXTRA_TEMPLATE)} " +
                         "importance=${channelImportance(context)} " +
                         "fluidCloud=${OppoFluidCloudAdapter.isColorOs()}"
             )
