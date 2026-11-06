@@ -31,6 +31,8 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -73,6 +75,7 @@ internal object BusHomeTags {
     fun favoriteRow(key: String) = "bus_home_fav_$key"
     fun groupChip(id: String?) = "bus_home_group_${id ?: "all"}"
     fun nearbyStop(key: String) = "bus_home_nearby_$key"
+    fun nearbyToggle(key: String) = "bus_home_nearby_toggle_$key"
 }
 
 /**
@@ -91,6 +94,8 @@ fun BusHomeScreen(
     val bottomBarCollapseOffset = LocalBottomBarCollapseOffset.current
     // 标题栏和「我的」页一样，用 Material3 原生的滚动折叠：往下滑收成一条，往上滑展开
     val topBarScrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+    // 附近站点卡里哪些站展开了全部线路；只活在这个页面，下拉刷新 / 轮询更新不清掉
+    val expandedNearbyStops = remember { mutableStateMapOf<String, Boolean>() }
 
     Scaffold(
         modifier = modifier
@@ -180,7 +185,12 @@ fun BusHomeScreen(
 
                 favoritesSection(state = state, onEvent = onEvent)
 
-                nearbySection(state = state, onEvent = onEvent)
+                nearbySection(
+                    state = state,
+                    onEvent = onEvent,
+                    expandedStops = expandedNearbyStops,
+                    onToggleStop = { key -> expandedNearbyStops[key] = !(expandedNearbyStops[key] ?: false) }
+                )
             }
         }
     }

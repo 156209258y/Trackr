@@ -76,21 +76,27 @@ class BusHomeScreenTest {
         session: TrackingSession? = null,
         withFavorites: Boolean = true,
         groups: List<FavoriteGroup> = emptyList(),
-        nearbyLineName: String = "19"
+        nearbyLineName: String = "19",
+        nearbyLineNames: List<String> = listOf(nearbyLineName)
     ): BusHomeUiState {
         val nearby = NearbyStop(
             stopId = "n1",
             name = "高新园站",
             distanceMeters = 120,
-            lines = listOf(
+            lines = nearbyLineNames.mapIndexed { index, name ->
                 NearbyStopLineStatus(
-                    line = BusLineDirection(lineId = "l19", name = nearbyLineName, startStop = "西丽", endStop = "蛇口港"),
+                    line = BusLineDirection(
+                        lineId = if (index == 0) "l19" else "l${index + 1}",
+                        name = name,
+                        startStop = "西丽",
+                        endStop = "蛇口港"
+                    ),
                     targetOrder = 6,
                     targetStopId = "n1",
                     targetStopName = "高新园站",
-                    approachingBuses = listOf(LiveBus(busId = "b", plateOrFleetNo = "", order = 2, etaSeconds = 540))
+                    approachingBuses = listOf(LiveBus(busId = "b$index", plateOrFleetNo = "", order = 2, etaSeconds = 540))
                 )
-            )
+            }
         )
         val raw = BusHomeUiState(
             currentCity = shenzhen,
@@ -238,6 +244,25 @@ class BusHomeScreenTest {
         val stop = events.last() as BusHomeEvent.OpenStop
         assertEquals("n1", stop.target.stopId)
         assertTrue(events.none { it is BusHomeEvent.Refresh })
+    }
+
+    @Test
+    fun nearbyStop_showsThreeLinesThenExpandsAndCollapses() {
+        setContent(stateOf(nearbyLineNames = listOf("L1", "L2", "L3", "L4", "L5")))
+
+        composeTestRule.onNodeWithTag(BusHomeTags.LIST).performScrollToNode(hasText("查看全部 5 条线"))
+        // 默认只铺 3 条，第 4、5 条不参与布局
+        composeTestRule.onNodeWithText("L1").assertExists()
+        composeTestRule.onNodeWithText("L4").assertDoesNotExist()
+
+        composeTestRule.onNodeWithText("查看全部 5 条线").performClick()
+        composeTestRule.onNodeWithText("L4").assertExists()
+        composeTestRule.onNodeWithText("L5").assertExists()
+        composeTestRule.onNodeWithTag(BusHomeTags.LIST).performScrollToNode(hasText("收起"))
+
+        composeTestRule.onNodeWithText("收起").performClick()
+        composeTestRule.onNodeWithText("L4").assertDoesNotExist()
+        composeTestRule.onNodeWithText("查看全部 5 条线").assertExists()
     }
 
 }

@@ -31,8 +31,10 @@ import com.trackr.core.designsystem.resources.ic_chevron_right
 import com.trackr.core.designsystem.theme.TrackrTheme
 import com.trackr.core.designsystem.theme.item
 import com.trackr.feature.bus.resources.Res as BusRes
+import com.trackr.feature.bus.resources.bus_nearby_collapse
 import com.trackr.feature.bus.resources.bus_nearby_empty
 import com.trackr.feature.bus.resources.bus_nearby_loading
+import com.trackr.feature.bus.resources.bus_nearby_show_all
 import com.trackr.feature.bus.resources.bus_nearby_stop_detail
 import com.trackr.feature.bus.resources.bus_nearby_title
 import com.trackr.ui.components.arrival.LineBadge
@@ -42,9 +44,17 @@ import org.jetbrains.compose.resources.vectorResource
 
 /**
  * 「附近」：固定 6 个站（v3），每个站一张卡，站名一行点进站点页，下面每条线一行点进线路页。
+ * 每张卡默认只铺 [NEARBY_PREVIEW_LINES] 条线，超出的折进「查看全部 N 条线」，展开了再「收起」。
  * 卡里的线不多，用 Column 不用 Lazy（§4.3）。
  */
-internal fun LazyListScope.nearbySection(state: BusHomeUiState, onEvent: (BusHomeEvent) -> Unit) {
+internal const val NEARBY_PREVIEW_LINES = 3
+
+internal fun LazyListScope.nearbySection(
+    state: BusHomeUiState,
+    onEvent: (BusHomeEvent) -> Unit,
+    expandedStops: Map<String, Boolean>,
+    onToggleStop: (String) -> Unit
+) {
     item(key = "nearby_header", contentType = "section_header") {
         SectionHeader(title = stringResource(BusRes.string.bus_nearby_title), modifier = Modifier.testTag(BusHomeTags.NEARBY_HEADER))
     }
@@ -67,6 +77,8 @@ internal fun LazyListScope.nearbySection(state: BusHomeUiState, onEvent: (BusHom
         ) { stop ->
             NearbyStopCard(
                 stop = stop,
+                expanded = expandedStops[stop.key] == true,
+                onToggleExpanded = { onToggleStop(stop.key) },
                 onOpenStop = { onEvent(BusHomeEvent.OpenStop(stop.open)) },
                 onOpenLine = { line -> onEvent(BusHomeEvent.OpenLine(line.open)) }
             )
@@ -77,6 +89,8 @@ internal fun LazyListScope.nearbySection(state: BusHomeUiState, onEvent: (BusHom
 @Composable
 private fun NearbyStopCard(
     stop: NearbyStopUi,
+    expanded: Boolean,
+    onToggleExpanded: () -> Unit,
     onOpenStop: () -> Unit,
     onOpenLine: (NearbyLineUi) -> Unit
 ) {
@@ -124,10 +138,32 @@ private fun NearbyStopCard(
                     modifier = Modifier.padding(start = dimens.cardPadding, bottom = dimens.spaceM)
                 )
             } else {
-                stop.lines.forEach { line ->
+                val visibleLines = if (expanded) stop.lines else stop.lines.take(NEARBY_PREVIEW_LINES)
+                visibleLines.forEach { line ->
                     NearbyLineRow(line = line, onClick = { onOpenLine(line) })
                 }
-                Spacer(modifier = Modifier.padding(bottom = dimens.spaceXs))
+                if (stop.lines.size > NEARBY_PREVIEW_LINES) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        TextButton(
+                            onClick = onToggleExpanded,
+                            modifier = Modifier.testTag(BusHomeTags.nearbyToggle(stop.key))
+                        ) {
+                            Text(
+                                text = if (expanded) {
+                                    stringResource(BusRes.string.bus_nearby_collapse)
+                                } else {
+                                    stringResource(BusRes.string.bus_nearby_show_all, stop.lines.size)
+                                }
+                            )
+                        }
+                    }
+                } else {
+                    Spacer(modifier = Modifier.padding(bottom = dimens.spaceXs))
+                }
             }
         }
     }

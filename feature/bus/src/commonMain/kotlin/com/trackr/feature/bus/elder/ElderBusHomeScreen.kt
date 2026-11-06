@@ -33,6 +33,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -54,6 +55,7 @@ import com.trackr.feature.bus.home.BusHomeEvent
 import com.trackr.feature.bus.home.BusHomeMapper
 import com.trackr.feature.bus.home.BusHomeUiState
 import com.trackr.feature.bus.home.FavoriteRowUi
+import com.trackr.feature.bus.home.NEARBY_PREVIEW_LINES
 import com.trackr.feature.bus.home.NearbyLineUi
 import com.trackr.feature.bus.home.NearbyStopUi
 import com.trackr.feature.bus.home.TrackingCardUi
@@ -69,8 +71,10 @@ import com.trackr.feature.bus.resources.bus_elder_stop_tracking
 import com.trackr.feature.bus.resources.bus_elder_stop_tracking_confirm
 import com.trackr.feature.bus.resources.bus_home_settings
 import com.trackr.feature.bus.resources.bus_home_switch_city
+import com.trackr.feature.bus.resources.bus_nearby_collapse
 import com.trackr.feature.bus.resources.bus_nearby_empty
 import com.trackr.feature.bus.resources.bus_nearby_loading
+import com.trackr.feature.bus.resources.bus_nearby_show_all
 import com.trackr.ui.components.arrival.ArrivalUi
 import com.trackr.ui.components.arrival.arrivalToneColor
 import com.trackr.ui.components.elder.ElderArrival
@@ -98,6 +102,7 @@ internal object ElderBusHomeTags {
     fun favorite(key: String) = "elder_home_fav_$key"
     fun nearbyStop(key: String) = "elder_home_nearby_$key"
     fun nearbyLine(key: String) = "elder_home_line_$key"
+    fun nearbyToggle(key: String) = "elder_home_nearby_toggle_$key"
 }
 
 /** 长辈版首页列附近几个站（§8.5：附近 3 个站） */
@@ -122,6 +127,8 @@ fun ElderBusHomeScreen(
     }
     // 要结束哪一张追踪卡（长辈版多一步确认）；存 key，转屏重建后还在
     var confirmStopKey by rememberSaveable { mutableStateOf<String?>(null) }
+    // 附近站卡里哪些站展开了全部线路；下拉刷新 / 轮询更新不清掉
+    val expandedNearbyStops = remember { mutableStateMapOf<String, Boolean>() }
 
     Scaffold(
         modifier = modifier,
@@ -173,7 +180,12 @@ fun ElderBusHomeScreen(
 
             elderFavorites(rows = favorites, onEvent = onEvent)
 
-            elderNearby(state = state, onEvent = onEvent)
+            elderNearby(
+                state = state,
+                onEvent = onEvent,
+                expandedStops = expandedNearbyStops,
+                onToggleStop = { key -> expandedNearbyStops[key] = !(expandedNearbyStops[key] ?: false) }
+            )
         }
     }
 
@@ -453,7 +465,12 @@ private fun ElderFavoriteRouteCard(row: FavoriteRowUi.Route, onClick: () -> Unit
 }
 
 /** 「离你最近」：最近 3 个站，每站一张卡：站名一行（点了看这个站），下面每条线一行（点了看这条线） */
-private fun LazyListScope.elderNearby(state: BusHomeUiState, onEvent: (BusHomeEvent) -> Unit) {
+private fun LazyListScope.elderNearby(
+    state: BusHomeUiState,
+    onEvent: (BusHomeEvent) -> Unit,
+    expandedStops: Map<String, Boolean>,
+    onToggleStop: (String) -> Unit
+) {
     item(key = "nearby_title", contentType = "section_title") {
         ElderSectionTitle(stringResource(BusRes.string.bus_elder_nearby_title))
     }
@@ -481,6 +498,8 @@ private fun LazyListScope.elderNearby(state: BusHomeUiState, onEvent: (BusHomeEv
         else -> items(items = stops, key = { it.key }, contentType = { "nearby_stop" }) { stop ->
             ElderNearbyStopCard(
                 stop = stop,
+                expanded = expandedStops[stop.key] == true,
+                onToggleExpanded = { onToggleStop(stop.key) },
                 onOpenStop = { onEvent(BusHomeEvent.OpenStop(stop.open)) },
                 onOpenLine = { onEvent(BusHomeEvent.OpenLine(it.open)) }
             )
@@ -489,7 +508,13 @@ private fun LazyListScope.elderNearby(state: BusHomeUiState, onEvent: (BusHomeEv
 }
 
 @Composable
-private fun ElderNearbyStopCard(stop: NearbyStopUi, onOpenStop: () -> Unit, onOpenLine: (NearbyLineUi) -> Unit) {
+private fun ElderNearbyStopCard(
+    stop: NearbyStopUi,
+    expanded: Boolean,
+    onToggleExpanded: () -> Unit,
+    onOpenStop: () -> Unit,
+    onOpenLine: (NearbyLineUi) -> Unit
+) {
     val dimens = TrackrTheme.dimens
     Surface(
         shape = MaterialTheme.shapes.large,
@@ -527,9 +552,34 @@ private fun ElderNearbyStopCard(stop: NearbyStopUi, onOpenStop: () -> Unit, onOp
                     modifier = Modifier.padding(start = dimens.cardPadding, end = dimens.cardPadding, bottom = dimens.spaceM)
                 )
             } else {
-                stop.lines.forEach { line ->
+                val visibleLines = if (expanded) stop.lines else stop.lines.take(NEARBY_PREVIEW_LINES)
+                visibleLines.forEach { line ->
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                     ElderNearbyLineRow(line = line, onClick = { onOpenLine(line) })
+                }
+                if (stop.lines.size > NEARBY_PREVIEW_LINES) {
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = ElderButtonHeight)
+                            .clickable(onClick = onToggleExpanded)
+                            .padding(horizontal = dimens.cardPadding, vertical = dimens.spaceS)
+                            .testTag(ElderBusHomeTags.nearbyToggle(stop.key)),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = if (expanded) {
+                                stringResource(BusRes.string.bus_nearby_collapse)
+                            } else {
+                                stringResource(BusRes.string.bus_nearby_show_all, stop.lines.size)
+                            },
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
                 }
             }
         }
