@@ -43,7 +43,7 @@ class SchemeTextsTest {
     }
 
     @Test
-    fun pickSchemeTabs_threeDistinctWinners_getFixedNames() {
+    fun pickSchemeTabs_threeDistinctWinners_showAllCandidates() {
         val tabs = pickSchemeTabs(
             listOf(
                 scheme("a", 32, 1, 820),
@@ -52,13 +52,13 @@ class SchemeTextsTest {
                 scheme("d", 36, 1, 1100)
             )
         )
-        assertEquals(listOf("最快", "少换乘", "少走路"), tabs.map { it.label })
-        assertEquals(listOf("a", "b", "c"), tabs.map { it.scheme.group.id })
+        assertEquals(listOf("最快", "少换乘", "少走路", "备选"), tabs.map { it.label })
+        assertEquals(listOf("a", "b", "c", "d"), tabs.map { it.scheme.group.id })
     }
 
     @Test
-    fun pickSchemeTabs_sameSchemeWinsTwice_mergesNamesAndFillsWithOther() {
-        // a 最快也换乘最少；c 走路最少；剩下的 b 补成「备选」
+    fun pickSchemeTabs_sameSchemeWinsTwice_mergesNamesAndNumbersOtherCandidates() {
+        // a 最快也换乘最少；c 走路最少；剩下的 b、d 按顺序补成「备选」「备选 2」
         val tabs = pickSchemeTabs(
             listOf(
                 scheme("a", 30, 0, 800),
@@ -67,8 +67,8 @@ class SchemeTextsTest {
                 scheme("d", 50, 2, 900)
             )
         )
-        assertEquals(listOf("最快 · 少换乘", "少走路", "备选"), tabs.map { it.label })
-        assertEquals(listOf("a", "c", "b"), tabs.map { it.scheme.group.id })
+        assertEquals(listOf("最快 · 少换乘", "少走路", "备选", "备选 2"), tabs.map { it.label })
+        assertEquals(listOf("a", "c", "b", "d"), tabs.map { it.scheme.group.id })
     }
 
     @Test

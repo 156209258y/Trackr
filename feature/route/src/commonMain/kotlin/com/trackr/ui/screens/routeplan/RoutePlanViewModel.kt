@@ -21,7 +21,6 @@ import com.trackr.core.model.GroupCategory
 import com.trackr.core.model.TransitCity
 import com.trackr.core.model.TransitGroup
 import com.trackr.data.repository.IRouteGroupRepository
-import com.trackr.core.data.route.MAX_VISIBLE_SCHEMES
 import com.trackr.ui.screens.routeplan.map.RouteMapState
 import com.trackr.ui.screens.routeplan.map.cityCenterGcj02
 import com.trackr.ui.screens.routeplan.map.wgs84ToGcj02Point
@@ -156,10 +155,10 @@ class RoutePlanViewModel(
         val schemes: List<AmapTransitSchemeResult> = emptyList()
     )
 
-    /** 方案标签：前 [MAX_VISIBLE_SCHEMES] 个方案（和对齐范围一致）里选最多 3 个 */
+    /** 方案标签：每个方案一个（特征名合并，其余按顺序补「备选」），和对齐范围一致 */
     private val tabsPart: StateFlow<TabsPart> = _plannedSchemes
         .map { schemes ->
-            val tabs = pickSchemeTabs(schemes.take(MAX_VISIBLE_SCHEMES))
+            val tabs = pickSchemeTabs(schemes)
             TabsPart(tabs, tabs.map { it.scheme })
         }
         .stateIn(viewModelScope, SharingStarted.Eagerly, TabsPart())
@@ -370,7 +369,7 @@ class RoutePlanViewModel(
 
     /** 选中的方案（同步算） */
     private fun currentScheme(): AmapTransitSchemeResult? =
-        pickSchemeTabs(_plannedSchemes.value.take(MAX_VISIBLE_SCHEMES)).getOrNull(selectedTab.value)?.scheme
+        pickSchemeTabs(_plannedSchemes.value).getOrNull(selectedTab.value)?.scheme
 
     /** 返回键：先收起终点提示，再收起起点提示 */
     private fun dismissTips() {

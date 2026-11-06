@@ -322,7 +322,7 @@ class RoutePlanViewModelTest {
         sampleScheme(id).copy(durationMinutes = minutes, transferCount = transfers, walkingMeters = walk)
 
     @Test
-    fun uiState_tabsAreFixedThree_andNewResultSelectsFirstTab() = runTest(main.dispatcher) {
+    fun uiState_tabsCoverEveryScheme_andNewResultSelectsFirstTab() = runTest(main.dispatcher) {
         val gateway = FakeAmapRouteGateway().apply {
             planResult = {
                 listOf(
@@ -340,8 +340,11 @@ class RoutePlanViewModelTest {
         testScheduler.advanceUntilIdle()
 
         val state = viewModel.uiState.value
-        assertEquals(listOf("最快", "少换乘", "少走路"), state.schemeTabs.map { it.label })
-        assertEquals(listOf("scheme_fast", "scheme_direct", "scheme_walk"), state.schemeTabs.map { it.scheme.group.id })
+        assertEquals(listOf("最快", "少换乘", "少走路", "备选"), state.schemeTabs.map { it.label })
+        assertEquals(
+            listOf("scheme_fast", "scheme_direct", "scheme_walk", "scheme_other"),
+            state.schemeTabs.map { it.scheme.group.id }
+        )
         // 地图只画标签里的方案，选中的和标签一致
         assertEquals(state.schemeTabs.map { it.scheme }, state.map.schemes)
 
@@ -349,6 +352,12 @@ class RoutePlanViewModelTest {
         testScheduler.advanceUntilIdle()
         assertEquals(2, viewModel.uiState.value.selectedTab)
         assertEquals(2, viewModel.uiState.value.map.selectedIndex)
+
+        // 第 4 个方案也能选中
+        viewModel.onEvent(RoutePlanEvent.SelectScheme(3))
+        testScheduler.advanceUntilIdle()
+        assertEquals(3, viewModel.uiState.value.selectedTab)
+        assertEquals("scheme_other", viewModel.uiState.value.currentScheme?.group?.id)
 
         // 再算一次（新结果）回到第一个标签
         viewModel.planTransitRoute(AmapTipItem(name = "甲", location = "120.1,30.1"), AmapTipItem(name = "丙", location = "120.3,30.3"))

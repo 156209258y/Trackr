@@ -28,9 +28,6 @@ import kotlinx.coroutines.withContext
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 
-/** 规划页方案列表最多显示几个（只对齐这几个；规划页和 [DefaultRoutePlanRepository] 共用） */
-const val MAX_VISIBLE_SCHEMES = 4
-
 /**
  * 路线（换乘组）与实时公交源的对齐（重构计划 §2.5、§2.10 的 RouteAlignmentService）。
  *
@@ -81,7 +78,7 @@ class RouteAlignmentService(
 
     /**
      * 把高德方案里的候选线路对齐到实时公交源（真实 lineId / 方向 / 站序）。
-     * 只处理界面可见的前 [MAX_VISIBLE_SCHEMES] 个方案；同一「线路名 + 上车站 + 下车站」只查一次；
+     * 处理全部方案（界面会全部展示，选哪个都能开始追踪）；同一「线路名 + 上车站 + 下车站」只查一次；
      * 并发不超过 [ALIGN_CONCURRENCY]。
      */
     suspend fun alignAmapSchemesWithRealtimeSource(
@@ -89,8 +86,6 @@ class RouteAlignmentService(
         city: TransitCity
     ): List<AmapTransitSchemeResult> {
         val coord = coordinator ?: return schemes
-        val visible = schemes.take(MAX_VISIBLE_SCHEMES)
-        val rest = schemes.drop(MAX_VISIBLE_SCHEMES)
         return withContext(ioDispatcher) {
             val semaphore = Semaphore(ALIGN_CONCURRENCY)
             val memo = LinkedHashMap<String, Deferred<SchemeLineMatch?>>()
@@ -98,7 +93,7 @@ class RouteAlignmentService(
             fun memoKey(lineName: String, fromCore: String, toCore: String) = "$lineName|$fromCore|$toCore"
 
             // 1. 去重后并发查询
-            for (scheme in visible) {
+            for (scheme in schemes) {
                 for (leg in scheme.group.legs) {
                     val fromCore = RouteProjectionMath.coreStopName(leg.fromStopName)
                     val toCore = RouteProjectionMath.coreStopName(leg.toStopName)
@@ -115,7 +110,7 @@ class RouteAlignmentService(
             }
 
             // 2. 套用匹配结果
-            val aligned = visible.map { scheme ->
+            schemes.map { scheme ->
                 val newLegs = scheme.group.legs.map { leg ->
                     val fromCore = RouteProjectionMath.coreStopName(leg.fromStopName)
                     val toCore = RouteProjectionMath.coreStopName(leg.toStopName)
@@ -127,7 +122,6 @@ class RouteAlignmentService(
                 }
                 scheme.copy(group = scheme.group.copy(legs = newLegs))
             }
-            aligned + rest
         }
     }
 

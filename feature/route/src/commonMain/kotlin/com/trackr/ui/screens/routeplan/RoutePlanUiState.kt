@@ -19,7 +19,7 @@ data class RoutePlanUiState(
     val tips: List<AmapTipItem> = emptyList(),
     val isPlanning: Boolean = false,
     val planError: String? = null,
-    /** 最多 3 个方案标签（[pickSchemeTabs]） */
+    /** 每个方案一个标签（[pickSchemeTabs]，特征名合并、其余补「备选」） */
     val schemeTabs: List<SchemeTabUi> = emptyList(),
     val selectedTab: Int = 0,
     /** 画不画地图区：有 Android Key 且平台有地图实现（D2、Q18） */

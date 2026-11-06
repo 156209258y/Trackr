@@ -17,14 +17,11 @@ const val TAG_FASTEST = "最快"
 const val TAG_FEWEST_TRANSFERS = "少换乘"
 const val TAG_LEAST_WALK = "少走路"
 
-/** 拿不到上面三个名字的方案（凑满 3 个时用） */
+/** 拿不到上面三个名字的方案（按顺序补在后面；有多个时第二个起编号） */
 const val TAG_OTHER = "备选"
 
 /** 只有一个方案时 */
 const val TAG_ONLY = "唯一方案"
-
-/** 方案标签最多几个（v3） */
-const val MAX_SCHEME_TABS = 3
 
 /** 一个方案标签：名字 + 对应的方案 */
 data class SchemeTabUi(
@@ -33,10 +30,10 @@ data class SchemeTabUi(
 )
 
 /**
- * 从候选方案里选出最多 3 个标签（v3「方案页签固定 3 个，名字写清楚」）：
+ * 从候选方案里生成方案标签（每个方案都有标签，不再截断成 3 个）：
  * 1. 最快 = 时长最短；少换乘 = 换乘最少（平手取更快）；少走路 = 步行最短（平手取更快）；再平手取靠前的。
  * 2. 一个方案拿到几个名字就并成一个标签（「最快 · 少换乘」），名字不说假话。
- * 3. 不够 3 个时按原顺序补剩下的方案，写「备选」。
+ * 3. 剩下的方案按原顺序补在后面，写「备选」「备选 2」……
  * 4. 只有 1 个方案时写「唯一方案」。
  */
 fun pickSchemeTabs(candidates: List<AmapTransitSchemeResult>): List<SchemeTabUi> {
@@ -64,8 +61,11 @@ fun pickSchemeTabs(candidates: List<AmapTransitSchemeResult>): List<SchemeTabUi>
     val tabs = labelsByIndex.map { (index, labels) ->
         SchemeTabUi(labels.joinToString(" · "), candidates[index])
     }.toMutableList()
+    var otherCount = 0
     indices.filter { it !in labelsByIndex }.forEach { index ->
-        if (tabs.size < MAX_SCHEME_TABS) tabs += SchemeTabUi(TAG_OTHER, candidates[index])
+        otherCount++
+        val label = if (otherCount == 1) TAG_OTHER else "$TAG_OTHER $otherCount"
+        tabs += SchemeTabUi(label, candidates[index])
     }
     return tabs
 }

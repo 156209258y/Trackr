@@ -245,19 +245,26 @@ class RoutePlanScreenTest {
     }
 
     @Test
-    fun schemePanel_threeFixedTabs_switchPager_andStartTrackingUsesSelected() {
+    fun schemePanel_showsEveryScheme_switchPager_andStartTrackingUsesSelected() {
         setScreen(RoutePlanUiState(schemeTabs = demoTabs))
 
-        // 3 个标签一直可见，名字写清楚
-        (0 until 3).forEach { composeTestRule.onNodeWithTag("scheme_tab_$it").assertExists() }
-        composeTestRule.onNodeWithTag("scheme_tab_3").assertDoesNotExist()
+        // 4 个方案都有标签（不再只显示前 3 个），名字写清楚
+        (0 until 4).forEach { composeTestRule.onNodeWithTag("scheme_tab_$it").assertExists() }
+        composeTestRule.onNodeWithTag("scheme_tab_4").assertDoesNotExist()
         composeTestRule.onNodeWithText("最快").assertExists()
         composeTestRule.onNodeWithText("少换乘").assertExists()
         composeTestRule.onNodeWithText("少走路").assertExists()
+        composeTestRule.onNodeWithText("备选").assertExists()
         // 分钟只在页签写一次；详情里只剩「出发 · 到」（不再重复一个大号分钟）
         composeTestRule.onNodeWithTag("scheme_duration_0").assertDoesNotExist()
         composeTestRule.onNodeWithTag("scheme_depart_arrive_0").assertExists()
         composeTestRule.onNodeWithText("收藏").assertExists()
+
+        // 第 4 个标签（备选 = s3）也能切过去看详情
+        composeTestRule.onNodeWithTag("scheme_tab_3").tap()
+        composeTestRule.waitForIdle()
+        composeTestRule.onNodeWithTag("scheme_summary_3").assertTextEquals("步行 1100 米 · 换乘 1 次 · ¥4.0")
+        assertEquals(RoutePlanEvent.SelectScheme(3), events.last { it is RoutePlanEvent.SelectScheme })
 
         // 点第 3 个标签（少走路 = s2）切到对应详情
         composeTestRule.onNodeWithTag("scheme_tab_2").tap()

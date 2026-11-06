@@ -1,6 +1,7 @@
 package com.trackr.ui.screens.routeplan.panel
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -14,6 +15,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
@@ -22,10 +24,12 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -49,12 +53,16 @@ import com.trackr.ui.screens.routeplan.departArriveText
 import com.trackr.ui.screens.routeplan.planSegments
 import com.trackr.ui.screens.routeplan.schemeSummaryText
 import com.trackr.ui.screens.routeplan.schemeTransferText
+import kotlin.math.roundToInt
 import kotlin.time.Clock
 import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.resources.vectorResource
 
+/** 一个方案标签的固定宽度；方案多了横向滚动，不再挤成 3 列 */
+private val SCHEME_TAB_WIDTH = 100.dp
+
 /**
- * 底部方案面板：最多 3 个方案标签（一直可见，点一下切换）+ 可左右滑动的详情 + 收藏 / 开始追踪。
+ * 底部方案面板：每个方案一个标签（横向滚动，选中页自动滚进视野）+ 可左右滑动的详情 + 收藏 / 开始追踪。
  * 正在追踪当前方案时，按钮行换成追踪状态条。
  */
 @Composable
@@ -73,9 +81,18 @@ internal fun SchemePanel(
 ) {
     // 出发时间按拿到方案的那一刻算（和原来一样，方案变了才重算）
     val planNowMillis = remember(tabs) { nowMillis() }
+    // 标签行的横向滚动：标签宽度固定，切换方案时按固定间距把当前标签滚进视野
+    val tabScrollState = rememberScrollState()
+    val density = LocalDensity.current
+    val tabStridePx = with(density) { (SCHEME_TAB_WIDTH + 6.dp).toPx() }
+    LaunchedEffect(pagerState.currentPage) {
+        tabScrollState.animateScrollTo((pagerState.currentPage * tabStridePx).roundToInt())
+    }
     Column(modifier = modifier.fillMaxWidth()) {
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(tabScrollState),
             horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             tabs.forEachIndexed { index, tab ->
@@ -84,7 +101,7 @@ internal fun SchemePanel(
                     selected = pagerState.currentPage == index,
                     onClick = { onSelectScheme(index) },
                     modifier = Modifier
-                        .weight(1f)
+                        .width(SCHEME_TAB_WIDTH)
                         .testTag("scheme_tab_$index")
                 )
             }
